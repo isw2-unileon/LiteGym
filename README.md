@@ -76,6 +76,14 @@ Aplicación web de escritorio diseñada para usuarios que desean llevar un contr
 - **Creación de rutinas mediante IA:** generación automática de rutinas según perfil y objetivos.
 - **Mejora de rutinas:** optimización de rutinas existentes mediante IA.
 
+### Funciones
+- **La aplicación podra predecir la repetición maxima que puede realizar en un ejercicio
+- **La aplicación mostrara indicadores de fatiga según el rendimiento en los ejercicios
+- **La aplicación mostrara un contador inteligente según el tipo de ejercicio
+- **La aplicación mostrara graficas con la sobrecarga progesiva con respecto a los datos registrados
+- ** Estimación de calorias consumidas durante el entreno
+- ** Registro de duraciones de entreno
+- ** Boton 
 ### Vista de Entrenamiento Actual
 - **Barra de progreso:** indica el porcentaje de la sesión completada.
 - **Lista de ejercicios:** opción a marcar series completadas y consultar estadísticas previas.
