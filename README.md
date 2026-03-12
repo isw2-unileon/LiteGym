@@ -1,7 +1,7 @@
 # Monorepo Template: Go + React/Vite
 
 A monorepo template for full-stack applications with a **Go** backend and a **React + TypeScript + Vite** frontend.
-
+ 
 ## Project Structure
 
 ```text
