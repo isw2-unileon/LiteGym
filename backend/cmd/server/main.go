@@ -50,6 +50,25 @@ func main() {
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
+	api.GET("/supa/check", func(c *gin.Context) {
+		pingCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+		defer cancel()
+
+		if err := db.Ping(pingCtx); err != nil {
+			logger.Error("supabase ping failed", "error", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status":  "error",
+				"service": "supabase",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "supabase",
+		})
+	})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
