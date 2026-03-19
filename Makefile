@@ -5,6 +5,7 @@ install:
 	go install github.com/air-verse/air@latest
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin
 	go mod download
+	go get github.com/jackc/pgx/v5
 	cd frontend && npm ci
 	cd e2e && npm ci
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/config"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -20,6 +21,21 @@ func main() {
 	ctx := context.Background()
 
 	cfg := config.Load()
+
+	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to create database pool", "error", err)
+		os.Exit(1)
+	}
+
+	if err := db.Ping(ctx); err != nil {
+		logger.Error("failed to ping database", "error", err)
+		os.Exit(1)
+	}
+
+	defer db.Close()
+	logger.Info("connected to database")
+	slog.Info("connected to database")
 
 	gin.SetMode(cfg.GinMode)
 
