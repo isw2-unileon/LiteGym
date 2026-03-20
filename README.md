@@ -1,7 +1,132 @@
-# Monorepo Template: Go + React/Vite
+# Gym Tracking App
 
-A monorepo template for full-stack applications with a **Go** backend and a **React + TypeScript + Vite** frontend.
- 
+## Overview
+
+This project is a desktop-oriented web application designed for users who want to track and analyze their workouts in a detailed and intelligent way. It combines workout management, performance analytics, social interaction, and AI-driven recommendations into a single platform.
+
+The application allows users to monitor their progress, manage training routines, compare results with friends, and receive personalized suggestions through an integrated AI assistant.
+
+---
+
+## Key Features
+
+### Main Dashboard
+
+- **Workout Calendar**  
+  Visual representation of past and scheduled training sessions.
+
+- **Workout History**  
+  Detailed log of all completed workouts.
+
+- **Statistics Radar Chart**  
+  Displays performance metrics across different muscle groups such as chest, back, legs, cardio, and more.
+
+- **Muscle Heatmap**  
+  Visualizes muscle engagement and training intensity over time.
+
+- **Workout Streak System**  
+  Tracks consistency and encourages habit-building through gamification.
+
+- **Quick Start Training Button**  
+  Fast access to begin a new workout session.
+
+---
+
+### Routine Management
+
+- **Predefined Routines**  
+  Standard workout splits such as chest, back, and legs.
+
+- **Custom Routines**  
+  Users can create, edit, and manage personalized workout plans.
+
+- **AI-Generated Routines**  
+  Automatic routine creation based on the user’s profile, fitness level, and goals.
+
+- **Routine Improvement Suggestions**  
+  Existing routines can be analyzed and optimized with AI-generated recommendations.
+
+---
+
+### Performance and Analytics
+
+- **One-Rep Max Prediction**  
+  Estimate the maximum weight a user can lift for a single repetition in a given exercise.
+
+- **Fatigue Indicators**  
+  Detect signs of fatigue by analyzing workout performance and progression.
+
+- **Smart Exercise Counter**  
+  Intelligent counting system adapted to the type of exercise being performed.
+
+- **Progressive Overload Charts**  
+  Visual representation of progress over time based on recorded workout data.
+
+- **Calorie Burn Estimation**  
+  Approximate the calories burned during a workout session.
+
+- **Workout Duration Tracking**  
+  Record and analyze the duration of each training session.
+
+---
+
+### Active Workout View
+
+- **Session Progress Bar**  
+  Shows the percentage of the current workout that has been completed.
+
+- **Exercise List**  
+  Displays the exercises included in the current routine, with the ability to mark completed sets and view previous statistics.
+
+- **Weight and Repetition Logging**  
+  Users can add, edit, and update repetitions and weights in real time during the workout.
+
+---
+
+### Social Features
+
+- **Friends Statistics**  
+  Compare performance, progress, and workout consistency with friends.
+
+- **Friend System and Routine Sharing**  
+  Add friends and share routines through unique invitation or sharing codes.
+
+- **Restricted Access**  
+  Only friends can access shared routines and personal performance statistics.
+
+---
+
+### AI Chatbot
+
+- **Personalized Recommendations**  
+  Analyze workout history, physical progress, and performance data to provide customized advice.
+
+- **Routine Generation**  
+  Create workout plans based on specific goals such as fat loss, muscle gain, or performance improvement.
+
+---
+
+### Administrator Role
+
+- **User Management**  
+  Create, modify, and delete user accounts.
+
+- **Support Ticket Management**  
+  Handle support requests and user issues related to official exercises or platform usage.
+
+---
+
+## Tech Stack
+
+- **Backend:** Go (Golang)
+- **Frontend:** React + TypeScript + Vite
+- **Styling:** Tailwind CSS
+- **Testing:** Playwright for end-to-end testing
+- **Artificial Intelligence:** AI chatbot for recommendations and routine generation
+- **Data Persistence:** To be defined
+
+---
+
 ## Project Structure
 
 ```text
@@ -14,96 +139,4 @@ A monorepo template for full-stack applications with a **Go** backend and a **Re
 │
 ├── e2e/                  Playwright E2E tests
 ├── .github/workflows/    CI/CD pipelines
-└── Makefile              Dev commands
-```
-
-## Prerequisites
-
-- [Go](https://go.dev/dl/) 1.24+
-- [Node.js](https://nodejs.org/) 22+
-
-## Getting Started
-
-```bash
-make install
-
-# Terminal 1
-make run-backend    # port 8080
-
-# Terminal 2
-make run-frontend   # port 5173
-```
-
-The Vite dev server proxies `/api` requests to the backend.
-
-## Commands
-
-| Command              | Description                     |
-|----------------------|---------------------------------|
-| `make install`       | Install all dependencies        |
-| `make run-backend`   | Backend with hot reload (Air)   |
-| `make run-frontend`  | Frontend dev server (Vite)      |
-| `make test`          | Run all tests                   |
-| `make lint`          | Run all linters                 |
-| `make e2e`           | Run Playwright E2E tests        |
-
-## API
-
-| Method | Path         | Description    |
-|--------|------------- |----------------|
-| `GET`  | `/health`    | Health check   |
-| `GET`  | `/api/hello` | Sample endpoint|
-
-
-# App de Seguimiento de Gimnasio
-
-## Descripción
-Aplicación web de escritorio diseñada para usuarios que desean llevar un control avanzado de sus entrenamientos, progresos y estadísticas físicas. La plataforma permite interactuar con amigos, recibir recomendaciones inteligentes mediante un chatbot de IA y gestionar rutinas de forma personalizada. Combina gestión de entrenamientos, análisis de datos, gamificación y asistencia mediante inteligencia artificial.
-
-## Funcionalidades
-
-### Vista Principal
-- **Calendario de entrenamientos:** visualiza los días entrenados y los planes futuros.
-- **Historial de entrenamientos:** registro detallado de días con actividad.
-- **Octógono de estadísticas:** representa métricas por tipo de ejercicio (cardio, pecho, espalda, pierna, etc.).
-- **Heatmap de músculos entrenados:** visualización del esfuerzo por grupo muscular.
-- **Racha de entrenamientos:** seguimiento continuo al estilo gamificación.
-- **Nuevo Entrenamiento:** acceso directo a la vista de rutinas para iniciar un entrenamiento.
-
-### Vista de Rutinas
-- **Rutinas predeterminadas:** secciones estándar (pecho, espalda, pierna).
-- **Rutinas personalizadas:** crear, editar y nombrar nuevas rutinas según preferencias.
-- **Creación de rutinas mediante IA:** generación automática de rutinas según perfil y objetivos.
-- **Mejora de rutinas:** optimización de rutinas existentes mediante IA.
-
-### Funciones
-- **La aplicación podra predecir la repetición maxima que puede realizar en un ejercicio
-- **La aplicación mostrara indicadores de fatiga según el rendimiento en los ejercicios
-- **La aplicación mostrara un contador inteligente según el tipo de ejercicio
-- **La aplicación mostrara graficas con la sobrecarga progesiva con respecto a los datos registrados
-- ** Estimación de calorias consumidas durante el entreno
-- ** Registro de duraciones de entreno
-- ** Boton 
-### Vista de Entrenamiento Actual
-- **Barra de progreso:** indica el porcentaje de la sesión completada.
-- **Lista de ejercicios:** opción a marcar series completadas y consultar estadísticas previas.
-- **Gestión de repeticiones y peso:** añadir y modificar datos durante el entrenamiento.
-
-### Funcionalidades Sociales
-- **Estadísticas de amigos:** comparar progresos y rendimiento con otros usuarios.
-- **Sistema de amistad y compartir rutinas:** códigos de solicitud de amistad y de rutinas.
-- **Acceso restringido:** solo se pueden ver estadísticas de amigos y rutinas compartidas.
-
-### Chatbot de IA
-- **Recomendaciones personalizadas:** análisis del historial de entrenamientos y estadísticas para sugerir mejoras.
-- **Generación de rutinas:** creación automática de rutinas según perfil y objetivos (pérdida de grasa, ganancia muscular, etc.).
-
-### Rol Administrador
-- **Gestión de usuarios:** creación, modificación y eliminación de cuentas.
-- **Tickets de soporte:** gestión de solicitudes o incidencias de usuarios relacionadas con ejercicios oficiales.
-
-## Tecnologías Utilizadas
-- **Backend:** Go (Golang)
-- **Frontend:** Vue.js
-- **Persistencia de datos:** *(por definir)*
-- **Inteligencia Artificial:** Chatbot y generación de rutinas basadas en historial y objetivos.
+└── Makefile              Development commands
