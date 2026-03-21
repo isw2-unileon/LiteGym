@@ -1,4 +1,3 @@
-// Package main is the entry point for the backend server.
 package main
 
 import (
@@ -10,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	apphttp "github.com/isw2-unileon/Grupo-16/backend/internal/http"
+
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/config"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,40 +36,10 @@ func main() {
 
 	defer db.Close()
 	logger.Info("connected to database")
-	slog.Info("connected to database")
 
 	gin.SetMode(cfg.GinMode)
 
-	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	api := r.Group("/api")
-	api.GET("/hello", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
-	})
-	api.GET("/supa/check", func(c *gin.Context) {
-		pingCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
-		defer cancel()
-
-		if err := db.Ping(pingCtx); err != nil {
-			logger.Error("supabase ping failed", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":  "error",
-				"service": "supabase",
-				"error":   err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "supabase",
-		})
-	})
+	r := apphttp.SetupRouter(db)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
