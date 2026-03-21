@@ -1,39 +1,56 @@
-package handlers
+package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/repositories"
 )
 
-type UserHandler struct {
-	repo *repositories.UserRepository
+type UserRepository interface {
+	Create(ctx context.Context, user *model.User) error
+	GetByID(ctx context.Context, id int64) (*model.User, error)
 }
 
-func NewUserHandler(repo *repositories.UserRepository) *UserHandler {
+type UserHandler struct {
+	repo UserRepository
+}
+
+func NewUserHandler(repo UserRepository) *UserHandler {
 	return &UserHandler{
 		repo: repo,
 	}
 }
 
-func (h *UserHandler) CreateUser(c *gin.Context) {
-	var user model.User
+type CreateUserRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
-	if err := c.ShouldBindJSON(&user); err != nil {
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var req CreateUserRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body",
 		})
 		return
 	}
 
-	if user.Username == "" || user.Email == "" || user.PasswordHash == "" {
+	if req.Username == "" || req.Email == "" || req.Password == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "username, email and password are required",
 		})
 		return
+	}
+
+	user := model.User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: req.Password,
 	}
 
 	if err := h.repo.Create(c.Request.Context(), &user); err != nil {

@@ -22,7 +22,7 @@ func (m *mockDB) Ping(ctx context.Context) error {
 func TestHealthEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := SetupRouter(&mockDB{})
+	router := SetupRouter(&mockDB{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -46,7 +46,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestHelloEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := SetupRouter(&mockDB{})
+	router := SetupRouter(&mockDB{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/hello", nil)
 	rec := httptest.NewRecorder()
@@ -70,7 +70,7 @@ func TestHelloEndpoint(t *testing.T) {
 func TestDatabaseHealthEndpointOK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := SetupRouter(&mockDB{})
+	router := SetupRouter(&mockDB{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/db/health", nil)
 	rec := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestDatabaseHealthEndpointError(t *testing.T) {
 
 	router := SetupRouter(&mockDB{
 		pingErr: errors.New("database unavailable"),
-	})
+	}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/db/health", nil)
 	rec := httptest.NewRecorder()

@@ -7,11 +7,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/handler"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/repositories"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func SetupRouter(db *pgxpool.Pool) *gin.Engine {
+type DBPinger interface {
+	Ping(ctx context.Context) error
+}
+
+func SetupRouter(db DBPinger, userHandler *handler.UserHandler) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
@@ -20,9 +22,6 @@ func SetupRouter(db *pgxpool.Pool) *gin.Engine {
 	})
 
 	api := r.Group("/api")
-
-	userRepo := repositories.NewUserRepository(db)
-	userHandler := handlers.NewUserHandler(userRepo)
 
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
@@ -47,8 +46,10 @@ func SetupRouter(db *pgxpool.Pool) *gin.Engine {
 		})
 	})
 
-	api.POST("/users", userHandler.CreateUser)
-	api.GET("/users/:id", userHandler.GetUserByID)
+	if userHandler != nil {
+		api.POST("/users", userHandler.CreateUser)
+		api.GET("/users/:id", userHandler.GetUserByID)
+	}
 
 	return r
 }

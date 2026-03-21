@@ -9,10 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	apphttp "github.com/isw2-unileon/Grupo-16/backend/internal/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/config"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/handler"
+	apphttp "github.com/isw2-unileon/Grupo-16/backend/internal/http"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/repositories"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -39,7 +40,10 @@ func main() {
 
 	gin.SetMode(cfg.GinMode)
 
-	r := apphttp.SetupRouter(db)
+	userRepo := repositories.NewUserRepository(db)
+	userHandler := handler.NewUserHandler(userRepo)
+
+	r := apphttp.SetupRouter(db, userHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
