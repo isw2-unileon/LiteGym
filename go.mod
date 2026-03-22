@@ -1,4 +1,4 @@
-module github.com/isw2-unileon/proyect-scaffolding
+module github.com/isw2-unileon/Grupo-16
 
 go 1.24.0
 

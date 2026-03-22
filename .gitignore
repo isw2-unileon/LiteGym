@@ -16,6 +16,8 @@ vendor/
 node_modules/
 dist/
 *.local
+package-lock.json
+yarn.lock
 
 # Environment
 .env
