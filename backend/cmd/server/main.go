@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/adapters/http/handlers"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/adapters/postgres"
-	apphttp "github.com/isw2-unileon/Grupo-16/backend/internal/adapters/http"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/config"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/services"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,16 +42,16 @@ func main() {
 	gin.SetMode(cfg.GinMode)
 
 	// Initialize repositories
-	userRepo := postgres.NewUserRepository(db)
+	userRepo := repository.NewUserRepository(db)
 
 	// Initialize services
-	userService := services.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
 	healthHandler := handlers.NewHealthHandler()
 
-	r := apphttp.SetupRouter(db, userHandler, healthHandler)
+	r := transport.SetupRouter(db, userHandler, healthHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

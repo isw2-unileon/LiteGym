@@ -1,4 +1,4 @@
-package http
+package transport
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/adapters/http/handlers"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
 )
 
 type DBPinger interface {
@@ -49,11 +49,9 @@ func SetupRouter(
 		})
 	})
 
-	// User routes
-	if userHandler != nil {
-		api.POST("/users", userHandler.CreateUser)
-		api.GET("/users/:id", userHandler.GetUserByID)
-	}
+	// User endpoints
+	r.POST("/api/users", userHandler.CreateUser)
+	r.GET("/api/users/:id", userHandler.GetUserByID)
 
 	return r
 }

@@ -10,24 +10,24 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/domain"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/services"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
 // MockUserRepository para testing
 type MockUserRepository struct {
-	createFunc func(ctx context.Context, user *domain.User) error
-	getByIDFunc func(ctx context.Context, id int64) (*domain.User, error)
+	createFunc   func(ctx context.Context, user *model.User) error
+	getByIDFunc  func(ctx context.Context, id int64) (*model.User, error)
 }
 
-func (m *MockUserRepository) Create(ctx context.Context, user *domain.User) error {
+func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, user)
 	}
 	return nil
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -38,14 +38,14 @@ func TestCreateUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		createFunc: func(ctx context.Context, user *domain.User) error {
+		createFunc: func(ctx context.Context, user *model.User) error {
 			user.ID = 1
 			user.CreatedAt = time.Now()
 			return nil
 		},
 	}
 
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := NewUserHandler(userService)
 
 	w := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestCreateUserMissingFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := NewUserHandler(userService)
 
 	w := httptest.NewRecorder()
@@ -100,8 +100,8 @@ func TestGetUserByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*domain.User, error) {
-			return &domain.User{
+		getByIDFunc: func(ctx context.Context, id int64) (*model.User, error) {
+			return &model.User{
 				ID:           int(id),
 				Username:     "testuser",
 				Email:        "test@example.com",
@@ -111,7 +111,7 @@ func TestGetUserByID(t *testing.T) {
 		},
 	}
 
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := NewUserHandler(userService)
 
 	w := httptest.NewRecorder()
@@ -126,7 +126,7 @@ func TestGetUserByID(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var user domain.User
+	var user model.User
 	json.Unmarshal(w.Body.Bytes(), &user)
 
 	if user.Username != "testuser" {
@@ -138,7 +138,7 @@ func TestGetUserByIDInvalidID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := NewUserHandler(userService)
 
 	w := httptest.NewRecorder()
@@ -151,5 +151,30 @@ func TestGetUserByIDInvalidID(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestGetUserByIDNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockUserRepository{
+		getByIDFunc: func(ctx context.Context, id int64) (*model.User, error) {
+			return nil, context.DeadlineExceeded
+		},
+	}
+
+	userService := service.NewUserService(mockRepo)
+	userHandler := NewUserHandler(userService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "999"}}
+
+	c.Request = httptest.NewRequest("GET", "/api/users/999", nil)
+
+	userHandler.GetUserByID(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
 	}
 }

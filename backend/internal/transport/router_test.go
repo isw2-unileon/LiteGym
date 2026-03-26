@@ -1,4 +1,4 @@
-package http
+package transport
 
 import (
 	"context"
@@ -7,12 +7,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/adapters/http/handlers"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/domain"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/services"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
 )
 
-// MockDBPinger para testing
 type MockDBPinger struct {
 	pingFunc func(ctx context.Context) error
 }
@@ -24,14 +23,13 @@ func (m *MockDBPinger) Ping(ctx context.Context) error {
 	return nil
 }
 
-// MockUserRepository para testing
 type MockUserRepository struct{}
 
-func (m *MockUserRepository) Create(ctx context.Context, user *domain.User) error {
+func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	return nil, nil
 }
 
@@ -45,7 +43,7 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := handlers.NewUserHandler(userService)
 	healthHandler := handlers.NewHealthHandler()
 
@@ -65,7 +63,7 @@ func TestHelloEndpoint(t *testing.T) {
 
 	mockDB := &MockDBPinger{}
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := handlers.NewUserHandler(userService)
 	healthHandler := handlers.NewHealthHandler()
 
@@ -90,7 +88,7 @@ func TestDBHealthEndpointSuccess(t *testing.T) {
 	}
 
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := handlers.NewUserHandler(userService)
 	healthHandler := handlers.NewHealthHandler()
 
@@ -105,24 +103,27 @@ func TestDBHealthEndpointSuccess(t *testing.T) {
 	}
 }
 
-func TestRouterUserEndpoints(t *testing.T) {
+func TestDBHealthEndpointError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	mockDB := &MockDBPinger{}
+	mockDB := &MockDBPinger{
+		pingFunc: func(ctx context.Context) error {
+			return context.DeadlineExceeded
+		},
+	}
+
 	mockRepo := &MockUserRepository{}
-	userService := services.NewUserService(mockRepo)
+	userService := service.NewUserService(mockRepo)
 	userHandler := handlers.NewUserHandler(userService)
 	healthHandler := handlers.NewHealthHandler()
 
 	router := SetupRouter(mockDB, userHandler, healthHandler)
 
-	// Test POST /api/users route exists
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/api/users", nil)
+	req := httptest.NewRequest("GET", "/api/db/health", nil)
 	router.ServeHTTP(w, req)
 
-	// Should not be 404
-	if w.Code == http.StatusNotFound {
-		t.Error("POST /api/users should exist")
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
 	}
 }

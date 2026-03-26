@@ -5,17 +5,17 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/domain"
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/services"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
 type UserHandler struct {
-	service *services.UserService
+	service *service.UserService
 }
 
-func NewUserHandler(service *services.UserService) *UserHandler {
+func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{
-		service: service,
+		service: svc,
 	}
 }
 
@@ -42,7 +42,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user := &domain.User{
+	user := &model.User{
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: req.Password,

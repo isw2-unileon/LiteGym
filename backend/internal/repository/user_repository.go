@@ -1,23 +1,28 @@
-package postgres
+package repository
 
 import (
 	"context"
 
-	"github.com/isw2-unileon/Grupo-16/backend/internal/core/domain"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type UserRepository struct {
+type UserRepository interface {
+	Create(ctx context.Context, user *model.User) error
+	GetByID(ctx context.Context, id int64) (*model.User, error)
+}
+
+type userRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewUserRepository(db *pgxpool.Pool) *UserRepository {
-	return &UserRepository{
+func NewUserRepository(db *pgxpool.Pool) UserRepository {
+	return &userRepository{
 		db: db,
 	}
 }
 
-func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
+func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash)
 		VALUES ($1, $2, $3)
@@ -31,7 +36,6 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 		user.Email,
 		user.PasswordHash,
 	).Scan(&user.ID, &user.CreatedAt)
-
 	if err != nil {
 		return err
 	}
@@ -39,14 +43,14 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, created_at
 		FROM users
 		WHERE id = $1
 	`
 
-	var user domain.User
+	var user model.User
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&user.ID,
