@@ -1,4 +1,4 @@
-# Gym Tracking App
+# LiteGym
 
 ## Overview
 
@@ -121,9 +121,9 @@ The application allows users to monitor their progress, manage training routines
 - **Backend:** Go (Golang)
 - **Frontend:** React + TypeScript + Vite
 - **Styling:** Tailwind CSS
-- **Testing:** Playwright for end-to-end testing
-- **Artificial Intelligence:** AI chatbot for recommendations and routine generation
-- **Data Persistence:** To be defined
+- **Testing:** Usage of TDD and End-to-end test
+- **Artificial Intelligence:** AI chatbot for recommendations and routine generation with the usage of Gemini API Key
+- **Data Persistence:** PostgreSQL with the usage of Supabase
 
 ---
 
@@ -132,7 +132,13 @@ The application allows users to monitor their progress, manage training routines
 ```text
 ├── backend/              Go API server (Gin)
 │   ├── cmd/server/       Entry point
-│   └── internal/config/  Environment config
+│   └── internal/
+│       │── config/       Environment config
+│       │── model/        Structs to match database tables
+│       │── repository/   Manage CRUD operations
+│       │── service/      Connects all the internal modules with the repositories
+│       └── transport/    API Core
+│           └── handlers/ Helps to the API Core
 │
 ├── frontend/             React + TypeScript + Vite + Tailwind
 │   └── src/
@@ -140,3 +146,4 @@ The application allows users to monitor their progress, manage training routines
 ├── e2e/                  Playwright E2E tests
 ├── .github/workflows/    CI/CD pipelines
 └── Makefile              Development commands
+```
