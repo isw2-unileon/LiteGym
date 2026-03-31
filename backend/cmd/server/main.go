@@ -43,15 +43,18 @@ func main() {
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	exerciseRepo := repository.NewExerciseRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
+	exerciseService := service.NewExerciseService(exerciseRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
+	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 
-	r := transport.SetupRouter(db, userHandler, healthHandler)
+	r := transport.SetupRouter(db, userHandler, exerciseHandler, healthHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

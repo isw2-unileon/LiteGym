@@ -16,6 +16,7 @@ type DBPinger interface {
 func SetupRouter(
 	db DBPinger,
 	userHandler *handlers.UserHandler,
+	exerciseHandler *handlers.ExerciseHandler,
 	healthHandler *handlers.HealthHandler,
 ) *gin.Engine {
 	r := gin.New()
@@ -52,6 +53,11 @@ func SetupRouter(
 	// User endpoints
 	r.POST("/api/users", userHandler.CreateUser)
 	r.GET("/api/users/:id", userHandler.GetUserByID)
+
+	// Exercise endpoints
+	r.POST("/api/exercises", exerciseHandler.CreateExercise)
+	r.GET("/api/exercises/:id", exerciseHandler.GetExerciseByID)
+	r.GET("/api/exercises", exerciseHandler.ListExercises)
 
 	return r
 }
