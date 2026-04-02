@@ -47,14 +47,16 @@ func main() {
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
+	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 
-	r := transport.SetupRouter(db, userHandler, exerciseHandler, healthHandler)
+	r := transport.SetupRouter(db, userHandler, authHandler, exerciseHandler, healthHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

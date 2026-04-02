@@ -49,6 +49,13 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.service.Create(c.Request.Context(), user); err != nil {
+		if err == service.ErrInvalidUserInput {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "username, email and password are required",
+			})
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create user",
 		})
@@ -71,8 +78,15 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "user not found",
+		if err == service.ErrUserNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "user not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to retrieve user",
 		})
 		return
 	}

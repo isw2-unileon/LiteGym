@@ -16,8 +16,9 @@ import (
 
 // MockUserRepository para testing
 type MockUserRepository struct {
-	createFunc   func(ctx context.Context, user *model.User) error
-	getByIDFunc  func(ctx context.Context, id int64) (*model.User, error)
+	createFunc     func(ctx context.Context, user *model.User) error
+	getByIDFunc    func(ctx context.Context, id int64) (*model.User, error)
+	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -30,6 +31,13 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
+	if m.getByEmailFunc != nil {
+		return m.getByEmailFunc(ctx, email)
 	}
 	return nil, nil
 }
@@ -159,7 +167,7 @@ func TestGetUserByIDNotFound(t *testing.T) {
 
 	mockRepo := &MockUserRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*model.User, error) {
-			return nil, context.DeadlineExceeded
+			return nil, service.ErrUserNotFound
 		},
 	}
 
