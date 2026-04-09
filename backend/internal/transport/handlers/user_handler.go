@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,22 +10,26 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
+// UserHandler handles user-related HTTP requests.
 type UserHandler struct {
 	service *service.UserService
 }
 
+// NewUserHandler creates a new UserHandler.
 func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{
 		service: svc,
 	}
 }
 
+// CreateUserRequest represents the payload to create a user.
 type CreateUserRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+// CreateUser creates a new user.
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 
@@ -49,7 +54,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.service.Create(c.Request.Context(), user); err != nil {
-		if err == service.ErrInvalidUserInput {
+		if errors.Is(err, service.ErrInvalidUserInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "username, email and password are required",
 			})
@@ -65,6 +70,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
+// GetUserByID retrieves a user by ID.
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
 
@@ -78,7 +84,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == service.ErrUserNotFound {
+		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
