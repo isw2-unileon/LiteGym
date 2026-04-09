@@ -68,7 +68,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
 
-	id, err := strconv.ParseInt(idParam, 10, 64)
+	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid user id",

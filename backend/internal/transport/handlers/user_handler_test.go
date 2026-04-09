@@ -17,7 +17,7 @@ import (
 // MockUserRepository para testing
 type MockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
-	getByIDFunc    func(ctx context.Context, id int64) (*model.User, error)
+	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -28,7 +28,7 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -108,7 +108,7 @@ func TestGetUserByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
 			return &model.User{
 				ID:           int(id),
 				Username:     "testuser",
@@ -166,7 +166,7 @@ func TestGetUserByIDNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
 			return nil, service.ErrUserNotFound
 		},
 	}
