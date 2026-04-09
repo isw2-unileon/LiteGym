@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ExerciseRepository defines the persistence operations for exercises.
 type ExerciseRepository interface {
 	Create(ctx context.Context, exercise *model.Exercise) error
 	GetByID(ctx context.Context, id int64) (*model.Exercise, error)
@@ -17,6 +18,7 @@ type exerciseRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewExerciseRepository creates a new ExerciseRepository backed by PostgreSQL.
 func NewExerciseRepository(db *pgxpool.Pool) ExerciseRepository {
 	return &exerciseRepository{
 		db: db,

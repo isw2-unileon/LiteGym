@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// TokenService manages token generation and verification.
 type TokenService struct {
 	secretKey []byte
 	issuer    string
@@ -31,6 +32,7 @@ type tokenClaims struct {
 	ExpiresAt int64  `json:"exp"`
 }
 
+// NewTokenService creates a new TokenService.
 func NewTokenService(secret, issuer string, ttl time.Duration) *TokenService {
 	return &TokenService{
 		secretKey: []byte(secret),
@@ -39,6 +41,7 @@ func NewTokenService(secret, issuer string, ttl time.Duration) *TokenService {
 	}
 }
 
+// GenerateToken creates a signed token for the given user data.
 func (s *TokenService) GenerateToken(userID int, email, username string) (string, error) {
 	if len(s.secretKey) == 0 {
 		return "", errors.New("token secret is required")
@@ -81,10 +84,12 @@ func (s *TokenService) GenerateToken(userID int, email, username string) (string
 	return unsignedToken + "." + signature, nil
 }
 
+// TTL returns the configured token lifetime.
 func (s *TokenService) TTL() time.Duration {
 	return s.ttl
 }
 
+// VerifyToken validates the token signature and expiration.
 func (s *TokenService) VerifyToken(token string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
