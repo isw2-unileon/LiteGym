@@ -9,10 +9,12 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
 )
 
+// DBPinger defines the behavior required to check database connectivity.
 type DBPinger interface {
 	Ping(ctx context.Context) error
 }
 
+// SetupRouter configures and returns the application HTTP router.
 func SetupRouter(
 	db DBPinger,
 	userHandler *handlers.UserHandler,
