@@ -23,7 +23,7 @@ func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) e
 	return nil
 }
 
-func (m *MockAuthUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (m *MockAuthUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	return nil, nil
 }
 
