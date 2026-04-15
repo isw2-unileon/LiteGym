@@ -24,7 +24,7 @@ func SetupRouter(
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// CONFIGURACIÓN DE CORS
+	// TEMP CORS CONFIG
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{"http://localhost:5173"}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
