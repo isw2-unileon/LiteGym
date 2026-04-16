@@ -15,6 +15,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -55,8 +56,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
-	r := transport.SetupRouter(db, userHandler, authHandler, exerciseHandler, healthHandler)
+	r := transport.SetupRouter(db, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

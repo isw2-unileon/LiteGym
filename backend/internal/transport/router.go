@@ -5,34 +5,27 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
+// DBPinger defines the behavior required to check database connectivity.
 type DBPinger interface {
 	Ping(ctx context.Context) error
 }
 
+// SetupRouter configures and returns the application HTTP router.
 func SetupRouter(
 	db DBPinger,
 	userHandler *handlers.UserHandler,
 	authHandler *handlers.AuthHandler,
+	authMiddleware *middleware.AuthMiddleware,
 	exerciseHandler *handlers.ExerciseHandler,
 	healthHandler *handlers.HealthHandler,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
-
-	// TEMP CORS CONFIG
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:5173"}
-	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-
-	r.Use(cors.New(corsConfig))
-
-	// --------------------------------------
 
 	// Health check endpoints
 	r.GET("/health", healthHandler.Health)
@@ -68,9 +61,12 @@ func SetupRouter(
 	r.POST("/api/auth/login", authHandler.Login)
 
 	// Exercise endpoints
-	r.POST("/api/exercises", exerciseHandler.CreateExercise)
-	r.GET("/api/exercises/:id", exerciseHandler.GetExerciseByID)
-	r.GET("/api/exercises", exerciseHandler.ListExercises)
+	protected := r.Group("/api")
+	protected.Use(authMiddleware.RequireAuth())
+
+	protected.POST("/exercises", exerciseHandler.CreateExercise)
+	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
+	protected.GET("/exercises", exerciseHandler.ListExercises)
 
 	return r
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
-// MockUserRepository para testing
+// MockUserRepository is a test double for the user repository.
 type MockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
 	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
@@ -135,7 +135,9 @@ func TestGetUserByID(t *testing.T) {
 	}
 
 	var user model.User
-	json.Unmarshal(w.Body.Bytes(), &user)
+	if err := json.Unmarshal(w.Body.Bytes(), &user); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
 
 	if user.Username != "testuser" {
 		t.Errorf("expected username testuser, got %s", user.Username)

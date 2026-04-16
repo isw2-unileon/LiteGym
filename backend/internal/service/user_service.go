@@ -12,21 +12,29 @@ import (
 )
 
 var (
-	ErrInvalidUserInput   = errors.New("invalid user input")
+	// ErrInvalidUserInput indicates that the provided user data is invalid.
+	ErrInvalidUserInput = errors.New("invalid user input")
+
+	// ErrInvalidCredentials indicates that the provided credentials are invalid.
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserNotFound       = errors.New("user not found")
+
+	// ErrUserNotFound indicates that the requested user does not exist.
+	ErrUserNotFound = errors.New("user not found")
 )
 
+// UserService handles user-related business logic.
 type UserService struct {
 	repo repository.UserRepository
 }
 
+// NewUserService creates a new UserService.
 func NewUserService(repo repository.UserRepository) *UserService {
 	return &UserService{
 		repo: repo,
 	}
 }
 
+// Create validates and creates a new user.
 func (s *UserService) Create(ctx context.Context, user *model.User) error {
 	user.Username = strings.TrimSpace(user.Username)
 	user.Email = strings.TrimSpace(user.Email)
@@ -46,6 +54,7 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 	return s.repo.Create(ctx, user)
 }
 
+// GetByID retrieves a user by ID.
 func (s *UserService) GetByID(ctx context.Context, id int) (*model.User, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -58,6 +67,7 @@ func (s *UserService) GetByID(ctx context.Context, id int) (*model.User, error) 
 	return user, nil
 }
 
+// Authenticate validates credentials and returns the authenticated user.
 func (s *UserService) Authenticate(ctx context.Context, email, password string) (*model.User, error) {
 	email = strings.TrimSpace(email)
 	password = strings.TrimSpace(password)

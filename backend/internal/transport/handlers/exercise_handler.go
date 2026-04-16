@@ -10,16 +10,19 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
+// ExerciseHandler handles exercise-related HTTP requests.
 type ExerciseHandler struct {
 	service *service.ExerciseService
 }
 
+// NewExerciseHandler creates a new ExerciseHandler.
 func NewExerciseHandler(svc *service.ExerciseService) *ExerciseHandler {
 	return &ExerciseHandler{
 		service: svc,
 	}
 }
 
+// CreateExerciseRequest represents the expected payload for creating an exercise.
 type CreateExerciseRequest struct {
 	Name                 string `json:"name"`
 	Description          string `json:"description"`
@@ -29,6 +32,7 @@ type CreateExerciseRequest struct {
 	IsOfficial           *bool  `json:"is_official"`
 }
 
+// CreateExercise creates a new exercise.
 func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	var req CreateExerciseRequest
 
@@ -70,6 +74,7 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	c.JSON(http.StatusCreated, exercise)
 }
 
+// GetExerciseByID retrieves an exercise by its ID.
 func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 	idParam := c.Param("id")
 
@@ -106,6 +111,7 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 	c.JSON(http.StatusOK, exercise)
 }
 
+// ListExercises returns all exercises.
 func (h *ExerciseHandler) ListExercises(c *gin.Context) {
 	exercises, err := h.service.List(c.Request.Context())
 	if err != nil {
