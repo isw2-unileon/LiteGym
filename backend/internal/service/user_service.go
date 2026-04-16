@@ -55,7 +55,7 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 }
 
 // GetByID retrieves a user by ID.
-func (s *UserService) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id int) (*model.User, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound

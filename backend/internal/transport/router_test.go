@@ -32,7 +32,7 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	return nil, nil
 }
 
