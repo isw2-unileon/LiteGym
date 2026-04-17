@@ -1,7 +1,7 @@
 .PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e start-test-db stop-test-db rm-test-db init-test-db test-integration test-integration-clean
 
-# Docker runtime command
-DOCKER ?= docker
+# Podman runtime command
+PODMAN ?= podman
 
 # Test DB container config
 DB_CONTAINER ?= postgres-test
@@ -9,7 +9,7 @@ DB_USER ?= test_user
 DB_PASS ?= test_password
 DB_NAME ?= test_db
 DB_PORT ?= 5432
-SCHEMA_FILE ?= gym/sql/schema.sql
+SCHEMA_FILE ?= sql/schema.sql
 POSTGRES_IMAGE ?= postgres:15-alpine
 
 ## Install all dependencies
@@ -40,38 +40,49 @@ build-frontend:
 ## Start a test Postgres container
 start-test-db:
 	@echo "Starting test database container '$(DB_CONTAINER)'..."
-	-$(DOCKER) rm -f $(DB_CONTAINER) 2>/dev/null || true
-	$(DOCKER) run -d --name $(DB_CONTAINER) -e POSTGRES_USER=$(DB_USER) -e POSTGRES_PASSWORD=$(DB_PASS) -e POSTGRES_DB=$(DB_NAME) -p $(DB_PORT):5432 $(POSTGRES_IMAGE)
+	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
+	$(PODMAN) run -d --name $(DB_CONTAINER) -e POSTGRES_USER=$(DB_USER) -e POSTGRES_PASSWORD=$(DB_PASS) -e POSTGRES_DB=$(DB_NAME) -p $(DB_PORT):5432 $(POSTGRES_IMAGE)
 
 ## Stop the test Postgres container
 stop-test-db:
 	@echo "Stopping test database container '$(DB_CONTAINER)'..."
-	-$(DOCKER) stop $(DB_CONTAINER) 2>/dev/null || true
+	-$(PODMAN) stop $(DB_CONTAINER) 2>/dev/null || true
 
 ## Remove the test Postgres container
 rm-test-db:
 	@echo "Removing test database container '$(DB_CONTAINER)'..."
-	-$(DOCKER) rm -f $(DB_CONTAINER) 2>/dev/null || true
+	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
 
 ## Initialize the test DB by copying and executing schema.sql into the container
 init-test-db:
 	@echo "Waiting for postgres to be ready..."
-	@sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do $(DOCKER) exec $(DB_CONTAINER) pg_isready -U $(DB_USER) -d $(DB_NAME) >/dev/null 2>&1 && break || sleep 1; done'
+	@sh -c 'max=60; i=0; until [ $$i -ge $$max ]; do $(PODMAN) exec $(DB_CONTAINER) pg_isready -U $(DB_USER) -d $(DB_NAME) >/dev/null 2>&1 && break; i=$$((i+1)); echo "waiting for postgres ($$i/$$max)..." >&2; sleep 1; done; if [ $$i -ge $$max ]; then echo "Postgres did not become ready in $$max seconds" >&2; $(PODMAN) logs $(DB_CONTAINER) --tail 50 >&2 || true; exit 1; fi'
 	@echo "Copying schema file $(SCHEMA_FILE) into container $(DB_CONTAINER)..."
-	@$(DOCKER) cp $(SCHEMA_FILE) $(DB_CONTAINER):/schema.sql
+	@$(PODMAN) cp $(SCHEMA_FILE) $(DB_CONTAINER):/schema.sql
 	@echo "Applying schema to database $(DB_NAME)..."
-	@$(DOCKER) exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -f /schema.sql
+	@$(PODMAN) exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -f /schema.sql
 
 ## Run integration tests for repository package (starts DB, inits schema, runs tests)
 test-integration: start-test-db init-test-db
 	@echo "Running repository integration tests..."
 	go test ./backend/internal/repository -v
 
+## Run integration tests for service package (starts DB, inits schema, runs tests)
+test-integration-service: start-test-db init-test-db
+	@echo "Running service integration tests..."
+	go test ./backend/internal/service -v
+
+## Run all integration tests (repository + service)
+test-integration-all: start-test-db init-test-db
+	@echo "Running all integration tests..."
+	@$(MAKE) test-integration
+	@$(MAKE) test-integration-service
+
 ## Run integration tests and then cleanup (stop + remove DB container)
-test-integration-clean: test-integration
+test-integration-clean: test-integration-all
 	@echo "Cleaning up test DB container..."
-	-$(DOCKER) stop $(DB_CONTAINER) 2>/dev/null || true
-	-$(DOCKER) rm -f $(DB_CONTAINER) 2>/dev/null || true
+	-$(PODMAN) stop $(DB_CONTAINER) 2>/dev/null || true
+	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
 
 ## Run all tests
 test:

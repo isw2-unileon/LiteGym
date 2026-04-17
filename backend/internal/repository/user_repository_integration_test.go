@@ -120,8 +120,8 @@ func TestUserRepositoryGetByIDIntegration(t *testing.T) {
 
 	repo := NewUserRepository(db)
 
-	id64 := int64(insertedID)
-	user, err := repo.GetByID(context.Background(), id64)
+	id := int(insertedID)
+	user, err := repo.GetByID(context.Background(), id)
 	if err != nil {
 		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
 	}
