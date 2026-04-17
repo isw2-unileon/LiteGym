@@ -115,8 +115,11 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 func (h *ExerciseHandler) ListExercises(c *gin.Context) {
 	exercises, err := h.service.List(c.Request.Context())
 	if err != nil {
+		// Include the error message in the response to ease debugging in development.
+		// In production you may want to omit detailed error text to avoid leaking internals.
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to list exercises",
+			"error":   "failed to list exercises",
+			"details": err.Error(),
 		})
 		return
 	}
