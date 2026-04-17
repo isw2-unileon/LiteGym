@@ -42,6 +42,17 @@ func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, er
 	return []model.Exercise{}, nil
 }
 
+func mustMarshalJSON(t *testing.T, v any) []byte {
+	t.Helper()
+
+	body, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("failed to marshal JSON: %v", err)
+	}
+
+	return body
+}
+
 func TestCreateExercise(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -64,7 +75,7 @@ func TestCreateExercise(t *testing.T) {
 		MuscleGroup: "chest",
 	}
 
-	body, _ := json.Marshal(reqBody)
+	body := mustMarshalJSON(t, reqBody)
 	c.Request = httptest.NewRequest("POST", "/api/exercises", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -100,7 +111,7 @@ func TestCreateExerciseDefaultIsOfficialTrue(t *testing.T) {
 		MuscleGroup: "chest",
 	}
 
-	body, _ := json.Marshal(reqBody)
+	body := mustMarshalJSON(t, reqBody)
 	c.Request = httptest.NewRequest("POST", "/api/exercises", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -138,7 +149,7 @@ func TestCreateExerciseWithIsOfficialFalse(t *testing.T) {
 		IsOfficial:  &isOfficial,
 	}
 
-	body, _ := json.Marshal(reqBody)
+	body := mustMarshalJSON(t, reqBody)
 	c.Request = httptest.NewRequest("POST", "/api/exercises", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -183,7 +194,7 @@ func TestCreateExerciseMissingFields(t *testing.T) {
 		Name: "Bench Press",
 	}
 
-	body, _ := json.Marshal(reqBody)
+	body := mustMarshalJSON(t, reqBody)
 	c.Request = httptest.NewRequest("POST", "/api/exercises", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -214,7 +225,7 @@ func TestCreateExerciseInternalError(t *testing.T) {
 		MuscleGroup: "chest",
 	}
 
-	body, _ := json.Marshal(reqBody)
+	body := mustMarshalJSON(t, reqBody)
 	c.Request = httptest.NewRequest("POST", "/api/exercises", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -255,7 +266,9 @@ func TestGetExerciseByID(t *testing.T) {
 	}
 
 	var exercise model.Exercise
-	json.Unmarshal(w.Body.Bytes(), &exercise)
+	if err := json.Unmarshal(w.Body.Bytes(), &exercise); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
 
 	if exercise.Name != "Bench Press" {
 		t.Errorf("expected name Bench Press, got %s", exercise.Name)
@@ -386,7 +399,9 @@ func TestListExercises(t *testing.T) {
 	}
 
 	var exercises []model.Exercise
-	json.Unmarshal(w.Body.Bytes(), &exercises)
+	if err := json.Unmarshal(w.Body.Bytes(), &exercises); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
 
 	if len(exercises) != 2 {
 		t.Errorf("expected 2 exercises, got %d", len(exercises))

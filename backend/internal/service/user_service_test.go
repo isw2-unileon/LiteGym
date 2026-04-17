@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5"
@@ -12,7 +13,7 @@ import (
 
 type mockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
-	getByIDFunc    func(ctx context.Context, id int64) (*model.User, error)
+	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -23,7 +24,7 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *mockUserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (m *mockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -130,5 +131,44 @@ func TestUserServiceAuthenticateUserNotFound(t *testing.T) {
 	_, err := svc.Authenticate(context.Background(), "missing@example.com", "password123")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestUserServiceGetProfileSuccess(t *testing.T) {
+	expectedTime := time.Now().UTC()
+	expectedID := int(1)
+
+	mockRepo := &mockUserRepository{
+		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+			return &model.User{
+				ID:        expectedID,
+				Username:  "profileuser",
+				Email:     "profile@example.com",
+				CreatedAt: expectedTime,
+			}, nil
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	user, err := svc.GetByID(context.Background(), expectedID)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if user == nil {
+		t.Fatal("expected user profile, got nil")
+	}
+
+	if user.Username != "profileuser" {
+		t.Errorf("expected username 'profileuser', got '%s'", user.Username)
+	}
+
+	if user.Email != "profile@example.com" {
+		t.Errorf("expected email 'profile@example.com', got '%s'", user.Email)
+	}
+
+	if user.CreatedAt != expectedTime {
+		t.Errorf("expected created_at %v, got %v", expectedTime, user.CreatedAt)
 	}
 }

@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// Exercise represents an exercise entity in the system.
 type Exercise struct {
 	ID                   int       `json:"id"`
 	Name                 string    `json:"name"`

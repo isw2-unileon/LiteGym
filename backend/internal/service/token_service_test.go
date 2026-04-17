@@ -76,7 +76,7 @@ func TestGenerateTokenContainsExpectedClaims(t *testing.T) {
 		t.Fatalf("failed to decode payload: %v", err)
 	}
 
-	var claims tokenClaims
+	var claims TokenClaims
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		t.Fatalf("failed to unmarshal claims: %v", err)
 	}
@@ -217,5 +217,27 @@ func TestVerifyTokenWithDifferentSecret(t *testing.T) {
 	err = verifier.VerifyToken(token)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestParseTokenReturnsClaims(t *testing.T) {
+	svc := NewTokenService("my-secret", "my-app", time.Hour)
+
+	token, err := svc.GenerateToken(7, "test@example.com", "testuser")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	claims, err := svc.ParseToken(token)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if claims.Subject != "7" {
+		t.Errorf("expected subject 7, got %s", claims.Subject)
+	}
+
+	if claims.Email != "test@example.com" {
+		t.Errorf("expected email test@example.com, got %s", claims.Email)
 	}
 }

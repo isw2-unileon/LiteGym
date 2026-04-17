@@ -7,9 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// UserRepository defines persistence operations for users.
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
-	GetByID(ctx context.Context, id int64) (*model.User, error)
+	GetByID(ctx context.Context, id int) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -17,6 +18,7 @@ type userRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewUserRepository creates a new user repository.
 func NewUserRepository(db *pgxpool.Pool) UserRepository {
 	return &userRepository{
 		db: db,
@@ -46,7 +48,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, created_at
 		FROM users

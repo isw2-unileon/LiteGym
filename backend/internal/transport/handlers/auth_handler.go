@@ -8,6 +8,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
+// AuthHandler handles authentication HTTP requests.
 type AuthHandler struct {
 	userService  *service.UserService
 	tokenService *service.TokenService
@@ -15,11 +16,13 @@ type AuthHandler struct {
 	cookieSecure bool
 }
 
+// LoginRequest represents the expected payload for login requests.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+// NewAuthHandler creates a new AuthHandler.
 func NewAuthHandler(
 	userService *service.UserService,
 	tokenService *service.TokenService,
@@ -34,6 +37,7 @@ func NewAuthHandler(
 	}
 }
 
+// Login authenticates a user and sets the authentication cookie.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 

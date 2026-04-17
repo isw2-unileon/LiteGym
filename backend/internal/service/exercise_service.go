@@ -10,21 +10,25 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var (
-	ErrInvalidExerciseInput = errors.New("invalid exercise input")
-	ErrExerciseNotFound     = errors.New("exercise not found")
-)
+// ErrInvalidExerciseInput indicates that the provided exercise data is invalid.
+var ErrInvalidExerciseInput = errors.New("invalid exercise input")
 
+// ErrExerciseNotFound indicates that the requested exercise does not exist.
+var ErrExerciseNotFound = errors.New("exercise not found")
+
+// ExerciseService provides business logic for exercises.
 type ExerciseService struct {
 	repo repository.ExerciseRepository
 }
 
+// NewExerciseService creates a new ExerciseService.
 func NewExerciseService(repo repository.ExerciseRepository) *ExerciseService {
 	return &ExerciseService{
 		repo: repo,
 	}
 }
 
+// Create validates and stores a new exercise.
 func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) error {
 	if exercise == nil {
 		return ErrInvalidExerciseInput
@@ -43,6 +47,7 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 	return s.repo.Create(ctx, exercise)
 }
 
+// GetByID retrieves an exercise by its ID.
 func (s *ExerciseService) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
 	if id <= 0 {
 		return nil, ErrInvalidExerciseInput
@@ -59,6 +64,7 @@ func (s *ExerciseService) GetByID(ctx context.Context, id int64) (*model.Exercis
 	return exercise, nil
 }
 
+// List returns all exercises.
 func (s *ExerciseService) List(ctx context.Context) ([]model.Exercise, error) {
 	return s.repo.List(ctx)
 }

@@ -1,0 +1,96 @@
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+)
+
+func TestRequireAuthWithoutCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authMiddleware := NewAuthMiddleware(tokenService, "auth_token")
+
+	router := gin.New()
+	router.Use(authMiddleware.RequireAuth())
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestRequireAuthWithInvalidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authMiddleware := NewAuthMiddleware(tokenService, "auth_token")
+
+	router := gin.New()
+	router.Use(authMiddleware.RequireAuth())
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "auth_token",
+		Value: "invalid-token",
+	})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestRequireAuthWithValidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	token, err := tokenService.GenerateToken(1, "test@example.com", "testuser")
+	if err != nil {
+		t.Fatalf("failed to generate token: %v", err)
+	}
+
+	authMiddleware := NewAuthMiddleware(tokenService, "auth_token")
+
+	router := gin.New()
+	router.Use(authMiddleware.RequireAuth())
+	router.GET("/protected", func(c *gin.Context) {
+		userID, ok := c.Get(ContextUserIDKey)
+		if !ok {
+			t.Fatal("expected user_id in context")
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": userID,
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "auth_token",
+		Value: token,
+	})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
