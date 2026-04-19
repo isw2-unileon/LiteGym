@@ -1,0 +1,62 @@
+services:
+    postgres:
+        image: postgres:15-alpine
+        container_name: postgres-test
+        env_file:
+            - .env.local
+        environment:
+            # These defaults will be used if not present in env files.
+            POSTGRES_USER: ${POSTGRES_USER:-test_user}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password}
+            POSTGRES_DB: ${POSTGRES_DB:-test_db}
+        ports:
+            - "5432:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./postgress-local/initdb:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER:-test_user} -d ${POSTGRES_DB:-test_db}",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+        restart: unless-stopped
+
+    backend:
+        build:
+            context: .
+            dockerfile: backend/Dockerfile
+        container_name: litegym-backend
+        env_file:
+            - .env.local # project-wide overrides for local development
+            - ./backend/.env # service-specific env (overrides .env.local)
+        ports:
+            - "8080:8080"
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+        # Optional: mount the source for development hot-reload (uncomment in dev)
+        # volumes:
+        #   - ./backend:/src
+        # command: ["sh", "-c", "go run ./cmd/server"]
+
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        container_name: litegym-frontend
+        env_file:
+            - .env.local
+            - ./frontend/.env
+        ports:
+            - "5173:5173"
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    pgdata:

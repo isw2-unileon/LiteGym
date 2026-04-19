@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
@@ -14,8 +15,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 console.log("API_BASE_URL =", API_BASE_URL);
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("raul@example.com");
-    const [password, setPassword] = useState("123456");
+    const navigate = useNavigate();
+    const [email, setEmail] = useState("diego@example.com");
+    const [password, setPassword] = useState("1234");
     const [loginStatus, setLoginStatus] = useState<LoginStatus>("idle");
     const [loginMessage, setLoginMessage] = useState("");
     const [checkStatus, setCheckStatus] =
@@ -51,6 +53,7 @@ export default function LoginPage() {
             setLoginMessage(
                 "Sesion iniciada. La cookie HttpOnly ya esta guardada por el navegador.",
             );
+            navigate("/exercises");
         } catch {
             setLoginStatus("error");
             setLoginMessage("No se pudo conectar con el backend.");
