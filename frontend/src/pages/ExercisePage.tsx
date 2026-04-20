@@ -1,14 +1,8 @@
 import * as React from "react";
-
-type Exercise = {
-    id: number;
-    name: string;
-    description: string | null;
-    muscle_group: string;
-    exercise_type: string | null;
-};
-
-type ExerciseStatus = "idle" | "loading" | "success" | "error";
+import ExerciseFilters from "../components/Exercise/ExerciseFilters";
+import ExerciseHeader from "../components/Exercise/ExerciseHeader";
+import ExerciseList from "../components/Exercise/ExerciseList";
+import type { Exercise, ExerciseStatus } from "../types/exercise";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -17,8 +11,12 @@ export default function ExercisePage() {
     const [status, setStatus] = React.useState<ExerciseStatus>("idle");
     const [message, setMessage] = React.useState("");
 
+    const [search, setSearch] = React.useState("");
+    const [typeFilter, setTypeFilter] = React.useState("");
+    const [muscleFilter, setMuscleFilter] = React.useState("");
+
     React.useEffect(() => {
-        const fetchExercise = async () => {
+        const fetchExercises = async () => {
             setStatus("loading");
             setMessage("");
 
@@ -51,8 +49,48 @@ export default function ExercisePage() {
             }
         };
 
-        fetchExercise();
+        fetchExercises();
     }, []);
+
+    const exerciseTypes = React.useMemo(() => {
+        return Array.from(
+            new Set(
+                exercises
+                    .map((exercise) => exercise.exercise_type)
+                    .filter((type): type is string => Boolean(type)),
+            ),
+        ).sort();
+    }, [exercises]);
+
+    const muscleGroups = React.useMemo(() => {
+        return Array.from(
+            new Set(exercises.map((exercise) => exercise.muscle_group)),
+        ).sort();
+    }, [exercises]);
+
+    const filteredExercises = React.useMemo(() => {
+        const normalizedSearch = search.toLowerCase().trim();
+
+        return exercises.filter((exercise) => {
+            const matchesSearch =
+                normalizedSearch === "" ||
+                [
+                    exercise.name,
+                    exercise.muscle_group,
+                    exercise.exercise_type ?? "",
+                ].some((value) =>
+                    value.toLowerCase().includes(normalizedSearch),
+                );
+
+            const matchesType =
+                typeFilter === "" || exercise.exercise_type === typeFilter;
+
+            const matchesMuscle =
+                muscleFilter === "" || exercise.muscle_group === muscleFilter;
+
+            return matchesSearch && matchesType && matchesMuscle;
+        });
+    }, [exercises, search, typeFilter, muscleFilter]);
 
     return (
         <main
@@ -77,29 +115,7 @@ export default function ExercisePage() {
                 />
 
                 <div className="mx-auto max-w-6xl" data-block="page-container">
-                    <div className="mb-8 max-w-2xl" data-block="page-header">
-                        <p
-                            className="mb-5 inline-flex rounded-full border border-[#1f1b16]/15 bg-white/35 px-4 py-2 text-sm font-semibold uppercase tracking-[0.28em] text-[#265c52] backdrop-blur"
-                            data-block="brand-badge"
-                        >
-                            Grupo 16 Fitness
-                        </p>
-
-                        <h1
-                            className="font-['Aptos_Display','Trebuchet_MS',sans-serif] text-5xl font-black leading-[0.95] tracking-[-0.06em] text-[#1f1b16] sm:text-7xl"
-                            data-block="page-title"
-                        >
-                            Explora tus ejercicios.
-                        </h1>
-
-                        <p
-                            className="mt-4 max-w-xl text-base text-[#5d5348] sm:text-lg"
-                            data-block="page-description"
-                        >
-                            Aqui puedes ver los ejercicios disponibles para
-                            usarlos al crear tus rutinas.
-                        </p>
-                    </div>
+                    <ExerciseHeader />
 
                     <div
                         className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
@@ -124,85 +140,24 @@ export default function ExercisePage() {
                             </h2>
                         </div>
 
-                        <div
-                            className="mt-7 max-h-[32rem] overflow-y-auto rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5"
-                            data-block="exercise-list-container"
-                        >
-                            {status === "loading" && (
-                                <p
-                                    className="text-sm text-[#6b5d4d]"
-                                    data-block="loading-state"
-                                >
-                                    Cargando ejercicios...
-                                </p>
-                            )}
+                        {status === "success" && (
+                            <ExerciseFilters
+                                search={search}
+                                typeFilter={typeFilter}
+                                muscleFilter={muscleFilter}
+                                exerciseTypes={exerciseTypes}
+                                muscleGroups={muscleGroups}
+                                onSearchChange={setSearch}
+                                onTypeFilterChange={setTypeFilter}
+                                onMuscleFilterChange={setMuscleFilter}
+                            />
+                        )}
 
-                            {status === "error" && (
-                                <p
-                                    className="text-sm font-bold text-[#9f2f22]"
-                                    data-block="error-state"
-                                >
-                                    {message}
-                                </p>
-                            )}
-
-                            {status === "success" && exercises.length === 0 && (
-                                <p
-                                    className="text-sm text-[#6b5d4d]"
-                                    data-block="empty-state"
-                                >
-                                    No hay ejercicios disponibles.
-                                </p>
-                            )}
-
-                            {status === "success" && exercises.length > 0 && (
-                                <ul
-                                    className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
-                                    data-block="exercise-list"
-                                >
-                                    {exercises.map((exercise) => (
-                                        <li
-                                            key={exercise.id}
-                                            className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4"
-                                            data-block="exercise-card"
-                                        >
-                                            <h3
-                                                className="text-lg font-black text-[#1f1b16]"
-                                                data-block="exercise-name"
-                                            >
-                                                {exercise.name}
-                                            </h3>
-
-                                            <p
-                                                className="mt-1 text-sm font-semibold text-[#265c52]"
-                                                data-block="exercise-muscle-group"
-                                            >
-                                                {exercise.muscle_group}
-                                            </p>
-
-                                            {exercise.exercise_type && (
-                                                <p
-                                                    className="mt-1 text-sm text-[#5d5348]"
-                                                    data-block="exercise-type"
-                                                >
-                                                    Tipo:{" "}
-                                                    {exercise.exercise_type}
-                                                </p>
-                                            )}
-
-                                            {exercise.description && (
-                                                <p
-                                                    className="mt-2 text-sm text-[#5d5348]"
-                                                    data-block="exercise-description"
-                                                >
-                                                    {exercise.description}
-                                                </p>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                        <ExerciseList
+                            status={status}
+                            message={message}
+                            exercises={filteredExercises}
+                        />
                     </div>
                 </div>
             </section>
