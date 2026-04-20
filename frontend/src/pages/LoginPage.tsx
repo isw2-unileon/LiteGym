@@ -1,27 +1,24 @@
 import * as React from "react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../lib/api";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
-type ExercisesCheckStatus = "idle" | "checking" | "allowed" | "blocked" | "error";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("raul@example.com");
   const [password, setPassword] = useState("123456");
   const [loginStatus, setLoginStatus] = useState<LoginStatus>("idle");
   const [loginMessage, setLoginMessage] = useState("");
-  const [checkStatus, setCheckStatus] = useState<ExercisesCheckStatus>("idle");
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoginStatus("loading");
     setLoginMessage("");
-    setCheckStatus("idle");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -41,34 +38,11 @@ export default function LoginPage() {
       }
 
       setLoginStatus("success");
-      setLoginMessage("Sesion iniciada. La cookie HttpOnly ya esta guardada por el navegador.");
+      setLoginMessage("Sesion iniciada. Entrando al panel...");
+      navigate("/dashboard", { replace: true });
     } catch {
       setLoginStatus("error");
       setLoginMessage("No se pudo conectar con el backend.");
-    }
-  };
-
-  const checkProtectedRoute = async () => {
-    setCheckStatus("checking");
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/exercises`, {
-        credentials: "include",
-      });
-
-      if (response.status === 401) {
-        setCheckStatus("blocked");
-        return;
-      }
-
-      if (!response.ok) {
-        setCheckStatus("error");
-        return;
-      }
-
-      setCheckStatus("allowed");
-    } catch {
-      setCheckStatus("error");
     }
   };
 
@@ -141,48 +115,9 @@ export default function LoginPage() {
                 {loginMessage}
               </p>
             )}
-
-            <div className="mt-7 rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.18em] text-[#265c52]">Comprobar acceso</p>
-                  <p className="mt-1 text-sm text-[#5d5348]">Prueba el acceso a la api.</p>
-                </div>
-                <button
-                  className="rounded-2xl border border-[#1f1b16]/15 px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
-                  type="button"
-                  onClick={checkProtectedRoute}
-                  disabled={checkStatus === "checking"}
-                >
-                  {checkStatus === "checking" ? "Probando..." : "Probar"}
-                </button>
-              </div>
-
-              <ProtectedRouteStatus status={checkStatus} />
-            </div>
           </div>
         </div>
       </section>
     </main>
   );
-}
-
-function ProtectedRouteStatus({ status }: { status: ExercisesCheckStatus }) {
-  if (status === "idle") {
-    return <p className="mt-4 text-sm text-[#6b5d4d]">Cuando quieras, puedes comprobarlo aqui.</p>;
-  }
-
-  if (status === "allowed") {
-    return <p className="mt-4 text-sm font-bold text-[#265c52]">Todo listo, ya tienes acceso.</p>;
-  }
-
-  if (status === "checking") {
-    return <p className="mt-4 text-sm text-[#6b5d4d]">Un momento, estamos probando el acceso.</p>;
-  }
-
-  if (status === "blocked") {
-    return <p className="mt-4 text-sm font-bold text-[#9f2f22]">Todavia no puedes entrar. Inicia sesion primero.</p>;
-  }
-
-  return <p className="mt-4 text-sm font-bold text-[#9f2f22]">No he podido comprobarlo. Revisa que el backend este activo.</p>;
 }

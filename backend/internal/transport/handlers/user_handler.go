@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -61,6 +61,13 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			return
 		}
 
+		slog.Error(
+			"failed to create user",
+			"error", err,
+			"username", req.Username,
+			"email", req.Email,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create user",
 		})
@@ -72,10 +79,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 // GetUserByID retrieves a user by ID.
 func (h *UserHandler) GetUserByID(c *gin.Context) {
-	idParam := c.Param("id")
-
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid user id",
 		})
@@ -84,12 +89,21 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidUserInput) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid user id",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
 			return
 		}
+
+		slog.Error("failed to retrieve user", "error", err, "id", id)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve user",

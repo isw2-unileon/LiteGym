@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -23,7 +24,7 @@ func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) e
 	return nil
 }
 
-func (m *MockAuthUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (m *MockAuthUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	return nil, nil
 }
 
@@ -45,7 +46,7 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 	mockRepo := &MockAuthUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
@@ -104,7 +105,7 @@ func TestLoginInvalidCredentials(t *testing.T) {
 	mockRepo := &MockAuthUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
@@ -133,5 +134,57 @@ func TestLoginInvalidCredentials(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestMeReturnsAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userService := service.NewUserService(&MockAuthUserRepository{})
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440000")
+	c.Set(middleware.ContextUserEmailKey, "test@example.com")
+	c.Set(middleware.ContextUsernameKey, "testuser")
+	c.Request = httptest.NewRequest("GET", "/api/auth/me", nil)
+
+	authHandler.Me(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
+func TestLogoutClearsCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userService := service.NewUserService(&MockAuthUserRepository{})
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/api/auth/logout", nil)
+
+	authHandler.Logout(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	cookies := w.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected auth cookie to be cleared")
+	}
+
+	cookie := cookies[0]
+	if cookie.Name != "auth_token" {
+		t.Errorf("expected cookie name auth_token, got %s", cookie.Name)
+	}
+	if cookie.MaxAge != -1 {
+		t.Errorf("expected MaxAge -1, got %d", cookie.MaxAge)
 	}
 }

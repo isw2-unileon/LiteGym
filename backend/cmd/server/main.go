@@ -58,7 +58,15 @@ func main() {
 	healthHandler := handlers.NewHealthHandler()
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
-	r := transport.SetupRouter(db, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
+	r := transport.SetupRouter(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		healthHandler,
+		cfg.CORSAllowOrigin,
+	)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

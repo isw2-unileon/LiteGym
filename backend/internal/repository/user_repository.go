@@ -10,7 +10,7 @@ import (
 // UserRepository defines persistence operations for users.
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
-	GetByID(ctx context.Context, id int) (*model.User, error)
+	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -29,7 +29,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id, created_at
+		RETURNING id::text, created_at
 	`
 
 	err := r.db.QueryRow(
@@ -46,9 +46,9 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at
+		SELECT id::text, username, email, password_hash, created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -71,7 +71,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, erro
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at
+		SELECT id::text, username, email, password_hash, created_at
 		FROM users
 		WHERE email = $1
 	`

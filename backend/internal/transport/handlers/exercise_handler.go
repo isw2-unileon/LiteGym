@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -65,6 +66,8 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 			return
 		}
 
+		slog.Error("failed to create exercise", "error", err, "name", req.Name)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create exercise",
 		})
@@ -102,6 +105,8 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 			return
 		}
 
+		slog.Error("failed to retrieve exercise", "error", err, "id", id)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve exercise",
 		})
@@ -115,6 +120,8 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 func (h *ExerciseHandler) ListExercises(c *gin.Context) {
 	exercises, err := h.service.List(c.Request.Context())
 	if err != nil {
+		slog.Error("failed to list exercises", "error", err)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to list exercises",
 		})
