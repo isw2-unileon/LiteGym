@@ -3,6 +3,7 @@ import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseList from "../components/Exercise/ExerciseList";
 import type { Exercise, ExerciseStatus } from "../types/exercise";
+import { m11 } from "happy-dom/lib/PropertySymbol";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -72,25 +73,25 @@ export default function ExercisePage() {
         const normalizedSearch = search.toLowerCase().trim();
 
         return exercises.filter((exercise) => {
-            const matchesSearch =
-                normalizedSearch === "" ||
-                [
-                    exercise.name,
-                    exercise.muscle_group,
-                    exercise.exercise_type ?? "",
-                ].some((value) =>
-                    value.toLowerCase().includes(normalizedSearch),
-                );
-
             const matchesType =
                 typeFilter === "" || exercise.exercise_type === typeFilter;
 
             const matchesMuscle =
                 muscleFilter === "" || exercise.muscle_group === muscleFilter;
 
-            return matchesSearch && matchesType && matchesMuscle;
+            const matchesSearch =
+                normalizedSearch === "" ||
+                [
+                    exercise.name,
+                    exercise.exercise_type ?? "",
+                    exercise.muscle_group ?? "",
+                ].some((valor) =>
+                    valor.toLowerCase().includes(normalizedSearch),
+                );
+
+            return matchesType && matchesMuscle && matchesSearch;
         });
-    }, [exercises, search, typeFilter, muscleFilter]);
+    }, [exercises, typeFilter, muscleFilter, search]);
 
     return (
         <main

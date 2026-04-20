@@ -20,13 +20,13 @@ export default function ExerciseFilters({
     onMuscleFilterChange,
 }: ExerciseFiltersProps) {
     return (
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6">
             <input
                 type="text"
-                placeholder="Buscar por nombre, tipo o músculo"
+                placeholder="Buscar por nombre..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
             />
 
             <select
