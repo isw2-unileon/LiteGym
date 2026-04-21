@@ -19,8 +19,8 @@ on:
       - "sql/**"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -48,6 +48,13 @@ jobs:
       - name: Download dependencies
         run: go mod download && go mod verify
 
+      - name: Show workspace files
+        run: |
+          pwd
+          ls -la
+          ls -la sql || true
+          find . -maxdepth 2 -type f | sort
+
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
@@ -67,7 +74,7 @@ jobs:
       - name: Apply schema
         env:
           PGPASSWORD: test_password
-        run: psql -h localhost -p 5432 -U test_user -d test_db -f sql/schema.sql
+        run: psql -h localhost -p 5432 -U test_user -d test_db -f ./sql/schema.sql
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
