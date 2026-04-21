@@ -19,8 +19,8 @@ on:
       - "sql/**"
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -46,19 +46,26 @@ runs-on: ubuntu-latest
           go-version-file: go.mod
 
       - name: Download dependencies
-        run: go mod download && go mod verify
+        run: |
+          go mod download
+          go mod verify
 
       - name: Show workspace files
         run: |
           pwd
           ls -la
           ls -la sql || true
-          find . -maxdepth 2 -type f | sort
+          ls -la backend/sql || true
+          find . -maxdepth 3 -type f | sort
 
       - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: Wait for PostgreSQL
+        env:
+          PGPASSWORD: test_password
         run: |
           for i in $(seq 1 30); do
             if pg_isready -h localhost -p 5432 -U test_user -d test_db; then
@@ -68,13 +75,23 @@ runs-on: ubuntu-latest
           done
           echo "PostgreSQL did not become ready in time"
           exit 1
-        env:
-          PGPASSWORD: test_password
 
       - name: Apply schema
         env:
           PGPASSWORD: test_password
-        run: psql -h localhost -p 5432 -U test_user -d test_db -f ./sql/schema.sql
+        run: |
+          if [ -f ./sql/schema.sql ]; then
+            SCHEMA_FILE=./sql/schema.sql
+          elif [ -f ./backend/sql/schema.sql ]; then
+            SCHEMA_FILE=./backend/sql/schema.sql
+          else
+            echo "schema.sql not found"
+            find . -maxdepth 4 -type f | sort
+            exit 1
+          fi
+
+          echo "Applying schema from: $SCHEMA_FILE"
+          psql -h localhost -p 5432 -U test_user -d test_db -f "$SCHEMA_FILE"
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
