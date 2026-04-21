@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -36,8 +35,7 @@ func setupTestDBService(t *testing.T) *pgxpool.Pool {
 func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
 
-	// Delete from dependent tables first if present (avoid FK violations),
-	// then delete from public.users. Keep this conservative but safe.
+	// Delete from dependent tables first to satisfy foreign keys, then users.
 	tables := []string{
 		"public.workout_sets",
 		"public.workout_exercises",
@@ -47,23 +45,16 @@ func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
 		"public.routine_exercises",
 		"public.routines",
 		"public.friendships",
+		"public.exercise_secondary_muscle_groups",
 		"public.exercises",
 		"public.body_metrics",
 		"public.user_profiles",
 		"public.users",
-		"auth.users",
 	}
 
 	for _, tbl := range tables {
 		_, err := db.Exec(context.Background(), "DELETE FROM "+tbl)
-		// ignore errors for tables that don't exist in some schema versions
 		if err != nil {
-			// If the error indicates the relation/table does not exist, ignore it.
-			// Otherwise fail the test so we don't mask real errors.
-			errStr := err.Error()
-			if strings.Contains(errStr, "does not exist") || strings.Contains(errStr, "no such table") || strings.Contains(errStr, "relation") {
-				continue
-			}
 			t.Fatalf("error cleaning %s: %v", tbl, err)
 		}
 	}
@@ -102,11 +93,9 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	authUser, err := svc.Authenticate(ctx, "svccreated@example.com", "plain-password-123")
 	if err != nil {
 		t.Fatalf("expected nil error authenticating user, got: %v", err)
-		return
 	}
 	if authUser == nil {
 		t.Fatalf("expected authenticated user, got nil")
-		return
 	}
 	if authUser.ID != user.ID {
 		t.Fatalf("expected auth user ID %d, got %d", user.ID, authUser.ID)
@@ -157,11 +146,9 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 	ret, err := svc.GetByID(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("GetByID returned error: %v", err)
-		return
 	}
 	if ret == nil {
 		t.Fatalf("expected user, got nil")
-		return
 	}
 	if ret.ID != user.ID {
 		t.Fatalf("expected ID %d, got %d", user.ID, ret.ID)

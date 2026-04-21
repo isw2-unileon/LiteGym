@@ -35,9 +35,27 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
 
-	_, err := db.Exec(context.Background(), "DELETE FROM public.users")
-	if err != nil {
-		t.Fatalf("error limpiando public.users: %v", err)
+	tables := []string{
+		"public.workout_sets",
+		"public.workout_exercises",
+		"public.workout_sessions",
+		"public.support_tickets",
+		"public.shared_routines",
+		"public.routine_exercises",
+		"public.routines",
+		"public.friendships",
+		"public.exercise_secondary_muscle_groups",
+		"public.exercises",
+		"public.body_metrics",
+		"public.user_profiles",
+		"public.users",
+	}
+
+	for _, table := range tables {
+		_, err := db.Exec(context.Background(), "DELETE FROM "+table)
+		if err != nil {
+			t.Fatalf("error limpiando %s: %v", table, err)
+		}
 	}
 }
 
