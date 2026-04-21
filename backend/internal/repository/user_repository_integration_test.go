@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -120,14 +121,15 @@ func TestUserRepositoryGetByIDIntegration(t *testing.T) {
 
 	repo := NewUserRepository(db)
 
-	id := int(insertedID)
-	user, err := repo.GetByID(context.Background(), id)
+	user, err := repo.GetByID(context.Background(), insertedID)
 	if err != nil {
 		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
+		return
 	}
 
 	if user == nil {
 		t.Fatal("se esperaba un usuario, pero se obtuvo nil")
+		return
 	}
 
 	if user.ID != insertedID {
@@ -164,7 +166,7 @@ func TestUserRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 		t.Fatalf("se esperaba usuario nil, pero se obtuvo: %#v", user)
 	}
 
-	if err != pgx.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
 	}
 }
@@ -182,10 +184,12 @@ func TestUserRepositoryGetByEmailIntegration(t *testing.T) {
 	user, err := repo.GetByEmail(context.Background(), "userbyemail@example.com")
 	if err != nil {
 		t.Fatalf("no se esperaba error en GetByEmail, pero se obtuvo: %v", err)
+		return
 	}
 
 	if user == nil {
 		t.Fatal("se esperaba un usuario, pero se obtuvo nil")
+		return
 	}
 
 	if user.Username != "userbyemail" {
@@ -222,7 +226,7 @@ func TestUserRepositoryGetByEmailNotFoundIntegration(t *testing.T) {
 		t.Fatalf("se esperaba usuario nil, pero se obtuvo: %#v", user)
 	}
 
-	if err != pgx.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
 	}
 }

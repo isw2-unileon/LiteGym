@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
@@ -102,9 +102,11 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	authUser, err := svc.Authenticate(ctx, "svccreated@example.com", "plain-password-123")
 	if err != nil {
 		t.Fatalf("expected nil error authenticating user, got: %v", err)
+		return
 	}
 	if authUser == nil {
 		t.Fatalf("expected authenticated user, got nil")
+		return
 	}
 	if authUser.ID != user.ID {
 		t.Fatalf("expected auth user ID %d, got %d", user.ID, authUser.ID)
@@ -118,7 +120,8 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error when authenticating with wrong password")
 	}
-	if err != ErrInvalidCredentials {
+	// Use errors.Is to correctly handle wrapped errors.
+	if !errors.Is(err, ErrInvalidCredentials) {
 		// Service maps repository ErrNoRows to ErrInvalidCredentials,
 		// but for wrong password it returns ErrInvalidCredentials as well.
 		// Check that we get the expected error type.
@@ -150,13 +153,15 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 		t.Fatalf("expected user.ID after create")
 	}
 
-	// Service.GetByID expects int64 id parameter; convert
-	ret, err := svc.GetByID(ctx, int(user.ID))
+	// Service.GetByID expects an integer id parameter; pass the stored int directly.
+	ret, err := svc.GetByID(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("GetByID returned error: %v", err)
+		return
 	}
 	if ret == nil {
 		t.Fatalf("expected user, got nil")
+		return
 	}
 	if ret.ID != user.ID {
 		t.Fatalf("expected ID %d, got %d", user.ID, ret.ID)
@@ -183,13 +188,8 @@ func TestUserServiceGetByIDNotFoundIntegration(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for non-existent user")
 	}
-	if err != ErrUserNotFound {
+	// Use errors.Is to correctly detect wrapped errors.
+	if !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got: %v", err)
 	}
-}
-
-// small helper to ensure Create has time to persist if needed (not usually necessary)
-func waitFor(t *testing.T, d time.Duration) {
-	t.Helper()
-	time.Sleep(d)
 }

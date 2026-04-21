@@ -1,16 +1,14 @@
-.PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e start-test-db stop-test-db rm-test-db init-test-db test-integration test-integration-clean
+.PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db
 
-# Podman runtime command
-PODMAN ?= podman
+COMPOSE ?= docker compose
+ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
+COMPOSE := podman compose
+endif
 
-# Test DB container config
-DB_CONTAINER ?= postgres-test
-DB_USER ?= test_user
-DB_PASS ?= test_password
-DB_NAME ?= test_db
-DB_PORT ?= 5432
-SCHEMA_FILE ?= sql/schema.sql
-POSTGRES_IMAGE ?= postgres:15-alpine
+COMPOSE ?= docker compose
+ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
+COMPOSE := podman compose
+endif
 
 ## Install all dependencies
 install:
@@ -37,52 +35,37 @@ build-backend:
 build-frontend:
 	cd frontend && npm run build
 
-## Start a test Postgres container
-start-test-db:
-	@echo "Starting test database container '$(DB_CONTAINER)'..."
-	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
-	$(PODMAN) run -d --name $(DB_CONTAINER) -e POSTGRES_USER=$(DB_USER) -e POSTGRES_PASSWORD=$(DB_PASS) -e POSTGRES_DB=$(DB_NAME) -p $(DB_PORT):5432 $(POSTGRES_IMAGE)
+#
+# App snapshot (compose.yaml) management
+# These targets operate the compose.yaml found at the repository root.
+#
+start-app-snapshot:
+	@echo "Starting application stack using compose.yaml..."
+	$(COMPOSE) -f compose.yaml up -d
 
-## Stop the test Postgres container
-stop-test-db:
-	@echo "Stopping test database container '$(DB_CONTAINER)'..."
-	-$(PODMAN) stop $(DB_CONTAINER) 2>/dev/null || true
+down-app-snapshot:
+	@echo "Stopping application stack defined in compose.yaml..."
+	$(COMPOSE) -f compose.yaml down
 
-## Remove the test Postgres container
-rm-test-db:
-	@echo "Removing test database container '$(DB_CONTAINER)'..."
-	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
+delete-app-snapshot:
+	@echo "Deleting application stack (volumes & local images) defined in compose.yaml..."
+	$(COMPOSE) -f compose.yaml down --volumes --rmi local --remove-orphans
 
-## Initialize the test DB by copying and executing schema.sql into the container
-init-test-db:
-	@echo "Waiting for postgres to be ready..."
-	@sh -c 'max=60; i=0; until [ $$i -ge $$max ]; do $(PODMAN) exec $(DB_CONTAINER) pg_isready -U $(DB_USER) -d $(DB_NAME) >/dev/null 2>&1 && break; i=$$((i+1)); echo "waiting for postgres ($$i/$$max)..." >&2; sleep 1; done; if [ $$i -ge $$max ]; then echo "Postgres did not become ready in $$max seconds" >&2; $(PODMAN) logs $(DB_CONTAINER) --tail 50 >&2 || true; exit 1; fi'
-	@echo "Copying schema file $(SCHEMA_FILE) into container $(DB_CONTAINER)..."
-	@$(PODMAN) cp $(SCHEMA_FILE) $(DB_CONTAINER):/schema.sql
-	@echo "Applying schema to database $(DB_NAME)..."
-	@$(PODMAN) exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -f /schema.sql
+#
+# Postgres-local compose management
+# These targets operate the docker-compose.yml inside postgress-local directory.
+#
+start-postges-db:
+	@echo "Starting postgres-local stack..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml up -d
 
-## Run integration tests for repository package (starts DB, inits schema, runs tests)
-test-integration: start-test-db init-test-db
-	@echo "Running repository integration tests..."
-	go test ./backend/internal/repository -v
+stop-postges-db:
+	@echo "Stopping postgres-local stack..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml down
 
-## Run integration tests for service package (starts DB, inits schema, runs tests)
-test-integration-service: start-test-db init-test-db
-	@echo "Running service integration tests..."
-	go test ./backend/internal/service -v
-
-## Run all integration tests (repository + service)
-test-integration-all: start-test-db init-test-db
-	@echo "Running all integration tests..."
-	@$(MAKE) test-integration
-	@$(MAKE) test-integration-service
-
-## Run integration tests and then cleanup (stop + remove DB container)
-test-integration-clean: test-integration-all
-	@echo "Cleaning up test DB container..."
-	-$(PODMAN) stop $(DB_CONTAINER) 2>/dev/null || true
-	-$(PODMAN) rm -f $(DB_CONTAINER) 2>/dev/null || true
+delete-postgres-db:
+	@echo "Deleting postgres-local stack (volumes & local images)..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml down --volumes --rmi local --remove-orphans
 
 ## Run all tests
 test:
