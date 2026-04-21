@@ -17,6 +17,7 @@ type TokenService struct {
 	ttl       time.Duration
 }
 
+// TokenClaims contains the authenticated user data and token lifecycle metadata.
 type TokenClaims struct {
 	Subject   string `json:"sub"`
 	Email     string `json:"email"`

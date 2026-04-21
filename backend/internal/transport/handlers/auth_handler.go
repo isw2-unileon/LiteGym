@@ -99,6 +99,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// Me returns the current authenticated user from the request context.
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, ok := c.Get(middleware.ContextUserIDKey)
 	if !ok {
@@ -120,6 +121,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	})
 }
 
+// Logout clears the authentication cookie for the current client.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,

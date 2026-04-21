@@ -7,17 +7,20 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
 
+// Context keys identify authenticated user values stored in Gin contexts.
 const (
 	ContextUserIDKey    = "user_id"
 	ContextUserEmailKey = "user_email"
 	ContextUsernameKey  = "username"
 )
 
+// AuthMiddleware validates authentication cookies and stores user claims in context.
 type AuthMiddleware struct {
 	tokenService *service.TokenService
 	cookieName   string
 }
 
+// NewAuthMiddleware creates middleware for cookie-based authentication.
 func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *AuthMiddleware {
 	return &AuthMiddleware{
 		tokenService: tokenService,
@@ -25,6 +28,7 @@ func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *A
 	}
 }
 
+// RequireAuth returns a Gin middleware that rejects unauthenticated requests.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie(m.cookieName)
