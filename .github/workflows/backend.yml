@@ -8,7 +8,7 @@ on:
       - "go.sum"
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
-      - "sql/**"
+      - "postgress-local/initdb/**"
   pull_request:
     paths:
       - "backend/**"
@@ -16,7 +16,7 @@ on:
       - "go.sum"
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
-      - "sql/**"
+      - "postgress-local/initdb/**"
 
 jobs:
   build:
@@ -50,14 +50,6 @@ jobs:
           go mod download
           go mod verify
 
-      - name: Show workspace files
-        run: |
-          pwd
-          ls -la
-          ls -la sql || true
-          ls -la backend/sql || true
-          find . -maxdepth 3 -type f | sort
-
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -80,18 +72,13 @@ jobs:
         env:
           PGPASSWORD: test_password
         run: |
-          if [ -f ./sql/schema.sql ]; then
-            SCHEMA_FILE=./sql/schema.sql
-          elif [ -f ./backend/sql/schema.sql ]; then
-            SCHEMA_FILE=./backend/sql/schema.sql
-          else
-            echo "schema.sql not found"
-            find . -maxdepth 4 -type f | sort
-            exit 1
-          fi
+          psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/01-schema.sql
 
-          echo "Applying schema from: $SCHEMA_FILE"
-          psql -h localhost -p 5432 -U test_user -d test_db -f "$SCHEMA_FILE"
+      - name: Apply seed
+        env:
+          PGPASSWORD: test_password
+        run: |
+          psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/02-seed.sql
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
