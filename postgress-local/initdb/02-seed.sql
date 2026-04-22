@@ -139,11 +139,3 @@ VALUES
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee9', 'dddddddd-dddd-dddd-dddd-ddddddddddd6', 1, NULL, NULL, 45, NULL, 2, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeea', 'dddddddd-dddd-dddd-dddd-ddddddddddd7', 1, 12, 90, NULL, NULL, 2, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeeb', 'dddddddd-dddd-dddd-dddd-ddddddddddd8', 1, NULL, NULL, 60, NULL, 1, true);
-
-CREATE UNIQUE INDEX exercises_official_name_unique
-ON public.exercises (LOWER(name))
-WHERE is_official = true;
-
-CREATE UNIQUE INDEX exercises_private_owner_name_unique
-ON public.exercises (owner_user_id, LOWER(name))
-WHERE is_official = false;

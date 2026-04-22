@@ -1,9 +1,11 @@
-.PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db
+.PHONY: install run-backend run-frontend build-backend build-frontend test test-integration lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db
 
 COMPOSE ?= docker compose
 ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
 COMPOSE := podman compose
 endif
+
+TEST_DB_URL ?= postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
 
 COMPOSE ?= docker compose
 ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
@@ -71,6 +73,10 @@ delete-postgres-db:
 test:
 	go test -v -race ./...
 	cd frontend && npm run test
+
+## Run backend integration tests against local Postgres
+test-integration:
+	TEST_DB_URL="$(TEST_DB_URL)" go test -v ./backend/internal/repository ./backend/internal/service
 
 ## Run linters
 lint:
