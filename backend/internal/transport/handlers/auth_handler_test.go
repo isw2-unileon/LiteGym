@@ -17,6 +17,7 @@ import (
 )
 
 type MockAuthUserRepository struct {
+	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -25,6 +26,9 @@ func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) e
 }
 
 func (m *MockAuthUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+	if m.getByIDFunc != nil {
+		return m.getByIDFunc(ctx, id)
+	}
 	return nil, nil
 }
 

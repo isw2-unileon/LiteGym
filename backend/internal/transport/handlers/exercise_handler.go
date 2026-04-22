@@ -4,9 +4,9 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
@@ -80,8 +80,7 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 // GetExerciseByID retrieves an exercise by its ID.
 func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 	idParam := c.Param("id")
-
-	id, err := strconv.ParseInt(idParam, 10, 64)
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid exercise id",
@@ -89,7 +88,7 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 		return
 	}
 
-	exercise, err := h.service.GetByID(c.Request.Context(), id)
+	exercise, err := h.service.GetByID(c.Request.Context(), id.String())
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidExerciseInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -105,7 +104,7 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 			return
 		}
 
-		slog.Error("failed to retrieve exercise", "error", err, "id", id)
+		slog.Error("failed to retrieve exercise", "error", err, "id", id.String())
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve exercise",

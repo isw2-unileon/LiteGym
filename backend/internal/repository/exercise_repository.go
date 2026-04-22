@@ -10,7 +10,7 @@ import (
 // ExerciseRepository defines the persistence operations for exercises.
 type ExerciseRepository interface {
 	Create(ctx context.Context, exercise *model.Exercise) error
-	GetByID(ctx context.Context, id int64) (*model.Exercise, error)
+	GetByID(ctx context.Context, id string) (*model.Exercise, error)
 	List(ctx context.Context) ([]model.Exercise, error)
 }
 
@@ -36,7 +36,7 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 			is_official
 		)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at
+		RETURNING id::text, created_at
 	`
 
 	err := r.db.QueryRow(
@@ -56,10 +56,10 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 	return nil
 }
 
-func (r *exerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
+func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	query := `
 		SELECT
-			id,
+			id::text,
 			name,
 			description,
 			muscle_group,
@@ -68,7 +68,7 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exer
 			is_official,
 			created_at
 		FROM exercises
-		WHERE id = $1
+		WHERE id = $1::uuid
 	`
 
 	var exercise model.Exercise
@@ -93,7 +93,7 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exer
 func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
 	query := `
 		SELECT
-			id,
+			id::text,
 			name,
 			description,
 			muscle_group,
@@ -102,7 +102,7 @@ func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error)
 			is_official,
 			created_at
 		FROM exercises
-		ORDER BY id ASC
+		ORDER BY created_at ASC, id::text ASC
 	`
 
 	rows, err := r.db.Query(ctx, query)

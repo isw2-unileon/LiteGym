@@ -17,7 +17,7 @@ import (
 
 type MockExerciseRepository struct {
 	createFunc  func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc func(ctx context.Context, id int64) (*model.Exercise, error)
+	getByIDFunc func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc    func(ctx context.Context) ([]model.Exercise, error)
 }
 
@@ -28,7 +28,7 @@ func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exe
 	return nil
 }
 
-func (m *MockExerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
+func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -58,7 +58,7 @@ func TestCreateExercise(t *testing.T) {
 
 	mockRepo := &MockExerciseRepository{
 		createFunc: func(ctx context.Context, exercise *model.Exercise) error {
-			exercise.ID = 1
+			exercise.ID = "550e8400-e29b-41d4-a716-446655440000"
 			exercise.CreatedAt = time.Now()
 			return nil
 		},
@@ -94,7 +94,7 @@ func TestCreateExerciseDefaultIsOfficialTrue(t *testing.T) {
 			if !exercise.IsOfficial {
 				t.Errorf("expected IsOfficial to default to true")
 			}
-			exercise.ID = 1
+			exercise.ID = "550e8400-e29b-41d4-a716-446655440000"
 			exercise.CreatedAt = time.Now()
 			return nil
 		},
@@ -130,7 +130,7 @@ func TestCreateExerciseWithIsOfficialFalse(t *testing.T) {
 			if exercise.IsOfficial {
 				t.Errorf("expected IsOfficial to be false")
 			}
-			exercise.ID = 1
+			exercise.ID = "550e8400-e29b-41d4-a716-446655440000"
 			exercise.CreatedAt = time.Now()
 			return nil
 		},
@@ -240,12 +240,9 @@ func TestGetExerciseByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return &model.Exercise{
-				// The mocked repository GetByID supplies an integer-like `id` value.
-				// We intentionally convert to `int` here to match `model.Exercise.ID`.
-				// This conversion is explicit and intended.
-				ID:          int(id), // conversion intentional
+				ID:          id,
 				Name:        "Bench Press",
 				MuscleGroup: "chest",
 				IsOfficial:  true,
@@ -259,8 +256,8 @@ func TestGetExerciseByID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "1"}}
-	c.Request = httptest.NewRequest("GET", "/api/exercises/1", nil)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 
 	exerciseHandler.GetExerciseByID(c)
 
@@ -320,7 +317,7 @@ func TestGetExerciseByIDNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return nil, service.ErrExerciseNotFound
 		},
 	}
@@ -330,8 +327,8 @@ func TestGetExerciseByIDNotFound(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "999"}}
-	c.Request = httptest.NewRequest("GET", "/api/exercises/999", nil)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 
 	exerciseHandler.GetExerciseByID(c)
 
@@ -344,7 +341,7 @@ func TestGetExerciseByIDInternalError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -354,8 +351,8 @@ func TestGetExerciseByIDInternalError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "1"}}
-	c.Request = httptest.NewRequest("GET", "/api/exercises/1", nil)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 
 	exerciseHandler.GetExerciseByID(c)
 
@@ -371,14 +368,14 @@ func TestListExercises(t *testing.T) {
 		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
 			return []model.Exercise{
 				{
-					ID:          1,
+					ID:          "550e8400-e29b-41d4-a716-446655440000",
 					Name:        "Bench Press",
 					MuscleGroup: "chest",
 					IsOfficial:  true,
 					CreatedAt:   time.Now(),
 				},
 				{
-					ID:          2,
+					ID:          "550e8400-e29b-41d4-a716-446655440001",
 					Name:        "Squat",
 					MuscleGroup: "legs",
 					IsOfficial:  true,

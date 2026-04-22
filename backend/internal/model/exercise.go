@@ -4,7 +4,7 @@ import "time"
 
 // Exercise represents an exercise entity in the system.
 type Exercise struct {
-	ID                   int       `json:"id"`
+	ID                   string    `json:"id"`
 	Name                 string    `json:"name"`
 	Description          string    `json:"description,omitempty"`
 	MuscleGroup          string    `json:"muscle_group"`

@@ -42,7 +42,7 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 
 type MockExerciseRepository struct {
 	createFunc  func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc func(ctx context.Context, id int64) (*model.Exercise, error)
+	getByIDFunc func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc    func(ctx context.Context) ([]model.Exercise, error)
 }
 
@@ -67,7 +67,7 @@ func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exe
 	return nil
 }
 
-func (m *MockExerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
+func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -297,7 +297,7 @@ func TestExerciseListRoute(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
 
-	req := httptest.NewRequest("GET", "/api/exercises", nil)
+	req := httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -319,13 +319,12 @@ func TestExerciseGetByIDRoute(t *testing.T) {
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 
 	exerciseRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return &model.Exercise{
-				ID:          1,
+				ID:          "550e8400-e29b-41d4-a716-446655440000",
 				Name:        "Bench Press",
 				MuscleGroup: "chest",
 				IsOfficial:  true,
-				CreatedAt:   time.Now(),
 			}, nil
 		},
 	}
@@ -335,7 +334,7 @@ func TestExerciseGetByIDRoute(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
 
-	req := httptest.NewRequest("GET", "/api/exercises/1", nil)
+	req := httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)

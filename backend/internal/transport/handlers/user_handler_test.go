@@ -153,9 +153,9 @@ func TestGetUserByIDInvalidID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: ""}}
+	c.Params = gin.Params{{Key: "id", Value: "invalid-user-id"}}
 
-	c.Request = httptest.NewRequest("GET", "/api/users/", nil)
+	c.Request = httptest.NewRequest("GET", "/api/users/invalid-user-id", nil)
 
 	userHandler.GetUserByID(c)
 

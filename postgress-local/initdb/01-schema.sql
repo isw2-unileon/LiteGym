@@ -30,11 +30,11 @@ CREATE TABLE public.user_profiles (
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT user_profiles_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id)
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.body_metrics (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   recorded_at TIMESTAMP NOT NULL DEFAULT now(),
   weight_kg NUMERIC CHECK (weight_kg > 0),
@@ -46,48 +46,54 @@ CREATE TABLE public.body_metrics (
   leg_cm NUMERIC CHECK (leg_cm >= 0),
   notes TEXT,
   CONSTRAINT body_metrics_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id)
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.exercises (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR NOT NULL,
   description TEXT,
   muscle_group VARCHAR NOT NULL,
-  secondary_muscle_group VARCHAR DEFAULT '' NOT NULL,
   exercise_type VARCHAR,
   is_official BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
   owner_user_id UUID,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT exercises_owner_user_id_fkey
-    FOREIGN KEY (owner_user_id) REFERENCES public.users(id)
+    FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE CASCADE,
+  CONSTRAINT exercises_official_owner_check
+    CHECK (
+      (is_official = true AND owner_user_id IS NULL)
+      OR
+      (is_official = false AND owner_user_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE public.exercise_secondary_muscle_groups (
-  id BIGSERIAL PRIMARY KEY,
-  exercise_id BIGINT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  exercise_id UUID NOT NULL,
   muscle_group VARCHAR NOT NULL,
   CONSTRAINT exercise_secondary_muscle_groups_exercise_id_fkey
-    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id),
+    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE,
   CONSTRAINT exercise_secondary_muscle_groups_unique
     UNIQUE (exercise_id, muscle_group)
 );
 
 CREATE TABLE public.friendships (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   requester_id UUID NOT NULL,
   addressee_id UUID NOT NULL,
   status public.friendship_status NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT friendships_requester_id_fkey
-    FOREIGN KEY (requester_id) REFERENCES public.users(id),
+    FOREIGN KEY (requester_id) REFERENCES public.users(id) ON DELETE CASCADE,
   CONSTRAINT friendships_addressee_id_fkey
-    FOREIGN KEY (addressee_id) REFERENCES public.users(id)
+    FOREIGN KEY (addressee_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.routines (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   name VARCHAR NOT NULL,
   description TEXT,
@@ -96,38 +102,38 @@ CREATE TABLE public.routines (
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT routines_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id)
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.routine_exercises (
-  id BIGSERIAL PRIMARY KEY,
-  routine_id BIGINT NOT NULL,
-  exercise_id BIGINT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  routine_id UUID NOT NULL,
+  exercise_id UUID NOT NULL,
   exercise_order INTEGER NOT NULL CHECK (exercise_order > 0),
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT routine_exercises_routine_id_fkey
-    FOREIGN KEY (routine_id) REFERENCES public.routines(id),
+    FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE CASCADE,
   CONSTRAINT routine_exercises_exercise_id_fkey
-    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id)
+    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.shared_routines (
-  id BIGSERIAL PRIMARY KEY,
-  routine_id BIGINT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  routine_id UUID NOT NULL,
   owner_user_id UUID NOT NULL,
   shared_with_user_id UUID NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT shared_routines_routine_id_fkey
-    FOREIGN KEY (routine_id) REFERENCES public.routines(id),
+    FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE CASCADE,
   CONSTRAINT shared_routines_owner_user_id_fkey
-    FOREIGN KEY (owner_user_id) REFERENCES public.users(id),
+    FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE CASCADE,
   CONSTRAINT shared_routines_shared_with_user_id_fkey
-    FOREIGN KEY (shared_with_user_id) REFERENCES public.users(id)
+    FOREIGN KEY (shared_with_user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.support_tickets (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   title VARCHAR NOT NULL,
   description TEXT NOT NULL,
@@ -135,13 +141,13 @@ CREATE TABLE public.support_tickets (
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT support_tickets_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id)
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.workout_sessions (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
-  routine_id BIGINT,
+  routine_id UUID,
   name VARCHAR,
   started_at TIMESTAMP NOT NULL,
   ended_at TIMESTAMP,
@@ -150,27 +156,27 @@ CREATE TABLE public.workout_sessions (
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT workout_sessions_user_id_fkey
-    FOREIGN KEY (user_id) REFERENCES public.users(id),
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
   CONSTRAINT workout_sessions_routine_id_fkey
-    FOREIGN KEY (routine_id) REFERENCES public.routines(id)
+    FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.workout_exercises (
-  id BIGSERIAL PRIMARY KEY,
-  workout_session_id BIGINT NOT NULL,
-  exercise_id BIGINT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workout_session_id UUID NOT NULL,
+  exercise_id UUID NOT NULL,
   exercise_order INTEGER NOT NULL CHECK (exercise_order > 0),
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT workout_exercises_workout_session_id_fkey
-    FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id),
+    FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id) ON DELETE CASCADE,
   CONSTRAINT workout_exercises_exercise_id_fkey
-    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id)
+    FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.workout_sets (
-  id BIGSERIAL PRIMARY KEY,
-  workout_exercise_id BIGINT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workout_exercise_id UUID NOT NULL,
   set_number INTEGER NOT NULL CHECK (set_number > 0),
   reps INTEGER CHECK (reps >= 0),
   weight_kg NUMERIC CHECK (weight_kg >= 0),
@@ -180,5 +186,13 @@ CREATE TABLE public.workout_sets (
   completed BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT workout_sets_workout_exercise_id_fkey
-    FOREIGN KEY (workout_exercise_id) REFERENCES public.workout_exercises(id)
+    FOREIGN KEY (workout_exercise_id) REFERENCES public.workout_exercises(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX exercises_official_name_unique
+ON public.exercises (LOWER(name))
+WHERE is_official = true;
+
+CREATE UNIQUE INDEX exercises_private_owner_name_unique
+ON public.exercises (owner_user_id, LOWER(name))
+WHERE is_official = false;

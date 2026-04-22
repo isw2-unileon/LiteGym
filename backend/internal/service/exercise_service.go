@@ -47,9 +47,9 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 	return s.repo.Create(ctx, exercise)
 }
 
-// GetByID retrieves an exercise by its ID.
-func (s *ExerciseService) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
-	if id <= 0 {
+// GetByID retrieves an exercise by its UUID string ID.
+func (s *ExerciseService) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
+	if strings.TrimSpace(id) == "" {
 		return nil, ErrInvalidExerciseInput
 	}
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 )
@@ -79,15 +80,16 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 // GetUserByID retrieves a user by ID.
 func (h *UserHandler) GetUserByID(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
+	idParam := c.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid user id",
 		})
 		return
 	}
 
-	user, err := h.service.GetByID(c.Request.Context(), id)
+	user, err := h.service.GetByID(c.Request.Context(), id.String())
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidUserInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -103,7 +105,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 			return
 		}
 
-		slog.Error("failed to retrieve user", "error", err, "id", id)
+		slog.Error("failed to retrieve user", "error", err, "id", id.String())
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve user",

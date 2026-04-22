@@ -11,7 +11,7 @@ import (
 
 type MockExerciseRepository struct {
 	createFunc  func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc func(ctx context.Context, id int64) (*model.Exercise, error)
+	getByIDFunc func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc    func(ctx context.Context) ([]model.Exercise, error)
 }
 
@@ -22,7 +22,7 @@ func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exe
 	return nil
 }
 
-func (m *MockExerciseRepository) GetByID(ctx context.Context, id int64) (*model.Exercise, error) {
+func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -145,7 +145,7 @@ func TestExerciseServiceGetByIDInvalidID(t *testing.T) {
 	mockRepo := &MockExerciseRepository{}
 	svc := NewExerciseService(mockRepo)
 
-	_, err := svc.GetByID(context.Background(), 0)
+	_, err := svc.GetByID(context.Background(), "")
 
 	if !errors.Is(err, ErrInvalidExerciseInput) {
 		t.Errorf("expected ErrInvalidExerciseInput, got %v", err)
@@ -154,14 +154,14 @@ func TestExerciseServiceGetByIDInvalidID(t *testing.T) {
 
 func TestExerciseServiceGetByIDNotFound(t *testing.T) {
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return nil, pgx.ErrNoRows
 		},
 	}
 
 	svc := NewExerciseService(mockRepo)
 
-	_, err := svc.GetByID(context.Background(), 1)
+	_, err := svc.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655440000")
 
 	if !errors.Is(err, ErrExerciseNotFound) {
 		t.Errorf("expected ErrExerciseNotFound, got %v", err)
@@ -172,14 +172,14 @@ func TestExerciseServiceGetByIDRepositoryError(t *testing.T) {
 	expectedErr := errors.New("database error")
 
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return nil, expectedErr
 		},
 	}
 
 	svc := NewExerciseService(mockRepo)
 
-	_, err := svc.GetByID(context.Background(), 1)
+	_, err := svc.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655440001")
 
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected %v, got %v", expectedErr, err)
@@ -188,12 +188,9 @@ func TestExerciseServiceGetByIDRepositoryError(t *testing.T) {
 
 func TestExerciseServiceGetByIDSuccess(t *testing.T) {
 	mockRepo := &MockExerciseRepository{
-		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
 			return &model.Exercise{
-				// The mocked repository GetByID supplies an integer-like `id` value.
-				// We intentionally convert to `int` here to match `model.Exercise.ID`.
-				// This conversion is explicit and intended.
-				ID:          int(id), // conversion intentional
+				ID:          id,
 				Name:        "Bench Press",
 				MuscleGroup: "chest",
 				IsOfficial:  true,
@@ -203,7 +200,7 @@ func TestExerciseServiceGetByIDSuccess(t *testing.T) {
 
 	svc := NewExerciseService(mockRepo)
 
-	exercise, err := svc.GetByID(context.Background(), 1)
+	exercise, err := svc.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655440000")
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
@@ -213,8 +210,8 @@ func TestExerciseServiceGetByIDSuccess(t *testing.T) {
 		return
 	}
 
-	if exercise.ID != 1 {
-		t.Errorf("expected ID 1, got %d", exercise.ID)
+	if exercise.ID != "550e8400-e29b-41d4-a716-446655440000" {
+		t.Errorf("expected ID 550e8400-e29b-41d4-a716-446655440000, got %s", exercise.ID)
 	}
 
 	if exercise.Name != "Bench Press" {
@@ -227,13 +224,13 @@ func TestExerciseServiceListSuccess(t *testing.T) {
 		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
 			return []model.Exercise{
 				{
-					ID:          1,
+					ID:          "550e8400-e29b-41d4-a716-446655440000",
 					Name:        "Bench Press",
 					MuscleGroup: "chest",
 					IsOfficial:  true,
 				},
 				{
-					ID:          2,
+					ID:          "550e8400-e29b-41d4-a716-446655440001",
 					Name:        "Squat",
 					MuscleGroup: "legs",
 					IsOfficial:  true,
