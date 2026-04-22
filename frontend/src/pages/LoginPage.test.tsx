@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LoginPage from "./LoginPage";
 
@@ -18,6 +19,14 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
+function renderLoginPage() {
+  return render(
+    <MemoryRouter>
+      <LoginPage />
+    </MemoryRouter>,
+  );
+}
+
 describe("LoginPage", () => {
   afterEach(() => {
     cleanup();
@@ -25,27 +34,27 @@ describe("LoginPage", () => {
   });
 
   it("renders the login form", () => {
-    render(<LoginPage />);
+    renderLoginPage();
 
     expect(screen.getByText("Grupo 16 Fitness")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entra, entrena y controla tu progreso." })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Contrasena")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Iniciar sesion" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Probar" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Probar" })).not.toBeInTheDocument();
   });
 
-  it("logs in and sends credentials with cookies enabled", async () => {
+  it("logs in, sends credentials with cookies enabled and notifies success", async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch(jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 }));
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/login",
+        expect.stringContaining("/api/auth/login"),
         expect.objectContaining({
           method: "POST",
           credentials: "include",
@@ -57,48 +66,17 @@ describe("LoginPage", () => {
       );
     });
 
-    expect(await screen.findByText("Sesion iniciada. La cookie HttpOnly ya esta guardada por el navegador.")).toBeInTheDocument();
+    expect(await screen.findByText("Sesion iniciada. Entrando al panel...")).toBeInTheDocument();
   });
 
   it("shows the backend error when login fails", async () => {
     const user = userEvent.setup();
     mockFetch(jsonResponse({ error: "invalid credentials" }, { status: 401 }));
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByText("invalid credentials")).toBeInTheDocument();
-  });
-
-  it("checks the protected exercises route with cookies enabled", async () => {
-    const user = userEvent.setup();
-    const fetchMock = mockFetch(jsonResponse([], { status: 200 }));
-
-    render(<LoginPage />);
-
-    await user.click(screen.getByRole("button", { name: "Probar" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/exercises",
-        expect.objectContaining({
-          credentials: "include",
-        }),
-      );
-    });
-
-    expect(await screen.findByText("Todo listo, ya tienes acceso.")).toBeInTheDocument();
-  });
-
-  it("shows a blocked message when the protected route returns unauthorized", async () => {
-    const user = userEvent.setup();
-    mockFetch(jsonResponse({ error: "authentication required" }, { status: 401 }));
-
-    render(<LoginPage />);
-
-    await user.click(screen.getByRole("button", { name: "Probar" }));
-
-    expect(await screen.findByText("Todavia no puedes entrar. Inicia sesion primero.")).toBeInTheDocument();
   });
 });

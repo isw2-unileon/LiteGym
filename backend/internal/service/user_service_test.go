@@ -13,7 +13,7 @@ import (
 
 type mockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
-	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
+	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -24,7 +24,7 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *mockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (m *mockUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -74,7 +74,7 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
@@ -103,7 +103,7 @@ func TestUserServiceAuthenticateInvalidCredentials(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
@@ -136,10 +136,10 @@ func TestUserServiceAuthenticateUserNotFound(t *testing.T) {
 
 func TestUserServiceGetProfileSuccess(t *testing.T) {
 	expectedTime := time.Now().UTC()
-	expectedID := int(1)
+	expectedID := "550e8400-e29b-41d4-a716-446655440000"
 
 	mockRepo := &mockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return &model.User{
 				ID:        expectedID,
 				Username:  "profileuser",

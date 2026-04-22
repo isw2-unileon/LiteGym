@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 // AuthHandler handles authentication HTTP requests.
@@ -64,6 +66,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			return
 		}
 
+		slog.Error("failed to authenticate user", "error", err, "email", req.Email)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to authenticate user",
 		})
@@ -72,6 +76,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username)
 	if err != nil {
+		slog.Error("failed to generate auth token", "error", err, "user_id", user.ID)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to generate auth token",
 		})
@@ -90,5 +96,44 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": user,
+	})
+}
+
+// Me returns the current authenticated user from the request context.
+func (h *AuthHandler) Me(c *gin.Context) {
+	userID, ok := c.Get(middleware.ContextUserIDKey)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "authentication required",
+		})
+		return
+	}
+
+	email, _ := c.Get(middleware.ContextUserEmailKey)
+	username, _ := c.Get(middleware.ContextUsernameKey)
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":       userID,
+			"email":    email,
+			"username": username,
+		},
+	})
+}
+
+// Logout clears the authentication cookie for the current client.
+func (h *AuthHandler) Logout(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "session closed",
 	})
 }

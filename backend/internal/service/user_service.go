@@ -55,7 +55,11 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 }
 
 // GetByID retrieves a user by ID.
-func (s *UserService) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id string) (*model.User, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, ErrInvalidUserInput
+	}
+
 	user, err := s.repo.GetByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound

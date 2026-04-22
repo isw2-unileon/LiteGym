@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -47,9 +46,13 @@ func NewTokenService(secret, issuer string, ttl time.Duration) *TokenService {
 }
 
 // GenerateToken creates a signed token for the given user data.
-func (s *TokenService) GenerateToken(userID int, email, username string) (string, error) {
+func (s *TokenService) GenerateToken(userID string, email, username string) (string, error) {
 	if len(s.secretKey) == 0 {
 		return "", errors.New("token secret is required")
+	}
+
+	if strings.TrimSpace(userID) == "" {
+		return "", errors.New("user id is required")
 	}
 
 	now := time.Now().UTC()
@@ -58,7 +61,7 @@ func (s *TokenService) GenerateToken(userID int, email, username string) (string
 		Type:      "JWT",
 	}
 	claims := TokenClaims{
-		Subject:   fmt.Sprintf("%d", userID),
+		Subject:   userID,
 		Email:     email,
 		Username:  username,
 		Issuer:    s.issuer,
