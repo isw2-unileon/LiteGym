@@ -110,7 +110,7 @@ func TestGetUserByID(t *testing.T) {
 	mockRepo := &MockUserRepository{
 		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
 			return &model.User{
-				ID:           int(id),
+				ID:           id,
 				Username:     "testuser",
 				Email:        "test@example.com",
 				PasswordHash: "hashed",

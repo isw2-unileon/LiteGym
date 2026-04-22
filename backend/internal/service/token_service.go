@@ -18,6 +18,11 @@ type TokenService struct {
 	ttl       time.Duration
 }
 
+// TokenClaims represents the JWT claims used by TokenService.
+//
+// TokenService emits and parses tokens containing these claims. The struct is
+// exported because tests and middleware may inspect the parsed claims to
+// access the subject, email, username and timing fields.
 type TokenClaims struct {
 	Subject   string `json:"sub"`
 	Email     string `json:"email"`

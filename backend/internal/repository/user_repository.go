@@ -32,16 +32,18 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		RETURNING id, created_at
 	`
 
+	var id int64
 	err := r.db.QueryRow(
 		ctx,
 		query,
 		user.Username,
 		user.Email,
 		user.PasswordHash,
-	).Scan(&user.ID, &user.CreatedAt)
+	).Scan(&id, &user.CreatedAt)
 	if err != nil {
 		return err
 	}
+	user.ID = int(id)
 
 	return nil
 }
@@ -55,8 +57,9 @@ func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, erro
 
 	var user model.User
 
+	var id64 int64
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID,
+		&id64,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
@@ -65,6 +68,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, erro
 	if err != nil {
 		return nil, err
 	}
+	user.ID = int(id64)
 
 	return &user, nil
 }
@@ -78,8 +82,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 	var user model.User
 
+	var id64 int64
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID,
+		&id64,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
@@ -88,6 +93,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	if err != nil {
 		return nil, err
 	}
+	user.ID = int(id64)
 
 	return &user, nil
 }

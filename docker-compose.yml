@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+    postgres:
+        image: postgres:15-alpine
+        container_name: postgres-local
+        environment:
+            POSTGRES_USER: user
+            POSTGRES_PASSWORD: pass
+            POSTGRES_DB: local_db
+        ports:
+            - "5432:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./postgres-local/initdb:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U user -d local_db"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+        restart: unless-stopped
+
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        container_name: backend-local
+        environment:
+            DB_HOST: postgres
+            DB_PORT: 5432
+            DB_USER: user
+            DB_PASSWORD: pass
+            DB_NAME: local_db
+        ports:
+            - "8000:8000"
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        container_name: frontend-local
+        ports:
+            - "5173:5173"
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    pgdata:
