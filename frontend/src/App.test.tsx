@@ -35,7 +35,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -71,7 +71,7 @@ describe("App", () => {
     );
 
     expect(screen.getByText("Redirigiendo...")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
   });
 
   it("redirects unknown routes to login when the session is missing", async () => {
@@ -85,5 +85,18 @@ describe("App", () => {
 
     expect(screen.getByText("Redirigiendo...")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Iniciar sesion" })).toBeInTheDocument();
+  });
+
+  it("does not allow regular users to open the admin route directly", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: { id: "user-id", role: "user" } }, { status: 200 })));
+
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Panel admin" })).not.toBeInTheDocument();
   });
 });

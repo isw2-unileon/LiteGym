@@ -15,6 +15,7 @@ const (
 	ContextUserIDKey    = "user_id"
 	ContextUserEmailKey = "user_email"
 	ContextUsernameKey  = "username"
+	ContextUserRoleKey  = "user_role"
 )
 
 // AuthMiddleware provides HTTP middleware for authentication.
@@ -65,6 +66,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		c.Set(ContextUserIDKey, claims.Subject)
 		c.Set(ContextUserEmailKey, claims.Email)
 		c.Set(ContextUsernameKey, claims.Username)
+		c.Set(ContextUserRoleKey, claims.Role)
 		c.Next()
 	}
 }

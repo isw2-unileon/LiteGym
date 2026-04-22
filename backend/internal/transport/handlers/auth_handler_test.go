@@ -49,6 +49,7 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
+				Role:         "admin",
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -149,12 +150,26 @@ func TestMeReturnsAuthenticatedUser(t *testing.T) {
 	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440000")
 	c.Set(middleware.ContextUserEmailKey, "test@example.com")
 	c.Set(middleware.ContextUsernameKey, "testuser")
+	c.Set(middleware.ContextUserRoleKey, "admin")
 	c.Request = httptest.NewRequest("GET", "/api/auth/me", nil)
 
 	authHandler.Me(c)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var body struct {
+		User struct {
+			Role string `json:"role"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if body.User.Role != "admin" {
+		t.Errorf("expected role admin, got %s", body.User.Role)
 	}
 }
 

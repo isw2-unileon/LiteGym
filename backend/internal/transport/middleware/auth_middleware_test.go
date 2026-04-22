@@ -61,7 +61,7 @@ func TestRequireAuthWithValidToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}

@@ -4,6 +4,7 @@ export type Exercise = {
     description: string | null;
     muscle_group: string;
     exercise_type: string | null;
+    created_at?: string;
 };
 
 export type ExerciseStatus = "idle" | "loading" | "success" | "error";
