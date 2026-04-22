@@ -8,6 +8,7 @@ on:
       - "go.sum"
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
+      - "postgress-local/initdb/**"
   pull_request:
     paths:
       - "backend/**"
@@ -15,10 +16,27 @@ on:
       - "go.sum"
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
+      - "postgress-local/initdb/**"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user -d test_db"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,14 +46,49 @@ jobs:
           go-version-file: go.mod
 
       - name: Download dependencies
-        run: go mod download && go mod verify
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for PostgreSQL
+        env:
+          PGPASSWORD: test_password
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U test_user -d test_db; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready in time"
+          exit 1
+
+      - name: Apply schema
+        env:
+          PGPASSWORD: test_password
+        run: |
+          psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/01-schema.sql
+
+      - name: Apply seed
+        env:
+          PGPASSWORD: test_password
+        run: |
+          psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/02-seed.sql
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.9.0
+          working-directory: .
 
       - name: Test
+        env:
+          TEST_DB_URL: postgres://test_user:test_password@localhost:5432/test_db
         run: go test -v -race ./...
 
       - name: Build

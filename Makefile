@@ -1,4 +1,14 @@
-.PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e
+.PHONY: install run-backend run-frontend build-backend build-frontend test lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db
+
+COMPOSE ?= docker compose
+ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
+COMPOSE := podman compose
+endif
+
+COMPOSE ?= docker compose
+ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
+COMPOSE := podman compose
+endif
 
 ## Install all dependencies
 install:
@@ -24,6 +34,38 @@ build-backend:
 ## Build frontend for production
 build-frontend:
 	cd frontend && npm run build
+
+#
+# App snapshot (compose.yaml) management
+# These targets operate the compose.yaml found at the repository root.
+#
+start-app-snapshot:
+	@echo "Starting application stack using compose.yaml..."
+	$(COMPOSE) -f compose.yaml up -d
+
+down-app-snapshot:
+	@echo "Stopping application stack defined in compose.yaml..."
+	$(COMPOSE) -f compose.yaml down
+
+delete-app-snapshot:
+	@echo "Deleting application stack (volumes & local images) defined in compose.yaml..."
+	$(COMPOSE) -f compose.yaml down --volumes --rmi local --remove-orphans
+
+#
+# Postgres-local compose management
+# These targets operate the docker-compose.yml inside postgress-local directory.
+#
+start-postges-db:
+	@echo "Starting postgres-local stack..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml up -d
+
+stop-postges-db:
+	@echo "Stopping postgres-local stack..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml down
+
+delete-postgres-db:
+	@echo "Deleting postgres-local stack (volumes & local images)..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml down --volumes --rmi local --remove-orphans
 
 ## Run all tests
 test:

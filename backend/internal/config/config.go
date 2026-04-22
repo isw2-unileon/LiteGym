@@ -23,10 +23,15 @@ type Config struct {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
+// It prefers loading from `.env.local` first, then falls back to `.env`.
+// If neither file is present, it will use the system environment variables.
 func Load() *Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, using system environment variables")
+	// Try to load .env.local first, then .env.
+	// godotenv.Load returns an error if none of the provided files are found.
+	if err := godotenv.Load(".env.local", ".env"); err != nil {
+		log.Println("No .env.local or .env file found, using system environment variables")
+	} else {
+		log.Println("Environment variables loaded from .env.local or .env")
 	}
 
 	return &Config{

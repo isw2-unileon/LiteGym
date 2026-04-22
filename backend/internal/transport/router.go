@@ -17,6 +17,8 @@ type DBPinger interface {
 }
 
 // SetupRouter configures and returns the application HTTP router.
+//
+// This router enables CORS with credential support and a configurable allowed origin.
 func SetupRouter(
 	db DBPinger,
 	userHandler *handlers.UserHandler,

@@ -4,7 +4,7 @@ go 1.25.0
 
 require github.com/gin-gonic/gin v1.12.0
 
-require github.com/jackc/pgx/v5 v5.8.0
+require github.com/jackc/pgx/v5 v5.9.1
 
 require (
 	github.com/joho/godotenv v1.5.1

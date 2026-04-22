@@ -154,10 +154,12 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 	user, err := svc.GetByID(context.Background(), expectedID)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+		return
 	}
 
 	if user == nil {
 		t.Fatal("expected user profile, got nil")
+		return
 	}
 
 	if user.Username != "profileuser" {

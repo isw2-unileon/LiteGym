@@ -50,7 +50,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 	query := `
 		SELECT id::text, username, email, password_hash, created_at
 		FROM users
-		WHERE id = $1
+		WHERE id = $1::uuid
 	`
 
 	var user model.User

@@ -1,0 +1,249 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"os"
+	"testing"
+
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func setupTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+
+	testDBURL := os.Getenv("TEST_DB_URL")
+	if testDBURL == "" {
+		t.Skip("TEST_DB_URL is not set; skipping repository integration test")
+	}
+
+	db, err := pgxpool.New(context.Background(), testDBURL)
+	if err != nil {
+		t.Fatalf("error conectando a la base de test: %v", err)
+	}
+
+	if err := db.Ping(context.Background()); err != nil {
+		t.Fatalf("error haciendo ping a la base de test: %v", err)
+	}
+
+	return db
+}
+
+func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
+	t.Helper()
+
+	tables := []string{
+		"public.workout_sets",
+		"public.workout_exercises",
+		"public.workout_sessions",
+		"public.support_tickets",
+		"public.shared_routines",
+		"public.routine_exercises",
+		"public.routines",
+		"public.friendships",
+		"public.exercise_secondary_muscle_groups",
+		"public.exercises",
+		"public.body_metrics",
+		"public.user_profiles",
+		"public.users",
+	}
+
+	for _, table := range tables {
+		_, err := db.Exec(context.Background(), "DELETE FROM "+table)
+		if err != nil {
+			t.Fatalf("error limpiando %s: %v", table, err)
+		}
+	}
+}
+
+func insertUserRaw(t *testing.T, db *pgxpool.Pool, username, email string) string {
+	t.Helper()
+
+	var id string
+	err := db.QueryRow(context.Background(), `
+		INSERT INTO public.users (username, email, password_hash)
+		VALUES ($1, $2, $3)
+		RETURNING id::text
+	`, username, email, "").Scan(&id)
+	if err != nil {
+		t.Fatalf("error insertando en public.users: %v", err)
+	}
+
+	return id
+}
+
+func TestUserRepositoryCreateIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	repo := NewUserRepository(db)
+
+	user := &model.User{
+		Username: "createduser",
+		Email:    "created@example.com",
+	}
+
+	err := repo.Create(context.Background(), user)
+	if err != nil {
+		t.Fatalf("no se esperaba error en Create, pero se obtuvo: %v", err)
+	}
+
+	if user.ID == "" {
+		t.Fatal("se esperaba que el usuario tuviera ID tras el Create")
+	}
+
+	if user.CreatedAt.IsZero() {
+		t.Fatal("se esperaba que el usuario tuviera CreatedAt tras el Create")
+	}
+
+	var (
+		dbID       string
+		dbUsername string
+		dbEmail    string
+	)
+
+	err = db.QueryRow(context.Background(), `
+		SELECT id::text, username, email
+		FROM public.users
+		WHERE email = $1
+	`, "created@example.com").Scan(&dbID, &dbUsername, &dbEmail)
+	if err != nil {
+		t.Fatalf("error comprobando usuario creado en la base: %v", err)
+	}
+
+	if user.ID != dbID {
+		t.Fatalf("ID incorrecto: esperado %s, obtenido %s", dbID, user.ID)
+	}
+
+	if dbUsername != "createduser" {
+		t.Fatalf("username incorrecto: esperado createduser, obtenido %s", dbUsername)
+	}
+
+	if dbEmail != "created@example.com" {
+		t.Fatalf("email incorrecto: esperado created@example.com, obtenido %s", dbEmail)
+	}
+}
+
+func TestUserRepositoryGetByIDIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	insertedID := insertUserRaw(t, db, "userbyid", "userbyid@example.com")
+
+	repo := NewUserRepository(db)
+
+	user, err := repo.GetByID(context.Background(), insertedID)
+	if err != nil {
+		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
+		return
+	}
+
+	if user == nil {
+		t.Fatal("se esperaba un usuario, pero se obtuvo nil")
+		return
+	}
+
+	if user.ID != insertedID {
+		t.Fatalf("id incorrecto: esperado %s, obtenido %s", insertedID, user.ID)
+	}
+
+	if user.Username != "userbyid" {
+		t.Fatalf("username incorrecto: esperado userbyid, obtenido %s", user.Username)
+	}
+
+	if user.Email != "userbyid@example.com" {
+		t.Fatalf("email incorrecto: esperado userbyid@example.com, obtenido %s", user.Email)
+	}
+
+	if user.CreatedAt.IsZero() {
+		t.Fatal("se esperaba CreatedAt informado")
+	}
+}
+
+func TestUserRepositoryGetByIDNotFoundIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	repo := NewUserRepository(db)
+
+	user, err := repo.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655449999")
+	if err == nil {
+		t.Fatal("se esperaba error al buscar un usuario inexistente")
+	}
+
+	if user != nil {
+		t.Fatalf("se esperaba usuario nil, pero se obtuvo: %#v", user)
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
+	}
+}
+
+func TestUserRepositoryGetByEmailIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	insertUserRaw(t, db, "userbyemail", "userbyemail@example.com")
+
+	repo := NewUserRepository(db)
+
+	user, err := repo.GetByEmail(context.Background(), "userbyemail@example.com")
+	if err != nil {
+		t.Fatalf("no se esperaba error en GetByEmail, pero se obtuvo: %v", err)
+		return
+	}
+
+	if user == nil {
+		t.Fatal("se esperaba un usuario, pero se obtuvo nil")
+		return
+	}
+
+	if user.Username != "userbyemail" {
+		t.Fatalf("username incorrecto: esperado userbyemail, obtenido %s", user.Username)
+	}
+
+	if user.Email != "userbyemail@example.com" {
+		t.Fatalf("email incorrecto: esperado userbyemail@example.com, obtenido %s", user.Email)
+	}
+
+	if user.ID == "" {
+		t.Fatal("se esperaba ID informado")
+	}
+
+	if user.CreatedAt.IsZero() {
+		t.Fatal("se esperaba CreatedAt informado")
+	}
+}
+
+func TestUserRepositoryGetByEmailNotFoundIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	repo := NewUserRepository(db)
+
+	user, err := repo.GetByEmail(context.Background(), "notfound@example.com")
+	if err == nil {
+		t.Fatal("se esperaba error al buscar un email inexistente")
+	}
+
+	if user != nil {
+		t.Fatalf("se esperaba usuario nil, pero se obtuvo: %#v", user)
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
+	}
+}

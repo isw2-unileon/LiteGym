@@ -242,7 +242,10 @@ func TestGetExerciseByID(t *testing.T) {
 	mockRepo := &MockExerciseRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*model.Exercise, error) {
 			return &model.Exercise{
-				ID:          int(id),
+				// The mocked repository GetByID supplies an integer-like `id` value.
+				// We intentionally convert to `int` here to match `model.Exercise.ID`.
+				// This conversion is explicit and intended.
+				ID:          int(id), // conversion intentional
 				Name:        "Bench Press",
 				MuscleGroup: "chest",
 				IsOfficial:  true,
