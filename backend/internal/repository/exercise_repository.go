@@ -9,9 +9,9 @@ import (
 
 // ExerciseRepository defines the persistence operations for exercises.
 type ExerciseRepository interface {
-	Create(ctx context.Context, exercise *model.Exercise) error
 	GetByID(ctx context.Context, id string) (*model.Exercise, error)
 	List(ctx context.Context) ([]model.Exercise, error)
+	Create(ctx context.Context, exercise *model.Exercise) error
 }
 
 type exerciseRepository struct {
@@ -25,50 +25,21 @@ func NewExerciseRepository(db *pgxpool.Pool) ExerciseRepository {
 	}
 }
 
-func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
-	query := `
-		INSERT INTO exercises (
-			name,
-			description,
-			muscle_group,
-			secondary_muscle_group,
-			exercise_type,
-			is_official
-		)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id::text, created_at
-	`
-
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		exercise.Name,
-		exercise.Description,
-		exercise.MuscleGroup,
-		exercise.SecondaryMuscleGroup,
-		exercise.ExerciseType,
-		exercise.IsOfficial,
-	).Scan(&exercise.ID, &exercise.CreatedAt)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	query := `
 		SELECT
-			id::text,
-			name,
-			description,
-			muscle_group,
-			secondary_muscle_group,
-			exercise_type,
-			is_official,
-			created_at
-		FROM exercises
-		WHERE id = $1::uuid
+			e.id::text,
+			e.name,
+			e.description,
+			e.muscle_group,
+			COALESCE(string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group), ''),
+			e.exercise_type,
+			e.is_official,
+			e.created_at
+		FROM exercises e
+		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
+		WHERE e.id = $1::uuid
+		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
 	`
 
 	var exercise model.Exercise
@@ -93,16 +64,18 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
 	query := `
 		SELECT
-			id::text,
-			name,
-			description,
-			muscle_group,
-			secondary_muscle_group,
-			exercise_type,
-			is_official,
-			created_at
-		FROM exercises
-		ORDER BY created_at ASC, id::text ASC
+			e.id::text,
+			e.name,
+			e.description,
+			e.muscle_group,
+			COALESCE(string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group), ''),
+			e.exercise_type,
+			e.is_official,
+			e.created_at
+		FROM exercises e
+		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
+		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
+		ORDER BY e.created_at ASC, e.id::text ASC
 	`
 
 	rows, err := r.db.Query(ctx, query)
@@ -137,4 +110,46 @@ func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error)
 	}
 
 	return exercises, nil
+}
+
+func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
+	query := `
+		INSERT INTO exercises(
+			name,
+			description,
+			muscle_group,
+			exercise_type,
+			is_official
+		)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id::text, created_at
+	`
+
+	if err := r.db.QueryRow(
+		ctx,
+		query,
+		exercise.Name,
+		exercise.Description,
+		exercise.MuscleGroup,
+		exercise.ExerciseType,
+		exercise.IsOfficial,
+	).Scan(&exercise.ID, &exercise.CreatedAt); err != nil {
+		return err
+	}
+
+	if exercise.SecondaryMuscleGroup == "" {
+		return nil
+	}
+
+	_, err := r.db.Exec(
+		ctx,
+		`
+			INSERT INTO exercise_secondary_muscle_groups (exercise_id, muscle_group)
+			VALUES ($1::uuid, $2)
+		`,
+		exercise.ID,
+		exercise.SecondaryMuscleGroup,
+	)
+	return err
+
 }

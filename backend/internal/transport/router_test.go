@@ -1,10 +1,10 @@
 package transport
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,18 +60,18 @@ func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenS
 	})
 }
 
-func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
-	if m.createFunc != nil {
-		return m.createFunc(ctx, exercise)
-	}
-	return nil
-}
-
 func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, exercise)
+	}
+	return nil
 }
 
 func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
@@ -249,36 +249,6 @@ func TestDBHealthEndpointError(t *testing.T) {
 	}
 }
 
-func TestExerciseCreateRoute(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mockDB := &MockDBPinger{}
-	mockUserRepo := &MockUserRepository{}
-	userService := service.NewUserService(mockUserRepo)
-	userHandler := handlers.NewUserHandler(userService)
-	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
-
-	exerciseRepo := &MockExerciseRepository{}
-	exerciseService := service.NewExerciseService(exerciseRepo)
-	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-
-	healthHandler := handlers.NewHealthHandler()
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
-
-	body := bytes.NewBufferString(`{"name":"Bench Press","muscle_group":"chest"}`)
-	req := httptest.NewRequest("POST", "/api/exercises", body)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
-	}
-}
-
 func TestExerciseListRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -360,7 +330,7 @@ func TestLoginRoute(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
 
-	body := bytes.NewBufferString(`{"email":"test@example.com","password":"password123"}`)
+	body := strings.NewReader(`{"email":"test@example.com","password":"password123"}`)
 	req := httptest.NewRequest("POST", "/api/auth/login", body)
 	req.Header.Set("Content-Type", "application/json")
 

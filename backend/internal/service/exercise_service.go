@@ -28,25 +28,6 @@ func NewExerciseService(repo repository.ExerciseRepository) *ExerciseService {
 	}
 }
 
-// Create validates and stores a new exercise.
-func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) error {
-	if exercise == nil {
-		return ErrInvalidExerciseInput
-	}
-
-	exercise.Name = strings.TrimSpace(exercise.Name)
-	exercise.Description = strings.TrimSpace(exercise.Description)
-	exercise.MuscleGroup = strings.TrimSpace(exercise.MuscleGroup)
-	exercise.SecondaryMuscleGroup = strings.TrimSpace(exercise.SecondaryMuscleGroup)
-	exercise.ExerciseType = strings.TrimSpace(exercise.ExerciseType)
-
-	if exercise.Name == "" || exercise.MuscleGroup == "" {
-		return ErrInvalidExerciseInput
-	}
-
-	return s.repo.Create(ctx, exercise)
-}
-
 // GetByID retrieves an exercise by its UUID string ID.
 func (s *ExerciseService) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
 	if strings.TrimSpace(id) == "" {
@@ -67,4 +48,18 @@ func (s *ExerciseService) GetByID(ctx context.Context, id string) (*model.Exerci
 // List returns all exercises.
 func (s *ExerciseService) List(ctx context.Context) ([]model.Exercise, error) {
 	return s.repo.List(ctx)
+}
+
+//Creates a new exercise after validating the input data.
+func(s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) error{
+	if exercise == nil{
+		return ErrInvalidExerciseInput;
+	} 
+	
+	if strings.TrimSpace(exercise.Name) == "" {
+		return ErrInvalidExerciseInput
+	}
+	
+	return s.repo.Create(ctx, exercise)
+	
 }

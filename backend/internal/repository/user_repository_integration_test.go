@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/testutil"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -14,10 +14,7 @@ import (
 func setupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	testDBURL := os.Getenv("TEST_DB_URL")
-	if testDBURL == "" {
-		t.Skip("TEST_DB_URL is not set; skipping repository integration test")
-	}
+	testDBURL := testutil.LoadIntegrationDBURL(t)
 
 	db, err := pgxpool.New(context.Background(), testDBURL)
 	if err != nil {

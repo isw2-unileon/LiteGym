@@ -3,21 +3,18 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func setupTestDBService(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	testDBURLService := os.Getenv("TEST_DB_URL")
-	if testDBURLService == "" {
-		t.Skip("TEST_DB_URL is not set; skipping service integration test")
-	}
+	testDBURLService := testutil.LoadIntegrationDBURL(t)
 
 	db, err := pgxpool.New(context.Background(), testDBURLService)
 	if err != nil {

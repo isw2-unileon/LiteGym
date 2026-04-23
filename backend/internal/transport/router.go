@@ -71,7 +71,6 @@ func SetupRouter(
 
 	protected.GET("/auth/me", authHandler.Me)
 	protected.GET("/users/:id", userHandler.GetUserByID)
-	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 
