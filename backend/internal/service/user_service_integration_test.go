@@ -13,19 +13,7 @@ import (
 
 func setupTestDBService(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURLService := testutil.LoadIntegrationDBURL(t)
-
-	db, err := pgxpool.New(context.Background(), testDBURLService)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
@@ -58,8 +46,6 @@ func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
 
 func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -116,8 +102,6 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -158,8 +142,6 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)

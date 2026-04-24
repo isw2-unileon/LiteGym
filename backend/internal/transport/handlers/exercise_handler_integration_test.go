@@ -18,19 +18,7 @@ import (
 
 func setupExerciseHandlerTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURL := testutil.LoadIntegrationDBURL(t)
-
-	db, err := pgxpool.New(context.Background(), testDBURL)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupExercisesHandler(t *testing.T, db *pgxpool.Pool) {
@@ -101,8 +89,6 @@ func setupExerciseHandlerRouter(db *pgxpool.Pool) *gin.Engine {
 
 func TestExerciseHandlerGetByIDIntegration(t *testing.T) {
 	db := setupExerciseHandlerTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesHandler(t, db)
 
 	insertedID := insertExerciseRawHandler(t, db, model.Exercise{
@@ -139,8 +125,6 @@ func TestExerciseHandlerGetByIDIntegration(t *testing.T) {
 
 func TestExerciseHandlerGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupExerciseHandlerTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesHandler(t, db)
 
 	router := setupExerciseHandlerRouter(db)
@@ -156,8 +140,6 @@ func TestExerciseHandlerGetByIDNotFoundIntegration(t *testing.T) {
 
 func TestExerciseHandlerListIntegration(t *testing.T) {
 	db := setupExerciseHandlerTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesHandler(t, db)
 
 	insertExerciseRawHandler(t, db, model.Exercise{

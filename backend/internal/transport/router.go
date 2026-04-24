@@ -88,8 +88,6 @@ func SetupRouter(
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
-
-	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	return r
 }

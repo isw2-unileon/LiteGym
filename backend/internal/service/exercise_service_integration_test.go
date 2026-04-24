@@ -13,19 +13,7 @@ import (
 
 func setupExerciseServiceTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURL := testutil.LoadIntegrationDBURL(t)
-
-	db, err := pgxpool.New(context.Background(), testDBURL)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupExercisesService(t *testing.T, db *pgxpool.Pool) {
@@ -82,8 +70,6 @@ func insertExerciseRawService(t *testing.T, db *pgxpool.Pool, exercise model.Exe
 
 func TestExerciseServiceGetByIDIntegration(t *testing.T) {
 	db := setupExerciseServiceTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesService(t, db)
 
 	insertedID := insertExerciseRawService(t, db, model.Exercise{
@@ -116,8 +102,6 @@ func TestExerciseServiceGetByIDIntegration(t *testing.T) {
 
 func TestExerciseServiceGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupExerciseServiceTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesService(t, db)
 
 	repo := repository.NewExerciseRepository(db)
@@ -134,8 +118,6 @@ func TestExerciseServiceGetByIDNotFoundIntegration(t *testing.T) {
 
 func TestExerciseServiceListIntegration(t *testing.T) {
 	db := setupExerciseServiceTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesService(t, db)
 
 	insertExerciseRawService(t, db, model.Exercise{

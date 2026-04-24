@@ -13,19 +13,7 @@ import (
 
 func setupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURL := testutil.LoadIntegrationDBURL(t)
-
-	db, err := pgxpool.New(context.Background(), testDBURL)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
@@ -73,8 +61,6 @@ func insertUserRaw(t *testing.T, db *pgxpool.Pool, username, email string) strin
 
 func TestUserRepositoryCreateIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	repo := NewUserRepository(db)
@@ -127,8 +113,6 @@ func TestUserRepositoryCreateIntegration(t *testing.T) {
 
 func TestUserRepositoryGetByIDIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	insertedID := insertUserRaw(t, db, "userbyid", "userbyid@example.com")
@@ -165,8 +149,6 @@ func TestUserRepositoryGetByIDIntegration(t *testing.T) {
 
 func TestUserRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	repo := NewUserRepository(db)
@@ -187,8 +169,6 @@ func TestUserRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 
 func TestUserRepositoryGetByEmailIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	insertUserRaw(t, db, "userbyemail", "userbyemail@example.com")
@@ -225,8 +205,6 @@ func TestUserRepositoryGetByEmailIntegration(t *testing.T) {
 
 func TestUserRepositoryGetByEmailNotFoundIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	repo := NewUserRepository(db)
@@ -247,8 +225,6 @@ func TestUserRepositoryGetByEmailNotFoundIntegration(t *testing.T) {
 
 func TestUserRepositoryListAllIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	insertUserRaw(t, db, "user1", "user1@example.com")
@@ -272,8 +248,6 @@ func TestUserRepositoryListAllIntegration(t *testing.T) {
 
 func TestUserRepositoryDeleteIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	insertedID := insertUserRaw(t, db, "todelete", "delete@example.com")
@@ -296,8 +270,6 @@ func TestUserRepositoryDeleteIntegration(t *testing.T) {
 
 func TestUserRepositoryDeleteNotFoundIntegration(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
-
 	cleanupUsers(t, db)
 
 	repo := NewUserRepository(db)

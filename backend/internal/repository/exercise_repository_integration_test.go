@@ -13,19 +13,7 @@ import (
 
 func setupExerciseTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURL := testutil.LoadIntegrationDBURL(t)
-
-	db, err := pgxpool.New(context.Background(), testDBURL)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupExercisesRepository(t *testing.T, db *pgxpool.Pool) {
@@ -82,8 +70,6 @@ func insertExerciseRawRepository(t *testing.T, db *pgxpool.Pool, exercise model.
 
 func TestExerciseRepositoryCreateIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesRepository(t, db)
 
 	repo := NewExerciseRepository(db)
@@ -164,8 +150,6 @@ func TestExerciseRepositoryCreateIntegration(t *testing.T) {
 
 func TestExerciseRepositoryGetByIDIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesRepository(t, db)
 
 	insertedID := insertExerciseRawRepository(t, db, model.Exercise{
@@ -204,8 +188,6 @@ func TestExerciseRepositoryGetByIDIntegration(t *testing.T) {
 
 func TestExerciseRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesRepository(t, db)
 
 	repo := NewExerciseRepository(db)
@@ -226,8 +208,6 @@ func TestExerciseRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 
 func TestExerciseRepositoryListIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
-	defer db.Close()
-
 	cleanupExercisesRepository(t, db)
 
 	insertExerciseRawRepository(t, db, model.Exercise{
