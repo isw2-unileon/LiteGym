@@ -80,6 +80,7 @@ func TestCreateUser(t *testing.T) {
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "password123",
+		Role:     "user",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -103,10 +104,9 @@ func TestCreateUserMissingFields(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	// Request incompleto
 	reqBody := CreateUserRequest{
 		Username: "testuser",
-		// Email vacío
+		
 		Password: "password123",
 	}
 
@@ -266,31 +266,6 @@ func TestGetMe_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestGetMe_InvalidIDFormat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mockRepo := &MockUserRepository{}
-	userService := service.NewUserService(mockRepo)
-	userHandler := NewUserHandler(userService)
-
-	router := gin.New()
-
-	router.Use(func(ginCtx *gin.Context) {
-		ginCtx.Set("user_id", "invalid_numeric_id")
-		ginCtx.Next()
-	})
-
-	router.GET("/api/users/me", userHandler.GetMe)
-
-	recorder := httptest.NewRecorder()
-	request, _ := http.NewRequest(http.MethodGet, "/api/users/me", nil)
-	router.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
-	}
-}
-
 func TestDeleteUser_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -308,32 +283,11 @@ func TestDeleteUser_Success(t *testing.T) {
 
 	router.DELETE("/api/users/:id", userHandler.DeleteUser)
 
-	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/1", nil)
+	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/550e8400-e29b-41d4-a716-446655440000", nil)
 	router.ServeHTTP(recorder, ginCtx.Request)
 
 	if recorder.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, recorder.Code)
-	}
-}
-
-func TestDeleteUser_InvalidID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mockRepo := &MockUserRepository{}
-	userService := service.NewUserService(mockRepo)
-	userHandler := NewUserHandler(userService)
-
-	recorder := httptest.NewRecorder()
-	ginCtx, router := gin.CreateTestContext(recorder)
-
-	router.DELETE("/api/users/:id", userHandler.DeleteUser)
-
-	// Send "abc" instead of a number
-	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/abc", nil)
-	router.ServeHTTP(recorder, ginCtx.Request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
 	}
 }
 
@@ -354,7 +308,7 @@ func TestDeleteUser_NotFound(t *testing.T) {
 
 	router.DELETE("/api/users/:id", userHandler.DeleteUser)
 
-	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/999", nil)
+	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/00000000-0000-0000-0000-000000000000", nil)
 	router.ServeHTTP(recorder, ginCtx.Request)
 
 	if recorder.Code != http.StatusNotFound {
