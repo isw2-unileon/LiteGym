@@ -11,13 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var testDBURL = "postgres://test_user:test_password@localhost:5432/test_db"
-
 func setupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	if env := os.Getenv("TEST_DB_URL"); env != "" {
-		testDBURL = env
+	testDBURL := os.Getenv("TEST_DB_URL")
+	if testDBURL == "" {
+		t.Skip("TEST_DB_URL is not set; skipping repository integration test")
 	}
 
 	db, err := pgxpool.New(context.Background(), testDBURL)
@@ -59,20 +58,20 @@ func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
 	}
 }
 
-func insertUserRaw(t *testing.T, db *pgxpool.Pool, username, email string) int {
+func insertUserRaw(t *testing.T, db *pgxpool.Pool, username, email string) string {
 	t.Helper()
 
-	var id int64
+	var id string
 	err := db.QueryRow(context.Background(), `
 		INSERT INTO public.users (username, email, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id
+		RETURNING id::text
 	`, username, email, "").Scan(&id)
 	if err != nil {
 		t.Fatalf("error insertando en public.users: %v", err)
 	}
 
-	return int(id)
+	return id
 }
 
 func TestUserRepositoryCreateIntegration(t *testing.T) {
@@ -93,7 +92,7 @@ func TestUserRepositoryCreateIntegration(t *testing.T) {
 		t.Fatalf("no se esperaba error en Create, pero se obtuvo: %v", err)
 	}
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		t.Fatal("se esperaba que el usuario tuviera ID tras el Create")
 	}
 
@@ -102,13 +101,13 @@ func TestUserRepositoryCreateIntegration(t *testing.T) {
 	}
 
 	var (
-		dbID       int64
+		dbID       string
 		dbUsername string
 		dbEmail    string
 	)
 
 	err = db.QueryRow(context.Background(), `
-		SELECT id, username, email
+		SELECT id::text, username, email
 		FROM public.users
 		WHERE email = $1
 	`, "created@example.com").Scan(&dbID, &dbUsername, &dbEmail)
@@ -116,8 +115,8 @@ func TestUserRepositoryCreateIntegration(t *testing.T) {
 		t.Fatalf("error comprobando usuario creado en la base: %v", err)
 	}
 
-	if user.ID != int(dbID) {
-		t.Fatalf("ID incorrecto: esperado %d, obtenido %d", dbID, user.ID)
+	if user.ID != dbID {
+		t.Fatalf("ID incorrecto: esperado %s, obtenido %s", dbID, user.ID)
 	}
 
 	if dbUsername != "createduser" {
@@ -151,7 +150,7 @@ func TestUserRepositoryGetByIDIntegration(t *testing.T) {
 	}
 
 	if user.ID != insertedID {
-		t.Fatalf("id incorrecto: esperado %d, obtenido %d", insertedID, user.ID)
+		t.Fatalf("id incorrecto: esperado %s, obtenido %s", insertedID, user.ID)
 	}
 
 	if user.Username != "userbyid" {
@@ -175,7 +174,7 @@ func TestUserRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 
 	repo := NewUserRepository(db)
 
-	user, err := repo.GetByID(context.Background(), 999999)
+	user, err := repo.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655449999")
 	if err == nil {
 		t.Fatal("se esperaba error al buscar un usuario inexistente")
 	}
@@ -218,7 +217,7 @@ func TestUserRepositoryGetByEmailIntegration(t *testing.T) {
 		t.Fatalf("email incorrecto: esperado userbyemail@example.com, obtenido %s", user.Email)
 	}
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		t.Fatal("se esperaba ID informado")
 	}
 
@@ -306,7 +305,7 @@ func TestUserRepositoryDeleteNotFoundIntegration(t *testing.T) {
 
 	repo := NewUserRepository(db)
 
-	err := repo.Delete(context.Background(), 999999)
+	err := repo.Delete(context.Background(), "999999")
 
 	if err == nil {
 		t.Fatal("se esperaba error al borrar un usuario inexistente")

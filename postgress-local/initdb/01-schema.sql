@@ -8,7 +8,7 @@ CREATE TYPE public.ticket_status AS ENUM ('open', 'in_progress', 'closed');
 CREATE TYPE public.user_role AS ENUM ('user', 'admin');
 
 CREATE TABLE public.users (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR NOT NULL UNIQUE,
   email VARCHAR NOT NULL UNIQUE,
   password_hash TEXT,
@@ -19,7 +19,7 @@ CREATE TABLE public.users (
 );
 
 CREATE TABLE public.user_profiles (
-  user_id BIGINT PRIMARY KEY,
+  user_id UUID PRIMARY KEY,
   first_name VARCHAR,
   last_name VARCHAR,
   age INTEGER CHECK (age >= 0),
@@ -35,7 +35,7 @@ CREATE TABLE public.user_profiles (
 
 CREATE TABLE public.body_metrics (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
+  user_id UUID NOT NULL,
   recorded_at TIMESTAMP NOT NULL DEFAULT now(),
   weight_kg NUMERIC CHECK (weight_kg > 0),
   body_fat_percentage NUMERIC CHECK (body_fat_percentage >= 0 AND body_fat_percentage <= 100),
@@ -58,7 +58,7 @@ CREATE TABLE public.exercises (
   exercise_type VARCHAR,
   is_official BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
-  owner_user_id BIGINT,
+  owner_user_id UUID,
   CONSTRAINT exercises_owner_user_id_fkey
     FOREIGN KEY (owner_user_id) REFERENCES public.users(id)
 );
@@ -75,8 +75,8 @@ CREATE TABLE public.exercise_secondary_muscle_groups (
 
 CREATE TABLE public.friendships (
   id BIGSERIAL PRIMARY KEY,
-  requester_id BIGINT NOT NULL,
-  addressee_id BIGINT NOT NULL,
+  requester_id UUID NOT NULL,
+  addressee_id UUID NOT NULL,
   status public.friendship_status NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -88,7 +88,7 @@ CREATE TABLE public.friendships (
 
 CREATE TABLE public.routines (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
+  user_id UUID NOT NULL,
   name VARCHAR NOT NULL,
   description TEXT,
   is_predefined BOOLEAN NOT NULL DEFAULT false,
@@ -115,8 +115,8 @@ CREATE TABLE public.routine_exercises (
 CREATE TABLE public.shared_routines (
   id BIGSERIAL PRIMARY KEY,
   routine_id BIGINT NOT NULL,
-  owner_user_id BIGINT NOT NULL,
-  shared_with_user_id BIGINT NOT NULL,
+  owner_user_id UUID NOT NULL,
+  shared_with_user_id UUID NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT shared_routines_routine_id_fkey
     FOREIGN KEY (routine_id) REFERENCES public.routines(id),
@@ -128,7 +128,7 @@ CREATE TABLE public.shared_routines (
 
 CREATE TABLE public.support_tickets (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
+  user_id UUID NOT NULL,
   title VARCHAR NOT NULL,
   description TEXT NOT NULL,
   status public.ticket_status NOT NULL DEFAULT 'open',
@@ -140,7 +140,7 @@ CREATE TABLE public.support_tickets (
 
 CREATE TABLE public.workout_sessions (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
+  user_id UUID NOT NULL,
   routine_id BIGINT,
   name VARCHAR,
   started_at TIMESTAMP NOT NULL,

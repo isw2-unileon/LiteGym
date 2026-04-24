@@ -11,13 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var testDBURLService = "postgres://test_user:test_password@localhost:5432/test_db"
-
 func setupTestDBService(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	if env := os.Getenv("TEST_DB_URL"); env != "" {
-		testDBURLService = env
+	testDBURLService := os.Getenv("TEST_DB_URL")
+	if testDBURLService == "" {
+		t.Skip("TEST_DB_URL is not set; skipping service integration test")
 	}
 
 	db, err := pgxpool.New(context.Background(), testDBURLService)
@@ -82,7 +81,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected nil error creating user via service, got: %v", err)
 	}
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		t.Fatalf("expected created user to have ID set")
 	}
 	if user.CreatedAt.IsZero() {
@@ -98,7 +97,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected authenticated user, got nil")
 	}
 	if authUser.ID != user.ID {
-		t.Fatalf("expected auth user ID %d, got %d", user.ID, authUser.ID)
+		t.Fatalf("expected auth user ID %s, got %s", user.ID, authUser.ID)
 	}
 	if authUser.Email != user.Email {
 		t.Fatalf("expected auth user email %s, got %s", user.Email, authUser.Email)
@@ -138,11 +137,10 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 		t.Fatalf("create failed: %v", err)
 	}
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		t.Fatalf("expected user.ID after create")
 	}
 
-	// Service.GetByID expects an integer id parameter; pass the stored int directly.
 	ret, err := svc.GetByID(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("GetByID returned error: %v", err)
@@ -151,7 +149,7 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 		t.Fatalf("expected user, got nil")
 	}
 	if ret.ID != user.ID {
-		t.Fatalf("expected ID %d, got %d", user.ID, ret.ID)
+		t.Fatalf("expected ID %s, got %s", user.ID, ret.ID)
 	}
 	if ret.Email != user.Email {
 		t.Fatalf("expected email %s, got %s", user.Email, ret.Email)
@@ -171,7 +169,7 @@ func TestUserServiceGetByIDNotFoundIntegration(t *testing.T) {
 	svc := NewUserService(repo)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 99999999)
+	_, err := svc.GetByID(ctx, "550e8400-e29b-41d4-a716-446655449999")
 	if err == nil {
 		t.Fatalf("expected error for non-existent user")
 	}

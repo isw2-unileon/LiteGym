@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -63,6 +63,13 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			return
 		}
 
+		slog.Error(
+			"failed to create user",
+			"error", err,
+			"username", req.Username,
+			"email", req.Email,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create user",
 		})
@@ -74,10 +81,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 // GetUserByID retrieves a user by ID.
 func (h *UserHandler) GetUserByID(c *gin.Context) {
-	idParam := c.Param("id")
-
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid user id",
 		})
@@ -86,12 +91,21 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidUserInput) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid user id",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
 			return
 		}
+
+		slog.Error("failed to retrieve user", "error", err, "id", id)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve user",
@@ -104,25 +118,19 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 // GetMe returns the authenticated user profile
 func (h *UserHandler) GetMe(c *gin.Context) {
-	userIDStr, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	idString, ok := userIDStr.(string)
-	if !ok {
+	userID, ok := userIDVal.(string)
+	if !ok || userID == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid id format in context"})
 		return
 	}
 
-	id, err := strconv.Atoi(idString)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-		return
-	}
-
-	user, err := h.service.GetByID(c.Request.Context(), id)
+	user, err := h.service.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
@@ -147,14 +155,13 @@ func (h *UserHandler) ListAllUsers(c *gin.Context) {
 
 // DeleteUser handles the request to delete a specific user.
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID format"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
 		return
 	}
 
-	err = h.service.Delete(c.Request.Context(), id)
+	err := h.service.Delete(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})

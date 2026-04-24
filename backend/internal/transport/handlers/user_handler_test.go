@@ -18,10 +18,10 @@ import (
 // MockUserRepository is a test double for the user repository.
 type MockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
-	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
+	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 	listAllFunc    func(ctx context.Context) ([]*model.User, error)
-	deleteFunc     func(ctx context.Context, id int) error
+	deleteFunc     func(ctx context.Context, id string) error
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -31,7 +31,7 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -52,7 +52,7 @@ func (m *MockUserRepository) ListAll(ctx context.Context) ([]*model.User, error)
 	return nil, nil
 }
 
-func (m *MockUserRepository) Delete(ctx context.Context, id int) error {
+func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
 	}
@@ -64,7 +64,7 @@ func TestCreateUser(t *testing.T) {
 
 	mockRepo := &MockUserRepository{
 		createFunc: func(ctx context.Context, user *model.User) error {
-			user.ID = 1
+			user.ID = "550e8400-e29b-41d4-a716-446655440000"
 			user.CreatedAt = time.Now()
 			return nil
 		},
@@ -125,7 +125,7 @@ func TestGetUserByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return &model.User{
 				ID:           id,
 				Username:     "testuser",
@@ -141,9 +141,9 @@ func TestGetUserByID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
 
-	c.Request = httptest.NewRequest("GET", "/api/users/1", nil)
+	c.Request = httptest.NewRequest("GET", "/api/users/550e8400-e29b-41d4-a716-446655440000", nil)
 
 	userHandler.GetUserByID(c)
 
@@ -170,9 +170,9 @@ func TestGetUserByIDInvalidID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "invalid"}}
+	c.Params = gin.Params{{Key: "id", Value: ""}}
 
-	c.Request = httptest.NewRequest("GET", "/api/users/invalid", nil)
+	c.Request = httptest.NewRequest("GET", "/api/users/", nil)
 
 	userHandler.GetUserByID(c)
 
@@ -185,7 +185,7 @@ func TestGetUserByIDNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return nil, service.ErrUserNotFound
 		},
 	}
@@ -195,9 +195,9 @@ func TestGetUserByIDNotFound(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "999"}}
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440999"}}
 
-	c.Request = httptest.NewRequest("GET", "/api/users/999", nil)
+	c.Request = httptest.NewRequest("GET", "/api/users/550e8400-e29b-41d4-a716-446655440999", nil)
 
 	userHandler.GetUserByID(c)
 
@@ -209,9 +209,9 @@ func TestGetUserByIDNotFound(t *testing.T) {
 func TestGetMe_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mockRepo := &MockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return &model.User{
-				ID:       1,
+				ID:       "550e8400-e29b-41d4-a716-446655440999",
 				Username: "authenticated_user",
 				Email:    "auth@example.com",
 			}, nil
@@ -223,7 +223,7 @@ func TestGetMe_Success(t *testing.T) {
 	router := gin.New()
 
 	router.Use(func(ginCtx *gin.Context) {
-		ginCtx.Set("user_id", "1")
+		ginCtx.Set("user_id", "550e8400-e29b-41d4-a716-446655440999")
 		ginCtx.Next()
 	})
 
@@ -295,7 +295,7 @@ func TestDeleteUser_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		deleteFunc: func(ctx context.Context, id int) error {
+		deleteFunc: func(ctx context.Context, id string) error {
 			return nil
 		},
 	}
@@ -341,7 +341,7 @@ func TestDeleteUser_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockUserRepository{
-		deleteFunc: func(ctx context.Context, id int) error {
+		deleteFunc: func(ctx context.Context, id string) error {
 			return pgx.ErrNoRows
 		},
 	}

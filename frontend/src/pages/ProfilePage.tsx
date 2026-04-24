@@ -26,7 +26,7 @@ export default function Profile() {
         }
 
         const data = await response.json();
-        setUser(data);
+        setUser(data.user);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unexpected error';
         setError(message);
@@ -61,7 +61,7 @@ export default function Profile() {
 
     // SAFETY CHECK
     if (!user) return null;
-
+    console.log(user);
     return (
       <div className="mx-auto w-full animate-[rise_700ms_ease-out_both] rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-6 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8">
         <div className="text-center">

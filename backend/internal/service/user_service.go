@@ -55,7 +55,11 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 }
 
 // GetByID retrieves a user by ID.
-func (s *UserService) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id string) (*model.User, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, ErrInvalidUserInput
+	}
+
 	user, err := s.repo.GetByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -107,7 +111,7 @@ func (s *UserService) ListAll(ctx context.Context) ([]*model.User, error) {
 }
 
 // Delete removes a user by ID.
-func (s *UserService) Delete(ctx context.Context, id int) error {
+func (s *UserService) Delete(ctx context.Context, id string) error {
 	err := s.repo.Delete(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrUserNotFound

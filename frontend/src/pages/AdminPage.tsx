@@ -32,7 +32,7 @@ export default function AdminPage() {
     const verifyAdminAndFetchData = async () => {
       try {
         // 1. Check if current user is admin
-        const meResponse = await fetch(`${API_BASE_URL}/api/users/me`, { credentials: "include" });
+        const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
         if (!meResponse.ok) throw new Error("Unauthorized");
         
         const meData = await meResponse.json();

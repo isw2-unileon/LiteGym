@@ -11,10 +11,10 @@ import (
 // UserRepository defines persistence operations for users.
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
-	GetByID(ctx context.Context, id int) (*model.User, error)
+	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 	ListAll(ctx context.Context) ([]*model.User, error)
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, id string) error
 }
 
 type userRepository struct {
@@ -32,16 +32,14 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash, role, is_active)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at
+		RETURNING id::text, created_at
 	`
-
 	// Provide default values if they are empty
 	role := user.Role
 	if role == "" {
 		role = "user"
 	}
 
-	var id int64
 	err := r.db.QueryRow(
 		ctx,
 		query,
@@ -50,29 +48,26 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		user.PasswordHash,
 		role,
 		true, // is_active by default
-	).Scan(&id, &user.CreatedAt)
+
+	).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
 		return err
 	}
-	user.ID = int(id)
-	user.Role = role
-	user.IsActive = true
 
 	return nil
 }
 
-func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, is_active, created_at
+		SELECT id::text, username, email, password_hash, created_at, role, is_active
 		FROM users
-		WHERE id = $1
+		WHERE id = $1::uuid
 	`
 
 	var user model.User
-	var id64 int64
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&id64,
+		&user.ID,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
@@ -83,34 +78,31 @@ func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, erro
 	if err != nil {
 		return nil, err
 	}
-	user.ID = int(id64)
 
 	return &user, nil
 }
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, is_active, created_at
+		SELECT id::text, username, email, password_hash, created_at, role, is_active
 		FROM users
 		WHERE email = $1
 	`
 
 	var user model.User
-	var id64 int64
 
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&id64,
+		&user.ID,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
+		&user.CreatedAt,
 		&user.Role,
 		&user.IsActive,
-		&user.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	user.ID = int(id64)
 
 	return &user, nil
 }
@@ -149,7 +141,7 @@ func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
 			return nil, err
 		}
 
-		user.ID = int(id64)
+		user.ID = string(id64)
 		users = append(users, &user)
 	}
 
@@ -161,7 +153,7 @@ func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
 }
 
 // Delete removes a user from the database by their ID.
-func (r *userRepository) Delete(ctx context.Context, id int) error {
+func (r *userRepository) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM users WHERE id = $1`
 
 	commandTag, err := r.db.Exec(ctx, query, id)

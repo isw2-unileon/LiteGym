@@ -13,10 +13,10 @@ import (
 
 type mockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
-	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
+	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 	listAllFunc    func(ctx context.Context) ([]*model.User, error)
-	deleteFunc     func(ctx context.Context, id int) error
+	deleteFunc     func(ctx context.Context, id string) error
 }
 
 func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -26,7 +26,7 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
-func (m *mockUserRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
+func (m *mockUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
 	}
@@ -47,7 +47,7 @@ func (m *mockUserRepository) ListAll(ctx context.Context) ([]*model.User, error)
 	return nil, nil
 }
 
-func (m *mockUserRepository) Delete(ctx context.Context, id int) error {
+func (m *mockUserRepository) Delete(ctx context.Context, id string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
 	}
@@ -92,7 +92,7 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
@@ -123,11 +123,12 @@ func TestUserServiceAuthenticateInvalidCredentials(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
 			return &model.User{
-				ID:           1,
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
 				Role:         "user",
+				IsActive:     true,
 			}, nil
 		},
 	}
@@ -157,10 +158,10 @@ func TestUserServiceAuthenticateUserNotFound(t *testing.T) {
 
 func TestUserServiceGetProfileSuccess(t *testing.T) {
 	expectedTime := time.Now().UTC()
-	expectedID := int(1)
+	expectedID := "550e8400-e29b-41d4-a716-446655440000"
 
 	mockRepo := &mockUserRepository{
-		getByIDFunc: func(ctx context.Context, id int) (*model.User, error) {
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return &model.User{
 				ID:        expectedID,
 				Username:  "profileuser",
@@ -201,8 +202,8 @@ func TestUserServiceListAllSuccess(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		listAllFunc: func(ctx context.Context) ([]*model.User, error) {
 			return []*model.User{
-				{ID: 1, Username: "admin_user", Email: "admin@example.com", Role: "admin"},
-				{ID: 2, Username: "normal_user", Email: "user@example.com", Role: "user"},
+				{ID: "1", Username: "admin_user", Email: "admin@example.com", Role: "admin"},
+				{ID: "2", Username: "normal_user", Email: "user@example.com", Role: "user"},
 			}, nil
 		},
 	}
@@ -231,9 +232,9 @@ func TestUserServiceListAllSuccess(t *testing.T) {
 
 func TestUserServiceDeleteSuccess(t *testing.T) {
 	mockRepo := &mockUserRepository{
-		deleteFunc: func(ctx context.Context, id int) error {
-			if id != 1 {
-				t.Errorf("expected to delete user ID 1, got %d", id)
+		deleteFunc: func(ctx context.Context, id string) error {
+			if id != "1" {
+				t.Errorf("expected to delete user ID '1', got '%s'", id)
 			}
 			return nil
 		},
@@ -241,7 +242,7 @@ func TestUserServiceDeleteSuccess(t *testing.T) {
 
 	svc := NewUserService(mockRepo)
 
-	err := svc.Delete(context.Background(), 1)
+	err := svc.Delete(context.Background(), "1")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -249,14 +250,14 @@ func TestUserServiceDeleteSuccess(t *testing.T) {
 
 func TestUserServiceDeleteNotFound(t *testing.T) {
 	mockRepo := &mockUserRepository{
-		deleteFunc: func(ctx context.Context, id int) error {
+		deleteFunc: func(ctx context.Context, id string) error {
 			return pgx.ErrNoRows
 		},
 	}
 
 	svc := NewUserService(mockRepo)
 
-	err := svc.Delete(context.Background(), 99)
+	err := svc.Delete(context.Background(), "99")
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
