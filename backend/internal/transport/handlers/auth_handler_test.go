@@ -17,6 +17,8 @@ import (
 
 type MockAuthUserRepository struct {
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
+	listAllFunc    func(ctx context.Context) ([]*model.User, error)
+	deleteFunc     func(ctx context.Context, id int) error
 }
 
 func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -32,6 +34,20 @@ func (m *MockAuthUserRepository) GetByEmail(ctx context.Context, email string) (
 		return m.getByEmailFunc(ctx, email)
 	}
 	return nil, nil
+}
+
+func (m *MockAuthUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	if m.listAllFunc != nil {
+		return m.listAllFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthUserRepository) Delete(ctx context.Context, id int) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
 }
 
 func TestLoginSuccessSetsCookie(t *testing.T) {

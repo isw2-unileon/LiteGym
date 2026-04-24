@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "react-router-dom"; 
 import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseList from "../components/Exercise/ExerciseList";
@@ -33,7 +34,7 @@ export default function ExercisePage() {
 
         if (!response.ok) {
           setStatus("error");
-          setMessage("No se pudieron cargar los ejercicios.");
+          setMessage("Failed to load exercises.");
           return;
         }
 
@@ -84,7 +85,7 @@ export default function ExercisePage() {
           exercise.name,
           exercise.exercise_type ?? "",
           exercise.muscle_group ?? "",
-        ].some((valor) => valor.toLowerCase().includes(normalizedSearch));
+        ].some((value) => value.toLowerCase().includes(normalizedSearch));
 
       return matchesType && matchesMuscle && matchesSearch;
     });
@@ -99,6 +100,7 @@ export default function ExercisePage() {
         className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-16"
         data-block="page-layout"
       >
+        {/* Background Gradients and Shapes */}
         <div
           className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(234,113,48,0.30),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(38,92,82,0.35),_transparent_32%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_44%,_#d8e1d0_100%)]"
           data-block="background-gradient"
@@ -113,6 +115,20 @@ export default function ExercisePage() {
         />
 
         <div className="mx-auto max-w-6xl" data-block="page-container">
+          
+          {/* Top Navigation Bar for Profile Link */}
+          <div className="mb-6 flex justify-end">
+            <Link
+              to="/profile"
+              className="inline-flex items-center gap-2 rounded-full border border-[#1f1b16]/15 bg-white/35 px-5 py-2 text-sm font-bold text-[#265c52] backdrop-blur transition hover:bg-white/50 hover:text-[#1f1b16] shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+              Mi perfil
+            </Link>
+          </div>
+
           <ExerciseHeader />
 
           <div

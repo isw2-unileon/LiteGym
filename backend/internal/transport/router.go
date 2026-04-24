@@ -111,7 +111,10 @@ func SetupRouter(
 	// User endpoints
 	r.POST("/api/users", userHandler.CreateUser)
 	r.GET("/api/users/:id", userHandler.GetUserByID)
+	r.GET("/api/users/me", authMiddleware.RequireAuth(), userHandler.GetMe)
 	r.POST("/api/auth/login", authHandler.Login)
+	r.GET("/api/users", userHandler.ListAllUsers)
+	r.DELETE("/api/users/:id", userHandler.DeleteUser)
 
 	// Exercise endpoints (protected)
 	protected := r.Group("/api")

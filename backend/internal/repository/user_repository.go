@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -12,6 +13,8 @@ type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	GetByID(ctx context.Context, id int) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
+	ListAll(ctx context.Context) ([]*model.User, error)
+	Delete(ctx context.Context, id int) error
 }
 
 type userRepository struct {
@@ -27,10 +30,16 @@ func NewUserRepository(db *pgxpool.Pool) UserRepository {
 
 func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (username, email, password_hash, role, is_active)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at
 	`
+
+	// Provide default values if they are empty
+	role := user.Role
+	if role == "" {
+		role = "user"
+	}
 
 	var id int64
 	err := r.db.QueryRow(
@@ -39,30 +48,36 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		user.Username,
 		user.Email,
 		user.PasswordHash,
+		role,
+		true, // is_active by default
 	).Scan(&id, &user.CreatedAt)
 	if err != nil {
 		return err
 	}
 	user.ID = int(id)
+	user.Role = role
+	user.IsActive = true
 
 	return nil
 }
 
 func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at
+		SELECT id, username, email, password_hash, role, is_active, created_at
 		FROM users
 		WHERE id = $1
 	`
 
 	var user model.User
-
 	var id64 int64
+
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&id64,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
+		&user.Role,
+		&user.IsActive,
 		&user.CreatedAt,
 	)
 	if err != nil {
@@ -75,19 +90,21 @@ func (r *userRepository) GetByID(ctx context.Context, id int) (*model.User, erro
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at
+		SELECT id, username, email, password_hash, role, is_active, created_at
 		FROM users
 		WHERE email = $1
 	`
 
 	var user model.User
-
 	var id64 int64
+
 	err := r.db.QueryRow(ctx, query, email).Scan(
 		&id64,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
+		&user.Role,
+		&user.IsActive,
 		&user.CreatedAt,
 	)
 	if err != nil {
@@ -96,4 +113,65 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	user.ID = int(id64)
 
 	return &user, nil
+}
+
+// ListAll retrieves all users from the database, ordered by creation date.
+func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	query := `
+		SELECT id, username, email, password_hash, role, is_active, created_at
+		FROM users
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*model.User
+
+	for rows.Next() {
+		var user model.User
+		var id64 int64
+
+		// Using id64 to prevent type mismatch with pgx
+		err := rows.Scan(
+			&id64,
+			&user.Username,
+			&user.Email,
+			&user.PasswordHash,
+			&user.Role,
+			&user.IsActive,
+			&user.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		user.ID = int(id64)
+		users = append(users, &user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+// Delete removes a user from the database by their ID.
+func (r *userRepository) Delete(ctx context.Context, id int) error {
+	query := `DELETE FROM users WHERE id = $1`
+
+	commandTag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
 }

@@ -27,6 +27,7 @@ type CreateUserRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
 // CreateUser creates a new user.
@@ -40,7 +41,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	if req.Username == "" || req.Email == "" || req.Password == "" {
+	if req.Username == "" || req.Email == "" || req.Password == "" || req.Role == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "username, email and password are required",
 		})
@@ -51,6 +52,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: req.Password,
+		Role:         req.Role,
 	}
 
 	if err := h.service.Create(c.Request.Context(), user); err != nil {
@@ -98,4 +100,69 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+// GetMe returns the authenticated user profile
+func (h *UserHandler) GetMe(c *gin.Context) {
+	userIDStr, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	idString, ok := userIDStr.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid id format in context"})
+		return
+	}
+
+	id, err := strconv.Atoi(idString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// ListAllUsers handles the request to retrieve all registered users.
+// This endpoint is meant to be consumed by the Admin dashboard.
+func (h *UserHandler) ListAllUsers(c *gin.Context) {
+	users, err := h.service.ListAll(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to retrieve users list",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+// DeleteUser handles the request to delete a specific user.
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID format"})
+		return
+	}
+
+	err = h.service.Delete(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
 }

@@ -15,6 +15,8 @@ type mockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
 	getByIDFunc    func(ctx context.Context, id int) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
+	listAllFunc    func(ctx context.Context) ([]*model.User, error)
+	deleteFunc     func(ctx context.Context, id int) error
 }
 
 func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -38,6 +40,20 @@ func (m *mockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 	return nil, nil
 }
 
+func (m *mockUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	if m.listAllFunc != nil {
+		return m.listAllFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockUserRepository) Delete(ctx context.Context, id int) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
+}
+
 func TestUserServiceCreateHashesPassword(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		createFunc: func(ctx context.Context, user *model.User) error {
@@ -59,6 +75,8 @@ func TestUserServiceCreateHashesPassword(t *testing.T) {
 		Username:     "testuser",
 		Email:        "test@example.com",
 		PasswordHash: "password123",
+		Role:         "user",
+		IsActive:     true,
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -78,6 +96,8 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
+				Role:         "user",
+				IsActive:     true,
 			}, nil
 		},
 	}
@@ -107,6 +127,7 @@ func TestUserServiceAuthenticateInvalidCredentials(t *testing.T) {
 				Username:     "testuser",
 				Email:        email,
 				PasswordHash: string(hashedPassword),
+				Role:         "user",
 			}, nil
 		},
 	}
@@ -144,6 +165,8 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 				ID:        expectedID,
 				Username:  "profileuser",
 				Email:     "profile@example.com",
+				Role:      "user",
+				IsActive:  true,
 				CreatedAt: expectedTime,
 			}, nil
 		},
@@ -154,12 +177,10 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 	user, err := svc.GetByID(context.Background(), expectedID)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
-		return
 	}
 
 	if user == nil {
 		t.Fatal("expected user profile, got nil")
-		return
 	}
 
 	if user.Username != "profileuser" {
@@ -172,5 +193,71 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 
 	if user.CreatedAt != expectedTime {
 		t.Errorf("expected created_at %v, got %v", expectedTime, user.CreatedAt)
+	}
+}
+
+func TestUserServiceListAllSuccess(t *testing.T) {
+	// Arrange
+	mockRepo := &mockUserRepository{
+		listAllFunc: func(ctx context.Context) ([]*model.User, error) {
+			return []*model.User{
+				{ID: 1, Username: "admin_user", Email: "admin@example.com", Role: "admin"},
+				{ID: 2, Username: "normal_user", Email: "user@example.com", Role: "user"},
+			}, nil
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	// Act
+	users, err := svc.ListAll(context.Background())
+	// Assert
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if users == nil {
+		t.Fatal("expected user list, got nil")
+	}
+
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+
+	if users[0].Username != "admin_user" || users[1].Username != "normal_user" {
+		t.Errorf("the returned users do not match the expected data")
+	}
+}
+
+func TestUserServiceDeleteSuccess(t *testing.T) {
+	mockRepo := &mockUserRepository{
+		deleteFunc: func(ctx context.Context, id int) error {
+			if id != 1 {
+				t.Errorf("expected to delete user ID 1, got %d", id)
+			}
+			return nil
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	err := svc.Delete(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestUserServiceDeleteNotFound(t *testing.T) {
+	mockRepo := &mockUserRepository{
+		deleteFunc: func(ctx context.Context, id int) error {
+			return pgx.ErrNoRows
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	err := svc.Delete(context.Background(), 99)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
