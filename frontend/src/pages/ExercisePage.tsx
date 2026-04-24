@@ -8,19 +8,45 @@ import ExerciseList from "../components/Exercise/ExerciseList";
 import { apiUrl } from "../lib/api";
 import type { Exercise, ExerciseStatus } from "../types/exercise";
 
+type CurrentUser = {
+  id: string;
+  email: string;
+  username: string;
+  role: string;
+};
+
 export default function ExercisePage() {
   const [exercises, setExercises] = React.useState<Exercise[]>([]);
+  const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null);
   const [status, setStatus] = React.useState<ExerciseStatus>("idle");
   const [message, setMessage] = React.useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
   const [createErrorMessage, setCreateErrorMessage] = React.useState("");
   const [isCreatingExercise, setIsCreatingExercise] = React.useState(false);
+  const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
 
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
   const [muscleFilter, setMuscleFilter] = React.useState("");
 
   React.useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch(apiUrl("/api/auth/me"), {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { user: CurrentUser };
+        setCurrentUser(data.user);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     const fetchExercises = async () => {
       setStatus("loading");
       setMessage("");
@@ -44,6 +70,9 @@ export default function ExercisePage() {
 
         const data = await response.json();
         setExercises(data);
+        setSelectedExerciseId((current) =>
+          current || data.length === 0 ? current : data[0].id,
+        );
         setStatus("success");
       } catch (error) {
         console.error(error);
@@ -54,7 +83,8 @@ export default function ExercisePage() {
       }
     };
 
-    fetchExercises();
+    void fetchCurrentUser();
+    void fetchExercises();
   }, []);
 
   const handleCreateExercise = async (payload: CreateExercisePayload) => {
@@ -68,7 +98,7 @@ export default function ExercisePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+          body: JSON.stringify(payload),
       });
 
       if (response.status === 401) {
@@ -90,6 +120,7 @@ export default function ExercisePage() {
       const createdExercise = (await response.json()) as Exercise;
 
       setExercises((current) => [createdExercise, ...current]);
+      setSelectedExerciseId(createdExercise.id);
       setStatus("success");
       setMessage("");
       setIsCreateModalOpen(false);
@@ -141,6 +172,23 @@ export default function ExercisePage() {
     });
   }, [exercises, typeFilter, muscleFilter, search]);
 
+  const selectedExercise = React.useMemo(() => {
+    if (filteredExercises.length === 0) {
+      return null;
+    }
+
+    return (
+      filteredExercises.find((exercise) => exercise.id === selectedExerciseId) ??
+      filteredExercises[0]
+    );
+  }, [filteredExercises, selectedExerciseId]);
+
+  const officialCount = exercises.filter(
+    (exercise) => exercise.is_official !== false,
+  ).length;
+  const customCount = exercises.length - officialCount;
+  const canCreateOfficial = currentUser?.role === "admin";
+
   return (
     <main
       className="min-h-screen overflow-hidden bg-[#f4efe2] text-[#1f1b16]"
@@ -163,37 +211,30 @@ export default function ExercisePage() {
           data-block="background-shape"
         />
 
-        <div className="mx-auto max-w-6xl" data-block="page-container">
+        <div className="mx-auto max-w-[min(1600px,96vw)]" data-block="page-container">
           <ExerciseHeader />
 
-          <div
-            className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
-            data-block="exercises-panel"
-          >
-            <div
-              className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
-              data-block="panel-header"
+          <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)_320px]" data-block="exercise-shell">
+            <aside
+              className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.14)] backdrop-blur-md"
+              data-block="exercise-sidebar"
             >
-              <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p
-                    className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
-                    data-block="panel-label"
-                  >
-                    Ejercicios
-                  </p>
+              <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner">
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">
+                  Control
+                </p>
+                <h2 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]">
+                  Explora o crea
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-[#efe4d2]">
+                  Filtra tu biblioteca y abre nuevos movimientos desde un solo panel.
+                </p>
+              </div>
 
-                  <h2
-                    className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
-                    data-block="panel-title"
-                  >
-                    Lista disponible
-                  </h2>
-                </div>
-
+              <div className="mt-6 grid gap-4">
                 <button
                   type="button"
-                  className="rounded-2xl bg-[#ea7130] px-5 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-[#fffaf0] hover:text-[#1f1b16]"
+                  className="rounded-2xl bg-[#ea7130] px-5 py-4 text-sm font-black text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
                   onClick={() => {
                     setCreateErrorMessage("");
                     setIsCreateModalOpen(true);
@@ -201,27 +242,164 @@ export default function ExercisePage() {
                 >
                   Crear nuevo ejercicio
                 </button>
+
+                <div className="grid gap-3 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-4 text-center">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                    Biblioteca
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                    <StatTile label="Total" value={String(exercises.length)} />
+                    <StatTile label="Oficiales" value={String(officialCount)} />
+                    <StatTile label="Propios" value={String(customCount)} />
+                  </div>
+                </div>
+
+                {status === "success" && (
+                  <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/65 p-4">
+                    <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                      Buscar y filtrar
+                    </p>
+                    <ExerciseFilters
+                      search={search}
+                      typeFilter={typeFilter}
+                      muscleFilter={muscleFilter}
+                      exerciseTypes={exerciseTypes}
+                      muscleGroups={muscleGroups}
+                      onSearchChange={setSearch}
+                      onTypeFilterChange={setTypeFilter}
+                      onMuscleFilterChange={setMuscleFilter}
+                    />
+                  </div>
+                )}
               </div>
-            </div>
+            </aside>
 
-            {status === "success" && (
-              <ExerciseFilters
-                search={search}
-                typeFilter={typeFilter}
-                muscleFilter={muscleFilter}
-                exerciseTypes={exerciseTypes}
-                muscleGroups={muscleGroups}
-                onSearchChange={setSearch}
-                onTypeFilterChange={setTypeFilter}
-                onMuscleFilterChange={setMuscleFilter}
-              />
-            )}
+            <section
+              className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
+              data-block="exercises-panel"
+            >
+              <div
+                className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
+                data-block="panel-header"
+              >
+                <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p
+                      className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
+                      data-block="panel-label"
+                    >
+                      Ejercicios
+                    </p>
 
-            <ExerciseList
-              status={status}
-              message={message}
-              exercises={filteredExercises}
-            />
+                    <h2
+                      className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
+                      data-block="panel-title"
+                    >
+                      Lista disponible
+                    </h2>
+                  </div>
+
+                  <p className="max-w-xs text-sm leading-6 text-[#efe4d2]">
+                    Selecciona una tarjeta para ver su ficha completa sin salir de la página.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between gap-4 rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-white/55 px-4 py-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                    Resultado actual
+                  </p>
+                  <p className="mt-1 text-sm text-[#5d5348]">
+                    {filteredExercises.length} ejercicios visibles con los filtros aplicados.
+                  </p>
+                </div>
+
+                {selectedExercise && (
+                  <span className="rounded-full bg-[#1f1b16] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#fffaf0]">
+                    Seleccionado: {selectedExercise.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-6">
+                <ExerciseList
+                  status={status}
+                  message={message}
+                  exercises={filteredExercises}
+                  selectedExerciseId={selectedExercise?.id}
+                  onSelectExercise={(exercise) => setSelectedExerciseId(exercise.id)}
+                />
+              </div>
+            </section>
+
+            <aside
+              className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.14)] backdrop-blur-md"
+              data-block="exercise-detail-panel"
+            >
+              <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[linear-gradient(180deg,#265c52_0%,#173e37_100%)] p-6 text-[#fffaf0] shadow-inner">
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f6c98d]">
+                  Panel derecho
+                </p>
+                <h2 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]">
+                  Ficha rápida
+                </h2>
+              </div>
+
+              {selectedExercise ? (
+                <div className="mt-6 grid gap-4">
+                  <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                      Nombre
+                    </p>
+                    <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] text-[#1f1b16]">
+                      {selectedExercise.name}
+                    </h3>
+                    <p className="mt-2 text-sm font-semibold text-[#5d5348]">
+                      {selectedExercise.muscle_group}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <InfoTile
+                      label="Tipo"
+                      value={selectedExercise.exercise_type ?? "Sin especificar"}
+                    />
+                    <InfoTile
+                      label="Musculo secundario"
+                      value={
+                        selectedExercise.secondary_muscle_group ||
+                        "No definido"
+                      }
+                    />
+                    <InfoTile
+                      label="Estado"
+                      value={
+                        selectedExercise.is_official === false
+                          ? "Ejercicio propio"
+                          : "Ejercicio oficial"
+                      }
+                    />
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-[#fff8ea] p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                      Descripcion
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-[#5d5348]">
+                      {selectedExercise.description ||
+                        "Todavia no hay una descripcion para este ejercicio. Puedes completarla cuando edites o crees uno nuevo."}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-5">
+                  <p className="text-sm font-bold text-[#5d5348]">
+                    Selecciona un ejercicio de la lista para ver su detalle completo aquí.
+                  </p>
+                </div>
+              )}
+            </aside>
           </div>
         </div>
       </section>
@@ -230,6 +408,7 @@ export default function ExercisePage() {
         isOpen={isCreateModalOpen}
         isSubmitting={isCreatingExercise}
         errorMessage={createErrorMessage}
+        canCreateOfficial={canCreateOfficial}
         onClose={() => {
           setCreateErrorMessage("");
           setIsCreateModalOpen(false);
@@ -237,5 +416,29 @@ export default function ExercisePage() {
         onSubmit={handleCreateExercise}
       />
     </main>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4 text-center">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#265c52]">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-[#1f1b16]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-4">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#265c52]">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-[#1f1b16]">{value}</p>
+    </div>
   );
 }

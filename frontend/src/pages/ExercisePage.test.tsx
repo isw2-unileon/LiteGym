@@ -28,7 +28,18 @@ describe("ExercisePage", () => {
   });
 
   it("opens the modal to create a new exercise", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([], { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { user: { id: "1", email: "admin@example.com", username: "admin", role: "admin" } },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse([], { status: 200 })),
+    );
     const user = userEvent.setup();
 
     renderExercisePage();
@@ -43,12 +54,20 @@ describe("ExercisePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
     expect(screen.getByLabelText("Grupo muscular")).toBeInTheDocument();
+    expect(screen.getByText("Anadir musculo secundario")).toBeInTheDocument();
+    expect(screen.getByText("Marcar como ejercicio oficial")).toBeInTheDocument();
   });
 
   it("submits a new exercise to the backend", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { user: { id: "1", email: "admin@example.com", username: "admin", role: "admin" } },
+          { status: 200 },
+        ),
+      )
       .mockResolvedValueOnce(jsonResponse([], { status: 200 }))
       .mockResolvedValueOnce(
         jsonResponse(
@@ -57,7 +76,7 @@ describe("ExercisePage", () => {
             name: "Bench Press",
             description: "Flat bench press",
             muscle_group: "chest",
-            secondary_muscle_group: "triceps",
+            secondary_muscle_group: "triceps, shoulders",
             exercise_type: "strength",
             is_official: false,
             created_at: "2026-04-24T10:00:00Z",
@@ -73,7 +92,13 @@ describe("ExercisePage", () => {
     await user.type(screen.getByLabelText("Nombre"), "Bench Press");
     await user.type(screen.getByLabelText("Grupo muscular"), "chest");
     await user.type(screen.getByLabelText("Descripcion"), "Flat bench press");
-    await user.type(screen.getByLabelText("Musculo secundario"), "triceps");
+    const secondaryMuscleInputs = screen.getAllByPlaceholderText("Ej. triceps");
+    expect(secondaryMuscleInputs).toHaveLength(1);
+    await user.type(secondaryMuscleInputs[0]!, "triceps");
+    await user.click(screen.getByRole("button", { name: "Anadir musculo secundario" }));
+    const expandedSecondaryMuscleInputs = screen.getAllByPlaceholderText("Ej. triceps");
+    expect(expandedSecondaryMuscleInputs).toHaveLength(2);
+    await user.type(expandedSecondaryMuscleInputs[1]!, "shoulders");
     await user.type(screen.getByLabelText("Tipo de ejercicio"), "strength");
     await user.click(screen.getByRole("button", { name: "Crear ejercicio" }));
 
@@ -90,7 +115,7 @@ describe("ExercisePage", () => {
             name: "Bench Press",
             description: "Flat bench press",
             muscle_group: "chest",
-            secondary_muscle_group: "triceps",
+            secondary_muscle_groups: ["triceps", "shoulders"],
             exercise_type: "strength",
             is_official: false,
           }),
@@ -98,6 +123,28 @@ describe("ExercisePage", () => {
       );
     });
 
-    expect(await screen.findByText("Bench Press")).toBeInTheDocument();
+    expect(await screen.findAllByText("Bench Press")).toHaveLength(2);
+  });
+
+  it("hides the official toggle for non admin users", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { user: { id: "2", email: "user@example.com", username: "user", role: "user" } },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse([], { status: 200 })),
+    );
+    const user = userEvent.setup();
+
+    renderExercisePage();
+
+    await user.click(await screen.findByRole("button", { name: "Crear nuevo ejercicio" }));
+
+    expect(screen.queryByText("Marcar como ejercicio oficial")).not.toBeInTheDocument();
   });
 });

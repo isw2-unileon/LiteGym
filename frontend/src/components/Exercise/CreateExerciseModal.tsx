@@ -4,7 +4,7 @@ export type CreateExercisePayload = {
   name: string;
   description: string;
   muscle_group: string;
-  secondary_muscle_group: string;
+  secondary_muscle_groups: string[];
   exercise_type: string;
   is_official: boolean;
 };
@@ -13,6 +13,7 @@ type CreateExerciseModalProps = {
   isOpen: boolean;
   isSubmitting: boolean;
   errorMessage: string;
+  canCreateOfficial: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateExercisePayload) => Promise<void>;
 };
@@ -21,7 +22,7 @@ const initialForm = {
   name: "",
   description: "",
   muscle_group: "",
-  secondary_muscle_group: "",
+  secondary_muscle_groups: [""],
   exercise_type: "",
   is_official: false,
 } satisfies CreateExercisePayload;
@@ -30,6 +31,7 @@ export default function CreateExerciseModal({
   isOpen,
   isSubmitting,
   errorMessage,
+  canCreateOfficial,
   onClose,
   onSubmit,
 }: CreateExerciseModalProps) {
@@ -62,6 +64,35 @@ export default function CreateExerciseModal({
       setValidationMessage("");
     };
 
+  const handleSecondaryMuscleGroupChange =
+    (index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      const nextValue = event.target.value;
+      setForm((current) => ({
+        ...current,
+        secondary_muscle_groups: current.secondary_muscle_groups.map((value, currentIndex) =>
+          currentIndex === index ? nextValue : value,
+        ),
+      }));
+      setValidationMessage("");
+    };
+
+  const addSecondaryMuscleGroup = () => {
+    setForm((current) => ({
+      ...current,
+      secondary_muscle_groups: [...current.secondary_muscle_groups, ""],
+    }));
+  };
+
+  const removeSecondaryMuscleGroup = (index: number) => {
+    setForm((current) => {
+      const remaining = current.secondary_muscle_groups.filter((_, currentIndex) => currentIndex !== index);
+      return {
+        ...current,
+        secondary_muscle_groups: remaining.length > 0 ? remaining : [""],
+      };
+    });
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -77,8 +108,11 @@ export default function CreateExerciseModal({
       name: form.name.trim(),
       description: form.description.trim(),
       muscle_group: form.muscle_group.trim(),
-      secondary_muscle_group: form.secondary_muscle_group.trim(),
+      secondary_muscle_groups: form.secondary_muscle_groups
+        .map((value) => value.trim())
+        .filter(Boolean),
       exercise_type: form.exercise_type.trim(),
+      is_official: canCreateOfficial ? form.is_official : false,
     });
   };
 
@@ -114,8 +148,8 @@ export default function CreateExerciseModal({
             </h3>
 
             <p className="mt-4 max-w-sm text-sm leading-6 text-[#efe4d2]">
-              Anade nombre, grupo muscular, descripcion y tipo. Si quieres que
-              sea un ejercicio propio, dejalo como no oficial.
+              Anade nombre, grupo muscular, descripcion y tipo. Tambien puedes
+              indicar varios musculos secundarios en bloques separados.
             </p>
 
             <button
@@ -170,41 +204,72 @@ export default function CreateExerciseModal({
               />
             </label>
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-semibold text-[#3b3128]">
-                <span>Musculo secundario</span>
-                <input
-                  id={secondaryMuscleGroupId}
-                  type="text"
-                  value={form.secondary_muscle_group}
-                  onChange={handleChange("secondary_muscle_group")}
-                  className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-                  placeholder="Ej. triceps"
-                />
-              </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#3b3128]">
+              <span>Tipo de ejercicio</span>
+              <input
+                id={exerciseTypeId}
+                type="text"
+                value={form.exercise_type}
+                onChange={handleChange("exercise_type")}
+                className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
+                placeholder="Ej. strength"
+              />
+            </label>
 
-              <label className="grid gap-2 text-sm font-semibold text-[#3b3128]">
-                <span>Tipo de ejercicio</span>
-                <input
-                  id={exerciseTypeId}
-                  type="text"
-                  value={form.exercise_type}
-                  onChange={handleChange("exercise_type")}
-                  className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-                  placeholder="Ej. strength"
-                />
-              </label>
+            <div className="grid gap-3 rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-4 text-sm font-semibold text-[#3b3128]">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <span>Musculos secundarios</span>
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#265c52]">
+                  Puedes anadir varios
+                </span>
+              </div>
+
+              <div className="grid gap-3">
+                {form.secondary_muscle_groups.map((secondaryMuscleGroup, index) => (
+                  <div
+                    key={`${secondaryMuscleGroupId}-${index}`}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  >
+                    <input
+                      id={index === 0 ? secondaryMuscleGroupId : undefined}
+                      type="text"
+                      value={secondaryMuscleGroup}
+                      onChange={handleSecondaryMuscleGroupChange(index)}
+                      className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
+                      placeholder="Ej. triceps"
+                    />
+                    <button
+                      type="button"
+                      className="rounded-2xl border border-[#1f1b16]/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] disabled:opacity-40 sm:shrink-0"
+                      onClick={() => removeSecondaryMuscleGroup(index)}
+                      disabled={form.secondary_muscle_groups.length === 1}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="rounded-2xl border border-dashed border-[#1f1b16]/20 bg-[#f6efdf] px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-[#eadbc1]"
+                  onClick={addSecondaryMuscleGroup}
+                >
+                  Anadir musculo secundario
+                </button>
+              </div>
             </div>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-[#1f1b16]/10 bg-[#f6efdf] px-4 py-3 text-sm font-semibold text-[#3b3128]">
-              <input
-                type="checkbox"
-                checked={form.is_official}
-                onChange={handleChange("is_official")}
-                className="h-4 w-4 accent-[#ea7130]"
-              />
-              Marcar como ejercicio oficial
-            </label>
+            {canCreateOfficial && (
+              <label className="flex items-center gap-3 rounded-2xl border border-[#1f1b16]/10 bg-[#f6efdf] px-4 py-3 text-sm font-semibold text-[#3b3128]">
+                <input
+                  type="checkbox"
+                  checked={form.is_official}
+                  onChange={handleChange("is_official")}
+                  className="h-4 w-4 accent-[#ea7130]"
+                />
+                Marcar como ejercicio oficial
+              </label>
+            )}
 
             {feedbackMessage && (
               <p className="rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] px-4 py-3 text-sm font-semibold text-[#9f2f22]">

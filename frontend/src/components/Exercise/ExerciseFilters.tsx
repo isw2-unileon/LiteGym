@@ -20,7 +20,7 @@ export default function ExerciseFilters({
     onMuscleFilterChange,
 }: ExerciseFiltersProps) {
     return (
-        <div className="mt-6">
+        <div className="grid gap-4">
             <input
                 type="text"
                 placeholder="Buscar por nombre..."
@@ -29,31 +29,33 @@ export default function ExerciseFilters({
                 className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
             />
 
-            <select
-                value={typeFilter}
-                onChange={(e) => onTypeFilterChange(e.target.value)}
-                className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
-            >
-                <option value="">Todos los tipos</option>
-                {exerciseTypes.map((type) => (
-                    <option key={type} value={type}>
-                        {type}
-                    </option>
-                ))}
-            </select>
+            <div className="grid gap-4 sm:grid-cols-2">
+                <select
+                    value={typeFilter}
+                    onChange={(e) => onTypeFilterChange(e.target.value)}
+                    className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                >
+                    <option value="">Todos los tipos</option>
+                    {exerciseTypes.map((type) => (
+                        <option key={type} value={type}>
+                            {type}
+                        </option>
+                    ))}
+                </select>
 
-            <select
-                value={muscleFilter}
-                onChange={(e) => onMuscleFilterChange(e.target.value)}
-                className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
-            >
-                <option value="">Todos los músculos</option>
-                {muscleGroups.map((muscle) => (
-                    <option key={muscle} value={muscle}>
-                        {muscle}
-                    </option>
-                ))}
-            </select>
+                <select
+                    value={muscleFilter}
+                    onChange={(e) => onMuscleFilterChange(e.target.value)}
+                    className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                >
+                    <option value="">Todos los músculos</option>
+                    {muscleGroups.map((muscle) => (
+                        <option key={muscle} value={muscle}>
+                            {muscle}
+                        </option>
+                    ))}
+                </select>
+            </div>
         </div>
     );
 }

@@ -29,7 +29,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id::text, created_at
+		RETURNING id::text, role, created_at
 	`
 
 	err := r.db.QueryRow(
@@ -38,9 +38,13 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		user.Username,
 		user.Email,
 		user.PasswordHash,
-	).Scan(&user.ID, &user.CreatedAt)
+	).Scan(&user.ID, &user.Role, &user.CreatedAt)
 	if err != nil {
 		return err
+	}
+
+	if user.Role == "" {
+		user.Role = "user"
 	}
 
 	return nil
@@ -48,7 +52,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	query := `
-		SELECT id::text, username, email, password_hash, created_at
+		SELECT id::text, username, email, role, password_hash, created_at
 		FROM users
 		WHERE id = $1::uuid
 	`
@@ -59,6 +63,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 		&user.ID,
 		&user.Username,
 		&user.Email,
+		&user.Role,
 		&user.PasswordHash,
 		&user.CreatedAt,
 	)
@@ -71,7 +76,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id::text, username, email, password_hash, created_at
+		SELECT id::text, username, email, role, password_hash, created_at
 		FROM users
 		WHERE email = $1
 	`
@@ -82,6 +87,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		&user.ID,
 		&user.Username,
 		&user.Email,
+		&user.Role,
 		&user.PasswordHash,
 		&user.CreatedAt,
 	)

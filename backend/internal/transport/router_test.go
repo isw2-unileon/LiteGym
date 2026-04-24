@@ -49,7 +49,7 @@ type MockExerciseRepository struct {
 func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenService) {
 	t.Helper()
 
-	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}

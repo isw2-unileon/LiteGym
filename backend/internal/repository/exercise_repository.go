@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -141,15 +142,33 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 		return nil
 	}
 
-	_, err := r.db.Exec(
-		ctx,
-		`
-			INSERT INTO exercise_secondary_muscle_groups (exercise_id, muscle_group)
-			VALUES ($1::uuid, $2)
-		`,
-		exercise.ID,
-		exercise.SecondaryMuscleGroup,
-	)
-	return err
+	secondaryMuscleGroups := strings.Split(exercise.SecondaryMuscleGroup, ",")
+	normalized := make([]string, 0, len(secondaryMuscleGroups))
+
+	for _, group := range secondaryMuscleGroups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+
+		_, err := r.db.Exec(
+			ctx,
+			`
+				INSERT INTO exercise_secondary_muscle_groups (exercise_id, muscle_group)
+				VALUES ($1::uuid, $2)
+				ON CONFLICT (exercise_id, muscle_group) DO NOTHING
+			`,
+			exercise.ID,
+			group,
+		)
+		if err != nil {
+			return err
+		}
+
+		normalized = append(normalized, group)
+	}
+
+	exercise.SecondaryMuscleGroup = strings.Join(normalized, ", ")
+	return nil
 
 }
