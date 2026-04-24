@@ -1,15 +1,20 @@
 import * as React from "react";
+import CreateExerciseModal, {
+  type CreateExercisePayload,
+} from "../components/Exercise/CreateExerciseModal";
 import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseList from "../components/Exercise/ExerciseList";
+import { apiUrl } from "../lib/api";
 import type { Exercise, ExerciseStatus } from "../types/exercise";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function ExercisePage() {
   const [exercises, setExercises] = React.useState<Exercise[]>([]);
   const [status, setStatus] = React.useState<ExerciseStatus>("idle");
   const [message, setMessage] = React.useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
+  const [createErrorMessage, setCreateErrorMessage] = React.useState("");
+  const [isCreatingExercise, setIsCreatingExercise] = React.useState(false);
 
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
@@ -21,7 +26,7 @@ export default function ExercisePage() {
       setMessage("");
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/exercises`, {
+        const response = await fetch(apiUrl("/api/exercises"), {
           credentials: "include",
         });
 
@@ -51,6 +56,52 @@ export default function ExercisePage() {
 
     fetchExercises();
   }, []);
+
+  const handleCreateExercise = async (payload: CreateExercisePayload) => {
+    setIsCreatingExercise(true);
+    setCreateErrorMessage("");
+
+    try {
+      const response = await fetch(apiUrl("/api/exercises"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 401) {
+        setCreateErrorMessage("Tu sesion ha expirado. Inicia sesion otra vez.");
+        return;
+      }
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+
+        setCreateErrorMessage(
+          errorBody?.error ?? "No se pudo crear el ejercicio.",
+        );
+        return;
+      }
+
+      const createdExercise = (await response.json()) as Exercise;
+
+      setExercises((current) => [createdExercise, ...current]);
+      setStatus("success");
+      setMessage("");
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      setCreateErrorMessage(
+        "No se pudo crear el ejercicio. Revisa la conexion con el backend.",
+      );
+    } finally {
+      setIsCreatingExercise(false);
+    }
+  };
 
   const exerciseTypes = React.useMemo(() => {
     return Array.from(
@@ -123,19 +174,34 @@ export default function ExercisePage() {
               className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
               data-block="panel-header"
             >
-              <p
-                className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
-                data-block="panel-label"
-              >
-                Ejercicios
-              </p>
+              <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p
+                    className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
+                    data-block="panel-label"
+                  >
+                    Ejercicios
+                  </p>
 
-              <h2
-                className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
-                data-block="panel-title"
-              >
-                Lista disponible
-              </h2>
+                  <h2
+                    className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
+                    data-block="panel-title"
+                  >
+                    Lista disponible
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  className="rounded-2xl bg-[#ea7130] px-5 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-[#fffaf0] hover:text-[#1f1b16]"
+                  onClick={() => {
+                    setCreateErrorMessage("");
+                    setIsCreateModalOpen(true);
+                  }}
+                >
+                  Crear nuevo ejercicio
+                </button>
+              </div>
             </div>
 
             {status === "success" && (
@@ -159,6 +225,17 @@ export default function ExercisePage() {
           </div>
         </div>
       </section>
+
+      <CreateExerciseModal
+        isOpen={isCreateModalOpen}
+        isSubmitting={isCreatingExercise}
+        errorMessage={createErrorMessage}
+        onClose={() => {
+          setCreateErrorMessage("");
+          setIsCreateModalOpen(false);
+        }}
+        onSubmit={handleCreateExercise}
+      />
     </main>
   );
 }
