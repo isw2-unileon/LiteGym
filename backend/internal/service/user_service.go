@@ -94,3 +94,27 @@ func (s *UserService) Authenticate(ctx context.Context, email, password string) 
 
 	return user, nil
 }
+
+// ListAll retrieves all users from the system.
+// This is primarily used for the Admin View dashboard.
+func (s *UserService) ListAll(ctx context.Context) ([]*model.User, error) {
+	users, err := s.repo.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if users == nil {
+		return []*model.User{}, nil
+	}
+
+	return users, nil
+}
+
+// Delete removes a user by ID.
+func (s *UserService) Delete(ctx context.Context, id string) error {
+	err := s.repo.Delete(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrUserNotFound
+	}
+	return err
+}

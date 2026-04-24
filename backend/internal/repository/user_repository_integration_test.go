@@ -247,3 +247,71 @@ func TestUserRepositoryGetByEmailNotFoundIntegration(t *testing.T) {
 		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
 	}
 }
+
+func TestUserRepositoryListAllIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	insertUserRaw(t, db, "user1", "user1@example.com")
+	insertUserRaw(t, db, "user2", "user2@example.com")
+
+	repo := NewUserRepository(db)
+
+	users, err := repo.ListAll(context.Background())
+	if err != nil {
+		t.Fatalf("no se esperaba error en ListAll, pero se obtuvo: %v", err)
+	}
+
+	if users == nil {
+		t.Fatal("se esperaba una lista de usuarios, pero se obtuvo nil")
+	}
+
+	if len(users) != 2 {
+		t.Fatalf("se esperaban 2 usuarios, se obtuvieron %d", len(users))
+	}
+}
+
+func TestUserRepositoryDeleteIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	insertedID := insertUserRaw(t, db, "todelete", "delete@example.com")
+
+	repo := NewUserRepository(db)
+
+	err := repo.Delete(context.Background(), insertedID)
+	if err != nil {
+		t.Fatalf("no se esperaba error al borrar, se obtuvo: %v", err)
+	}
+
+	user, err := repo.GetByID(context.Background(), insertedID)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows al buscar el usuario borrado, se obtuvo: %v", err)
+	}
+	if user != nil {
+		t.Fatalf("se esperaba que el usuario fuera nil tras borrarlo")
+	}
+}
+
+func TestUserRepositoryDeleteNotFoundIntegration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cleanupUsers(t, db)
+
+	repo := NewUserRepository(db)
+
+	err := repo.Delete(context.Background(), "00000000-0000-0000-0000-000000000000")
+
+	if err == nil {
+		t.Fatal("se esperaba error al borrar un usuario inexistente")
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
+	}
+}
