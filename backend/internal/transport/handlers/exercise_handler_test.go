@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -241,5 +242,40 @@ func TestListExercisesInternalError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestUpdateExerciseOfficialRequiresAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockExerciseRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
+			return &model.Exercise{
+				ID:          id,
+				Name:        "Bench Press",
+				MuscleGroup: "chest",
+				IsOfficial:  true,
+			}, nil
+		},
+	}
+
+	exerciseService := service.NewExerciseService(mockRepo)
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Set("user_role", "user")
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/exercises/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewBufferString(`{"name":"Bench Press","muscle_group":"chest","is_official":true}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	exerciseHandler.UpdateExercise(c)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
 	}
 }

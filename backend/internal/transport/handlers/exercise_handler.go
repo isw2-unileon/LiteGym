@@ -127,6 +127,27 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 	userRole, _ := c.Get(middleware.ContextUserRoleKey)
 	role, _ := userRole.(string)
 
+	existingExercise, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			slog.Error("failed to retrieve exercise before update", "error", err, "id", id)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exercise"})
+		}
+		return
+	}
+
+	if existingExercise.IsOfficial && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can update official exercises",
+		})
+		return
+	}
+
 	isOfficial := req.IsOfficial && role == "admin"
 	if req.IsOfficial && role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{
@@ -145,7 +166,7 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 		IsOfficial:           isOfficial,
 	}
 
-	err := h.service.UpdateExercise(c.Request.Context(), &exercise)
+	err = h.service.UpdateExercise(c.Request.Context(), &exercise)
 
 	if err != nil {
 		switch {

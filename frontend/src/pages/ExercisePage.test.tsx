@@ -236,4 +236,39 @@ describe("ExercisePage", () => {
 
     expect(await screen.findAllByText("Bench Press Incline")).toHaveLength(2);
   });
+
+  it("shows edit action for admins on official exercises", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { user: { id: "1", email: "admin@example.com", username: "admin", role: "admin" } },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            [
+              {
+                id: "550e8400-e29b-41d4-a716-446655440222",
+                name: "Deadlift",
+                description: "Conventional deadlift",
+                muscle_group: "back",
+                secondary_muscle_group: "glutes, hamstrings",
+                exercise_type: "strength",
+                is_official: true,
+                created_at: "2026-04-24T10:00:00Z",
+              },
+            ],
+            { status: 200 },
+          ),
+        ),
+    );
+
+    renderExercisePage();
+
+    expect(await screen.findByRole("button", { name: "Editar" })).toBeInTheDocument();
+  });
 });

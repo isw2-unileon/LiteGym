@@ -282,7 +282,9 @@ export default function ExercisePage() {
     ).length;
     const customCount = exercises.length - officialCount;
     const canCreateOfficial = currentUser?.role === "admin";
-    const canEditSelectedExercise = selectedExercise?.is_official === false;
+    const canEditSelectedExercise =
+        selectedExercise != null &&
+        (selectedExercise.is_official === false || currentUser?.role === "admin");
     const editInitialPayload = selectedExercise
         ? buildExercisePayload(selectedExercise)
         : undefined;
