@@ -257,26 +257,6 @@ export default function ExercisePage() {
                                     Crear nuevo ejercicio
                                 </button>
 
-                                <div className="grid gap-3 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-4 text-center">
-                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                        Biblioteca
-                                    </p>
-                                    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                                        <StatTile
-                                            label="Total"
-                                            value={String(exercises.length)}
-                                        />
-                                        <StatTile
-                                            label="Oficiales"
-                                            value={String(officialCount)}
-                                        />
-                                        <StatTile
-                                            label="Propios"
-                                            value={String(customCount)}
-                                        />
-                                    </div>
-                                </div>
-
                                 {status === "success" && (
                                     <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/65 p-4">
                                         <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
@@ -296,6 +276,26 @@ export default function ExercisePage() {
                                         />
                                     </div>
                                 )}
+
+                                <div className="grid gap-3 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-4 text-center">
+                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                                        Biblioteca
+                                    </p>
+                                    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                                        <StatTile
+                                            label="Total"
+                                            value={String(exercises.length)}
+                                        />
+                                        <StatTile
+                                            label="Oficiales"
+                                            value={String(officialCount)}
+                                        />
+                                        <StatTile
+                                            label="Propios"
+                                            value={String(customCount)}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </aside>
 
