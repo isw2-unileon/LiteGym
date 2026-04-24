@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,7 +44,7 @@ func LoadIntegrationDBURL(t *testing.T) string {
 
 	dbName := strings.TrimPrefix(parsed.Path, "/")
 	if dbName != "test_db" {
-		t.Fatal(fmt.Sprintf("TEST_DB_URL must point to test_db, got %q", dbName))
+		t.Fatalf("TEST_DB_URL must point to test_db, got %q", dbName)
 	}
 
 	return testDBURL

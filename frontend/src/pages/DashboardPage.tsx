@@ -8,35 +8,6 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [accessStatus, setAccessStatus] = useState<AccessStatus>("checking");
 
-  const redirectToLogin = () => {
-    navigate("/", { replace: true });
-  };
-
-  const checkSession = async () => {
-    setAccessStatus("checking");
-
-    try {
-      const response = await fetch(apiUrl("/api/auth/me"), {
-        credentials: "include",
-      });
-
-      if (response.status === 401) {
-        setAccessStatus("blocked");
-        redirectToLogin();
-        return;
-      }
-
-      if (!response.ok) {
-        setAccessStatus("error");
-        return;
-      }
-
-      setAccessStatus("allowed");
-    } catch {
-      setAccessStatus("error");
-    }
-  };
-
   const checkApiAccess = async () => {
     setAccessStatus("checking");
 
@@ -47,7 +18,7 @@ export default function DashboardPage() {
 
       if (response.status === 401) {
         setAccessStatus("blocked");
-        redirectToLogin();
+        navigate("/", { replace: true });
         return;
       }
 
@@ -74,8 +45,33 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    const checkSession = async () => {
+      setAccessStatus("checking");
+
+      try {
+        const response = await fetch(apiUrl("/api/auth/me"), {
+          credentials: "include",
+        });
+
+        if (response.status === 401) {
+          setAccessStatus("blocked");
+          navigate("/", { replace: true });
+          return;
+        }
+
+        if (!response.ok) {
+          setAccessStatus("error");
+          return;
+        }
+
+        setAccessStatus("allowed");
+      } catch {
+        setAccessStatus("error");
+      }
+    };
+
     void checkSession();
-  }, []);
+  }, [navigate]);
 
   return (
     <main className="min-h-screen bg-[#f4efe2] px-6 py-8 text-[#1f1b16] sm:px-10 lg:px-16">
