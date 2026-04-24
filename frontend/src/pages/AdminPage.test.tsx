@@ -152,7 +152,7 @@ describe("AdminPage", () => {
     const deleteButtons = await screen.findAllByRole("button", { name: "Eliminar" });
     
     // Click the delete button of the first user
-    await user.click(deleteButtons[0]);
+    await user.click(deleteButtons[0]!);
 
     expect(confirmSpy).toHaveBeenCalledWith("¿Estás seguro de que deseas eliminar este usuario?");
 
