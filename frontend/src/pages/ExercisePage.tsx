@@ -2,6 +2,7 @@ import * as React from "react";
 import CreateExerciseModal, {
     type CreateExercisePayload,
 } from "../components/Exercise/CreateExerciseModal";
+import { Link } from "react-router-dom";
 import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseList from "../components/Exercise/ExerciseList";
@@ -315,6 +316,27 @@ export default function ExercisePage() {
                     className="mx-auto max-w-[min(1600px,96vw)]"
                     data-block="page-container"
                 >
+                    <div className="mb-6 flex justify-end">
+                        <Link
+                            to="/profile"
+                            className="inline-flex items-center gap-2 rounded-full border border-[#1f1b16]/15 bg-white/35 px-5 py-2 text-sm font-bold text-[#265c52] shadow-sm backdrop-blur transition hover:bg-white/50 hover:text-[#1f1b16]"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                            >
+                                <path
+                                    fillRule="evenodd"
+                                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                    clipRule="evenodd"
+                                />
+                            </svg>
+                            Mi perfil
+                        </Link>
+                    </div>
+
                     <ExerciseHeader />
 
                     <div

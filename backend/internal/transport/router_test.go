@@ -45,6 +45,14 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 	return nil, service.ErrInvalidCredentials
 }
 
+func (m *MockUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	return nil, nil
+}
+
+func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
 type MockExerciseRepository struct {
 	createFunc         func(ctx context.Context, exercise *model.Exercise) error
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)

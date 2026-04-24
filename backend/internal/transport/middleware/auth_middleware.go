@@ -42,31 +42,27 @@ func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *A
 //
 // The returned handler reads the configured cookie, validates the token using the
 // TokenService, and on success stores the claims (subject, email, username) in the
-// request context. On failure it responds with 401 and aborts the request.
+// request context.
+// It reads the JWT from the cookie, validates it, and injects the user data into the context.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Cookie(m.cookieName)
+		tokenString, err := c.Cookie(m.cookieName)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "authentication required",
-			})
-			c.Abort()
+			// If there is no cookie, reject the request immediately
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: missing cookie"})
 			return
 		}
 
-		claims, err := m.tokenService.ParseToken(cookie)
+		claims, err := m.tokenService.ParseToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid or expired authentication token",
-			})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: invalid or expired token"})
 			return
 		}
 
 		c.Set(ContextUserIDKey, claims.Subject)
 		c.Set(ContextUserEmailKey, claims.Email)
 		c.Set(ContextUsernameKey, claims.Username)
-		c.Set(ContextUserRoleKey, claims.Role)
+
 		c.Next()
 	}
 }

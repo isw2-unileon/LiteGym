@@ -17,8 +17,6 @@ type DBPinger interface {
 }
 
 // SetupRouter configures and returns the application HTTP router.
-//
-// This router enables CORS with credential support and a configurable allowed origin.
 func SetupRouter(
 	db DBPinger,
 	userHandler *handlers.UserHandler,
@@ -32,20 +30,26 @@ func SetupRouter(
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(corsMiddleware(resolveCORSAllowOrigin(corsAllowOrigin)))
 
-	// Health check endpoints
+	// Health check
 	r.GET("/health", healthHandler.Health)
 
+	// Base API group
 	api := r.Group("/api")
 
-	// Public API endpoints
+	// --------------------
+	// Public endpoints
+	// --------------------
 	api.POST("/users", userHandler.CreateUser)
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/logout", authHandler.Logout)
 
-	// Protected API endpoints
+	// --------------------
+	// Protected endpoints
+	// --------------------
 	protected := api.Group("")
 	protected.Use(authMiddleware.RequireAuth())
 
+	// General
 	protected.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
@@ -69,9 +73,23 @@ func SetupRouter(
 		})
 	})
 
+	// Auth
 	protected.GET("/auth/me", authHandler.Me)
-	protected.GET("/users/:id", userHandler.GetUserByID)
 
+	// Users
+	protected.GET("/users", userHandler.ListAllUsers)
+
+	protected.GET("/users/me", userHandler.GetMe)
+
+	protected.GET("/users/:id", userHandler.GetUserByID)
+<<<<<<< HEAD
+
+=======
+	protected.DELETE("/users/:id", userHandler.DeleteUser)
+
+	// Exercises
+	protected.POST("/exercises", exerciseHandler.CreateExercise)
+>>>>>>> origin/main
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 
@@ -84,7 +102,6 @@ func resolveCORSAllowOrigin(corsAllowOrigin []string) string {
 	if len(corsAllowOrigin) == 0 || strings.TrimSpace(corsAllowOrigin[0]) == "" {
 		return "*"
 	}
-
 	return strings.TrimSpace(corsAllowOrigin[0])
 }
 
@@ -93,7 +110,6 @@ func corsMiddleware(allowOrigin string) gin.HandlerFunc {
 		requestOrigin := c.GetHeader("Origin")
 		responseOrigin := allowOrigin
 
-		// Credentialed CORS requests cannot use "*", so reflect the request origin in dev.
 		if allowOrigin == "*" && requestOrigin != "" {
 			responseOrigin = requestOrigin
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/jackc/pgx/v5"
 )
 
 // MockUserRepository is a test double for the user repository.
@@ -19,6 +20,8 @@ type MockUserRepository struct {
 	createFunc     func(ctx context.Context, user *model.User) error
 	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
+	listAllFunc    func(ctx context.Context) ([]*model.User, error)
+	deleteFunc     func(ctx context.Context, id string) error
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -42,6 +45,20 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 	return nil, nil
 }
 
+func (m *MockUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	if m.listAllFunc != nil {
+		return m.listAllFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
+}
+
 func TestCreateUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -63,6 +80,7 @@ func TestCreateUser(t *testing.T) {
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "password123",
+		Role:     "user",
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -86,10 +104,9 @@ func TestCreateUserMissingFields(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	// Request incompleto
 	reqBody := CreateUserRequest{
 		Username: "testuser",
-		// Email vacío
+		
 		Password: "password123",
 	}
 
@@ -186,5 +203,115 @@ func TestGetUserByIDNotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+}
+
+func TestGetMe_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockRepo := &MockUserRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
+			return &model.User{
+				ID:       "550e8400-e29b-41d4-a716-446655440999",
+				Username: "authenticated_user",
+				Email:    "auth@example.com",
+			}, nil
+		},
+	}
+	userService := service.NewUserService(mockRepo)
+	userHandler := NewUserHandler(userService)
+
+	router := gin.New()
+
+	router.Use(func(ginCtx *gin.Context) {
+		ginCtx.Set("user_id", "550e8400-e29b-41d4-a716-446655440999")
+		ginCtx.Next()
+	})
+
+	router.GET("/api/users/me", userHandler.GetMe)
+
+	recorder := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/api/users/me", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+
+	var responseUser model.User
+	if err := json.Unmarshal(recorder.Body.Bytes(), &responseUser); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if responseUser.Username != "authenticated_user" {
+		t.Errorf("expected username 'authenticated_user', got '%s'", responseUser.Username)
+	}
+}
+
+func TestGetMe_Unauthorized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockUserRepository{}
+	userService := service.NewUserService(mockRepo)
+	userHandler := NewUserHandler(userService)
+
+	router := gin.New()
+	router.GET("/api/users/me", userHandler.GetMe)
+
+	recorder := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/api/users/me", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, recorder.Code)
+	}
+}
+
+func TestDeleteUser_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockUserRepository{
+		deleteFunc: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+
+	userService := service.NewUserService(mockRepo)
+	userHandler := NewUserHandler(userService)
+
+	recorder := httptest.NewRecorder()
+	ginCtx, router := gin.CreateTestContext(recorder)
+
+	router.DELETE("/api/users/:id", userHandler.DeleteUser)
+
+	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/550e8400-e29b-41d4-a716-446655440000", nil)
+	router.ServeHTTP(recorder, ginCtx.Request)
+
+	if recorder.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+}
+
+func TestDeleteUser_NotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockUserRepository{
+		deleteFunc: func(ctx context.Context, id string) error {
+			return pgx.ErrNoRows
+		},
+	}
+
+	userService := service.NewUserService(mockRepo)
+	userHandler := NewUserHandler(userService)
+
+	recorder := httptest.NewRecorder()
+	ginCtx, router := gin.CreateTestContext(recorder)
+
+	router.DELETE("/api/users/:id", userHandler.DeleteUser)
+
+	ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/api/users/00000000-0000-0000-0000-000000000000", nil)
+	router.ServeHTTP(recorder, ginCtx.Request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, recorder.Code)
 	}
 }
