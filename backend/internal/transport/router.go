@@ -82,14 +82,10 @@ func SetupRouter(
 	protected.GET("/users/me", userHandler.GetMe)
 
 	protected.GET("/users/:id", userHandler.GetUserByID)
-<<<<<<< HEAD
-
-=======
 	protected.DELETE("/users/:id", userHandler.DeleteUser)
 
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
->>>>>>> origin/main
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 
