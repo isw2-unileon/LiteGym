@@ -24,15 +24,13 @@ export default function AdminPage() {
   // --- State: Forms ---
   const [newUser, setNewUser] = React.useState({ username: "", email: "", password: "", role: "user" });
   
-  // CORRECTION 1: Added 'description' to the initial state
   const [newExercise, setNewExercise] = React.useState({ name: "", muscle_group: "", exercise_type: "", description: "" });
 
   // --- Effect: Check Admin Role & Fetch Data ---
   React.useEffect(() => {
     const verifyAdminAndFetchData = async () => {
       try {
-        // 1. Check if current user is admin
-        const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
+        const meResponse = await fetch(`${API_BASE_URL}/api/users/me`, { credentials: "include" });
         if (!meResponse.ok) throw new Error("Unauthorized");
         
         const meData = await meResponse.json();
@@ -43,7 +41,6 @@ export default function AdminPage() {
         
         setIsAuthorized(true);
 
-        // 2. If admin, fetch the users list
         const usersResponse = await fetch(`${API_BASE_URL}/api/users`, { credentials: "include" });
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
@@ -104,7 +101,6 @@ export default function AdminPage() {
   const handleCreateExercise = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // CORRECTION 2: Injecting is_official as true
       const payload = {
         ...newExercise,
         is_official: true, 
@@ -121,7 +117,6 @@ export default function AdminPage() {
       
       setStatusMessage({ text: "Ejercicio global creado correctamente.", type: "success" });
       
-      // CORRECTION 3: Reset description as well
       setNewExercise({ name: "", muscle_group: "", exercise_type: "", description: "" }); 
     } catch (error) {
       setStatusMessage({ text: "Error al crear el ejercicio.", type: "error" });

@@ -59,7 +59,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	query := `
-		SELECT id::text, username, email, password_hash, created_at, role, is_active
+		SELECT id::text, username, email, password_hash, role, is_active,created_at
 		FROM users
 		WHERE id = $1::uuid
 	`
@@ -109,8 +109,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 // ListAll retrieves all users from the database, ordered by creation date.
 func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	// 1. Nos aseguramos de pedir el id como texto (id::text)
 	query := `
-		SELECT id, username, email, password_hash, role, is_active, created_at
+		SELECT id::text, username, email, password_hash, role, is_active, created_at
 		FROM users
 		ORDER BY created_at DESC
 	`
@@ -125,11 +126,10 @@ func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
 
 	for rows.Next() {
 		var user model.User
-		var id64 int64
 
-		// Using id64 to prevent type mismatch with pgx
+		// 2. Escaneamos TODO directamente al modelo (sin inventar variables id64)
 		err := rows.Scan(
-			&id64,
+			&user.ID, // Directo a string, como debe ser
 			&user.Username,
 			&user.Email,
 			&user.PasswordHash,
@@ -141,7 +141,6 @@ func (r *userRepository) ListAll(ctx context.Context) ([]*model.User, error) {
 			return nil, err
 		}
 
-		user.ID = string(id64)
 		users = append(users, &user)
 	}
 

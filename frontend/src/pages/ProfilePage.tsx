@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { apiUrl } from "../lib/api";
 
 // Define the data contract. Must match the JSON returned by the Go backend.
 interface UserProfile {
-  id: number;
+  id: string;
   username: string;
   email: string;
   role: string;
@@ -17,18 +19,18 @@ export default function Profile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await fetch(`http://localhost:8080/api/users/me`, {
+        const response = await fetch(apiUrl("/api/users/me"), {
           credentials: "include",
         });
-        
+
         if (!response.ok) {
-          throw new Error('Profile not found or unauthorized');
+          throw new Error("Profile not found or unauthorized");
         }
 
         const data = await response.json();
-        setUser(data.user);
+        setUser(data);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unexpected error';
+        const message = err instanceof Error ? err.message : "Unexpected error";
         setError(message);
       } finally {
         setIsLoading(false);
@@ -38,8 +40,7 @@ export default function Profile() {
     fetchProfile();
   }, []); 
 
-  // Helper function to render the actual content based on the state
-  // Helper function to render the actual content based on the state
+  // Render content based on request state.
   const renderContent = () => {
     // LOADING STATE: Aligned with dashed borders and warm colors
     if (isLoading) {
@@ -61,7 +62,6 @@ export default function Profile() {
 
     // SAFETY CHECK
     if (!user) return null;
-    console.log(user);
     return (
       <div className="mx-auto w-full animate-[rise_700ms_ease-out_both] rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-6 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8">
         <div className="text-center">
@@ -95,9 +95,9 @@ export default function Profile() {
           {/* Admin Panel Button (Only visible if role is admin) */}
           {user.role === "admin" && (
             <div className="mt-4">
-              <a href="/admin" className="block w-full rounded-xl bg-[#ea7130] py-3 font-bold text-white shadow-lg transition-transform hover:scale-[1.02]">
+              <Link to="/admin" className="block w-full rounded-xl bg-[#ea7130] py-3 font-bold text-white shadow-lg transition-transform hover:scale-[1.02]">
                 Panel de Administración
-              </a>
+              </Link>
             </div>
           )}
         </div>

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 // UserHandler handles user-related HTTP requests.
@@ -118,10 +119,14 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 // GetMe returns the authenticated user profile
 func (h *UserHandler) GetMe(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+	userIDVal, exists := c.Get(middleware.ContextUserIDKey)
+
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
+		userIDVal, exists = c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
 	}
 
 	userID, ok := userIDVal.(string)
@@ -132,7 +137,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found in db"})
 		return
 	}
 
