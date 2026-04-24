@@ -204,11 +204,3 @@ func TestLogoutClearsCookie(t *testing.T) {
 		t.Errorf("expected MaxAge -1, got %d", cookie.MaxAge)
 	}
 }
-)
-
-	authHandler.Login(c)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
-	}
-}
