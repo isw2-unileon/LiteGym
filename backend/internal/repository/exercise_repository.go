@@ -177,7 +177,7 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 
 // UpdateExercise updates the contents of an existing exercise.
 func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
-	// 1. Definimos la consulta para actualizar los campos principales
+	// 1. Define the query that updates the exercise core fields.
 	query := `
         UPDATE exercises
         SET

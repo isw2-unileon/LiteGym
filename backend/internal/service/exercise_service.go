@@ -69,6 +69,7 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 	return s.repo.Create(ctx, exercise)
 }
 
+// UpdateExercise validates and updates an existing exercise.
 func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
 	if exercise == nil {
 		return ErrInvalidExerciseInput

@@ -110,6 +110,7 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	c.JSON(http.StatusCreated, exercise)
 }
 
+// UpdateExercise updates an existing exercise by its ID.
 func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
 

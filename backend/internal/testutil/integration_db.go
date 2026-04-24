@@ -91,13 +91,13 @@ func NewIntegrationTestPool(t *testing.T) *pgxpool.Pool {
 	lockConn, err := db.Acquire(t.Context())
 	if err != nil {
 		db.Close()
-		t.Fatalf("error adquiriendo conexion para lock de integracion: %v", err)
+		t.Fatalf("error acquiring connection for integration lock: %v", err)
 	}
 
 	if _, err := lockConn.Exec(t.Context(), "SELECT pg_advisory_lock($1)", integrationDBAdvisoryLockKey); err != nil {
 		lockConn.Release()
 		db.Close()
-		t.Fatalf("error adquiriendo lock de integracion: %v", err)
+		t.Fatalf("error acquiring integration lock: %v", err)
 	}
 
 	t.Cleanup(func() {
