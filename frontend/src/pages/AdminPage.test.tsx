@@ -11,11 +11,13 @@ function setupFetchMock(isAdmin: boolean = true, authSuccess: boolean = true) {
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const method = options?.method || "GET";
 
+    // 1. Auth check endpoint
     if (url.includes("/api/users/me")) {
       if (!authSuccess) return Promise.resolve(new Response(null, { status: 401 }));
       return Promise.resolve(jsonResponse({ id: "1", username: "admin", role: isAdmin ? "admin" : "user" }, { status: 200 }));
     }
 
+    // 2. Get users list
     if (url.endsWith("/api/users") && method === "GET") {
       return Promise.resolve(jsonResponse([
         { id: "1", username: "admin_user", email: "admin@test.com", role: "admin" },
@@ -23,10 +25,12 @@ function setupFetchMock(isAdmin: boolean = true, authSuccess: boolean = true) {
       ], { status: 200 }));
     }
 
+    // 3. Create User
     if (url.endsWith("/api/users") && method === "POST") {
       return Promise.resolve(jsonResponse({ message: "Created" }, { status: 201 }));
     }
 
+    // 4. Delete User
     if (url.includes("/api/users/") && method === "DELETE") {
       return Promise.resolve(jsonResponse({ message: "Deleted" }, { status: 200 }));
     }
@@ -181,6 +185,7 @@ describe("AdminPage", () => {
     // Submit
     await user.click(screen.getByRole("button", { name: "Publicar Ejercicio" }));
 
+    // Verify fetch payload
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/exercises"),

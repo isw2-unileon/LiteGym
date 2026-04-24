@@ -46,9 +46,9 @@ export default function AdminPage() {
           const usersData = await usersResponse.json();
           setUsers(usersData);
         }
-      } catch (error) {
-        setIsAuthorized(false);
-      }
+      } catch {
+  setIsAuthorized(false);
+}
     };
 
     verifyAdminAndFetchData();
