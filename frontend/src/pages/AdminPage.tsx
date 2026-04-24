@@ -74,7 +74,7 @@ export default function AdminPage() {
       const usersResponse = await fetch(`${API_BASE_URL}/api/users`, { credentials: "include" });
       if (usersResponse.ok) setUsers(await usersResponse.json());
       
-    } catch (error) {
+    } catch {
       setStatusMessage({ text: "Error al crear el usuario.", type: "error" });
     }
   };
@@ -92,7 +92,7 @@ export default function AdminPage() {
       
       setStatusMessage({ text: "Usuario eliminado.", type: "success" });
       setUsers(users.filter((user) => user.id !== id));
-    } catch (error) {
+    } catch  {
       setStatusMessage({ text: "Error al eliminar el usuario.", type: "error" });
     }
   };
@@ -118,7 +118,7 @@ export default function AdminPage() {
       setStatusMessage({ text: "Ejercicio global creado correctamente.", type: "success" });
       
       setNewExercise({ name: "", muscle_group: "", exercise_type: "", description: "" }); 
-    } catch (error) {
+    } catch  {
       setStatusMessage({ text: "Error al crear el ejercicio.", type: "error" });
     }
   };

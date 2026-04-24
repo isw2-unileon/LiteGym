@@ -1,10 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Profile from "./ProfilePage"; 
 
 // --- Helpers ---
-function setupFetchMock(mockData: any, isOk: boolean = true) {
+function setupFetchMock(mockData: unknown, isOk: boolean = true) {
   const fetchMock = vi.fn().mockResolvedValue(
     new Response(JSON.stringify(mockData), {
       status: isOk ? 200 : 401,
