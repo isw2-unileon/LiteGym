@@ -15,9 +15,10 @@ import (
 )
 
 type MockExerciseRepository struct {
-	createFunc  func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc    func(ctx context.Context) ([]model.Exercise, error)
+	createFunc         func(ctx context.Context, exercise *model.Exercise) error
+	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
+	listFunc           func(ctx context.Context) ([]model.Exercise, error)
+	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
 }
 
 func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
@@ -39,6 +40,13 @@ func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, er
 		return m.listFunc(ctx)
 	}
 	return []model.Exercise{}, nil
+}
+
+func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	if m.updateExerciseFunc != nil {
+		return m.updateExerciseFunc(ctx, exercise)
+	}
+	return nil
 }
 
 func TestGetExerciseByID(t *testing.T) {

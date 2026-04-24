@@ -109,3 +109,55 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, exercise)
 }
+
+func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		return
+	}
+
+	var req createExerciseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	userRole, _ := c.Get(middleware.ContextUserRoleKey)
+	role, _ := userRole.(string)
+
+	isOfficial := req.IsOfficial && role == "admin"
+	if req.IsOfficial && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can create official exercises",
+		})
+		return
+	}
+
+	exercise := model.Exercise{
+		ID:                   id,
+		Name:                 req.Name,
+		Description:          req.Description,
+		MuscleGroup:          req.MuscleGroup,
+		SecondaryMuscleGroup: strings.Join(req.SecondaryMuscleGroups, ", "),
+		ExerciseType:         req.ExerciseType,
+		IsOfficial:           isOfficial,
+	}
+
+	err := h.service.UpdateExercise(c.Request.Context(), &exercise)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise input"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exercise"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, exercise)
+}

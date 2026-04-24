@@ -25,6 +25,9 @@ export default function ExercisePage() {
     const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
     const [createErrorMessage, setCreateErrorMessage] = React.useState("");
     const [isCreatingExercise, setIsCreatingExercise] = React.useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+    const [editErrorMessage, setEditErrorMessage] = React.useState("");
+    const [isUpdatingExercise, setIsUpdatingExercise] = React.useState(false);
     const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
 
     const [search, setSearch] = React.useState("");
@@ -89,6 +92,32 @@ export default function ExercisePage() {
         void fetchExercises();
     }, []);
 
+    const buildExercisePayload = React.useCallback(
+        (exercise: Exercise): CreateExercisePayload => {
+            const secondaryMuscleGroups =
+                exercise.secondary_muscle_groups?.filter(Boolean) ??
+                (exercise.secondary_muscle_group
+                    ? exercise.secondary_muscle_group
+                          .split(",")
+                          .map((value) => value.trim())
+                          .filter(Boolean)
+                    : []);
+
+            return {
+                name: exercise.name,
+                description: exercise.description ?? "",
+                muscle_group: exercise.muscle_group,
+                secondary_muscle_groups:
+                    secondaryMuscleGroups.length > 0
+                        ? secondaryMuscleGroups
+                        : [""],
+                exercise_type: exercise.exercise_type ?? "",
+                is_official: exercise.is_official === true,
+            };
+        },
+        [],
+    );
+
     const handleCreateExercise = async (payload: CreateExercisePayload) => {
         setIsCreatingExercise(true);
         setCreateErrorMessage("");
@@ -135,6 +164,64 @@ export default function ExercisePage() {
             );
         } finally {
             setIsCreatingExercise(false);
+        }
+    };
+
+    const handleUpdateExercise = async (payload: CreateExercisePayload) => {
+        if (!selectedExercise) {
+            return;
+        }
+
+        setIsUpdatingExercise(true);
+        setEditErrorMessage("");
+
+        try {
+            const response = await fetch(
+                apiUrl(`/api/exercises/${selectedExercise.id}`),
+                {
+                    method: "PUT",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                },
+            );
+
+            if (response.status === 401) {
+                setEditErrorMessage(
+                    "Tu sesion ha expirado. Inicia sesion otra vez.",
+                );
+                return;
+            }
+
+            if (!response.ok) {
+                const errorBody = (await response.json().catch(() => null)) as {
+                    error?: string;
+                } | null;
+
+                setEditErrorMessage(
+                    errorBody?.error ?? "No se pudo actualizar el ejercicio.",
+                );
+                return;
+            }
+
+            const updatedExercise = (await response.json()) as Exercise;
+
+            setExercises((current) =>
+                current.map((exercise) =>
+                    exercise.id === updatedExercise.id ? updatedExercise : exercise,
+                ),
+            );
+            setSelectedExerciseId(updatedExercise.id);
+            setIsEditModalOpen(false);
+        } catch (error) {
+            console.error(error);
+            setEditErrorMessage(
+                "No se pudo actualizar el ejercicio. Revisa la conexion con el backend.",
+            );
+        } finally {
+            setIsUpdatingExercise(false);
         }
     };
 
@@ -195,6 +282,10 @@ export default function ExercisePage() {
     ).length;
     const customCount = exercises.length - officialCount;
     const canCreateOfficial = currentUser?.role === "admin";
+    const canEditSelectedExercise = selectedExercise?.is_official === false;
+    const editInitialPayload = selectedExercise
+        ? buildExercisePayload(selectedExercise)
+        : undefined;
 
     return (
         <main
@@ -378,15 +469,32 @@ export default function ExercisePage() {
                             {selectedExercise ? (
                                 <div className="mt-6 grid gap-4">
                                     <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5">
-                                        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                            Nombre
-                                        </p>
-                                        <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] text-[#1f1b16]">
-                                            {selectedExercise.name}
-                                        </h3>
-                                        <p className="mt-2 text-sm font-semibold text-[#5d5348]">
-                                            {selectedExercise.muscle_group}
-                                        </p>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
+                                                    Nombre
+                                                </p>
+                                                <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] text-[#1f1b16]">
+                                                    {selectedExercise.name}
+                                                </h3>
+                                                <p className="mt-2 text-sm font-semibold text-[#5d5348]">
+                                                    {selectedExercise.muscle_group}
+                                                </p>
+                                            </div>
+
+                                            {canEditSelectedExercise && (
+                                                <button
+                                                    type="button"
+                                                    className="rounded-2xl border border-[#1f1b16]/15 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
+                                                    onClick={() => {
+                                                        setEditErrorMessage("");
+                                                        setIsEditModalOpen(true);
+                                                    }}
+                                                >
+                                                    Editar
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -443,11 +551,26 @@ export default function ExercisePage() {
                 isSubmitting={isCreatingExercise}
                 errorMessage={createErrorMessage}
                 canCreateOfficial={canCreateOfficial}
+                mode="create"
                 onClose={() => {
                     setCreateErrorMessage("");
                     setIsCreateModalOpen(false);
                 }}
                 onSubmit={handleCreateExercise}
+            />
+
+            <CreateExerciseModal
+                isOpen={isEditModalOpen}
+                isSubmitting={isUpdatingExercise}
+                errorMessage={editErrorMessage}
+                canCreateOfficial={canCreateOfficial}
+                mode="edit"
+                initialPayload={editInitialPayload}
+                onClose={() => {
+                    setEditErrorMessage("");
+                    setIsEditModalOpen(false);
+                }}
+                onSubmit={handleUpdateExercise}
             />
         </main>
     );

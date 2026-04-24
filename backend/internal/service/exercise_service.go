@@ -68,3 +68,27 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 
 	return s.repo.Create(ctx, exercise)
 }
+
+func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	if exercise == nil {
+		return ErrInvalidExerciseInput
+	}
+
+	exercise.ID = strings.TrimSpace(exercise.ID)
+	exercise.Name = strings.TrimSpace(exercise.Name)
+	exercise.Description = strings.TrimSpace(exercise.Description)
+	exercise.MuscleGroup = strings.TrimSpace(exercise.MuscleGroup)
+	exercise.SecondaryMuscleGroup = strings.TrimSpace(exercise.SecondaryMuscleGroup)
+	exercise.ExerciseType = strings.TrimSpace(exercise.ExerciseType)
+
+	if exercise.ID == "" || strings.TrimSpace(exercise.Name) == "" {
+		return ErrInvalidExerciseInput
+	}
+
+	err := s.repo.UpdateExercise(ctx, exercise)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrExerciseNotFound
+	}
+
+	return err
+}

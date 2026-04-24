@@ -71,11 +71,12 @@ func SetupRouter(
 
 	protected.GET("/auth/me", authHandler.Me)
 	protected.GET("/users/:id", userHandler.GetUserByID)
-	
+
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
+	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	return r
 }
 

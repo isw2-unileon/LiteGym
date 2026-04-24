@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -13,6 +14,7 @@ type ExerciseRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Exercise, error)
 	List(ctx context.Context) ([]model.Exercise, error)
 	Create(ctx context.Context, exercise *model.Exercise) error
+	UpdateExercise(ctx context.Context, exercise *model.Exercise) error
 }
 
 type exerciseRepository struct {
@@ -171,4 +173,64 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 	exercise.SecondaryMuscleGroup = strings.Join(normalized, ", ")
 	return nil
 
+}
+
+// UpdateExercise updates the contents of an existing exercise.
+func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	// 1. Definimos la consulta para actualizar los campos principales
+	query := `
+        UPDATE exercises
+        SET
+            name = $1,
+            description = $2,
+            muscle_group = $3,
+            exercise_type = $4,
+            is_official = $5
+        WHERE id = $6::uuid
+    `
+
+	// 2. Ejecutamos la actualización
+	result, err := r.db.Exec(
+		ctx,
+		query,
+		exercise.Name,
+		exercise.Description,
+		exercise.MuscleGroup,
+		exercise.ExerciseType,
+		exercise.IsOfficial,
+		exercise.ID,
+	)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	// 3. Manejo de Músculos Secundarios
+
+	// Borrar actuales
+	_, err = r.db.Exec(ctx, "DELETE FROM exercise_secondary_muscle_groups WHERE exercise_id = $1::uuid", exercise.ID)
+	if err != nil {
+		return err
+	}
+
+	// Insertar los nuevos
+	if exercise.SecondaryMuscleGroup != "" {
+		groups := strings.Split(exercise.SecondaryMuscleGroup, ",")
+		for _, g := range groups {
+			g = strings.TrimSpace(g)
+			if g == "" {
+				continue
+			}
+			_, err = r.db.Exec(ctx,
+				"INSERT INTO exercise_secondary_muscle_groups (exercise_id, muscle_group) VALUES ($1::uuid, $2)",
+				exercise.ID, g)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

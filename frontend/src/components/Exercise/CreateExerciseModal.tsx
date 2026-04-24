@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 export type CreateExercisePayload = {
   name: string;
@@ -14,6 +14,8 @@ type CreateExerciseModalProps = {
   isSubmitting: boolean;
   errorMessage: string;
   canCreateOfficial: boolean;
+  mode?: "create" | "edit";
+  initialPayload?: CreateExercisePayload;
   onClose: () => void;
   onSubmit: (payload: CreateExercisePayload) => Promise<void>;
 };
@@ -32,10 +34,12 @@ export default function CreateExerciseModal({
   isSubmitting,
   errorMessage,
   canCreateOfficial,
+  mode = "create",
+  initialPayload,
   onClose,
   onSubmit,
 }: CreateExerciseModalProps) {
-  const [form, setForm] = useState<CreateExercisePayload>(initialForm);
+  const [form, setForm] = useState<CreateExercisePayload>(initialPayload ?? initialForm);
   const [validationMessage, setValidationMessage] = useState("");
 
   const nameId = useId();
@@ -43,6 +47,16 @@ export default function CreateExerciseModal({
   const muscleGroupId = useId();
   const secondaryMuscleGroupId = useId();
   const exerciseTypeId = useId();
+  const isEditMode = mode === "edit";
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setForm(initialPayload ?? initialForm);
+    setValidationMessage("");
+  }, [initialPayload, isOpen]);
 
   if (!isOpen) {
     return null;
@@ -98,7 +112,7 @@ export default function CreateExerciseModal({
 
     if (form.name.trim() === "" || form.muscle_group.trim() === "") {
       setValidationMessage(
-        "Nombre y grupo muscular son obligatorios para crear el ejercicio.",
+        "Nombre y grupo muscular son obligatorios para guardar el ejercicio.",
       );
       return;
     }
@@ -140,16 +154,19 @@ export default function CreateExerciseModal({
         <div className="grid gap-0 lg:grid-cols-[0.95fr_1.45fr]">
           <div className="bg-[#1f1b16] px-6 py-8 text-[#fffaf0] sm:px-8">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">
-              Nuevo ejercicio
+              {isEditMode ? "Editar ejercicio" : "Nuevo ejercicio"}
             </p>
 
             <h3 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.05em]">
-              Disena un movimiento que encaje con tu rutina.
+              {isEditMode
+                ? "Ajusta los datos del ejercicio seleccionado."
+                : "Disena un movimiento que encaje con tu rutina."}
             </h3>
 
             <p className="mt-4 max-w-sm text-sm leading-6 text-[#efe4d2]">
-              Anade nombre, grupo muscular, descripcion y tipo. Tambien puedes
-              indicar varios musculos secundarios en bloques separados.
+              {isEditMode
+                ? "Actualiza nombre, grupo muscular, descripcion y tipo. Tambien puedes revisar varios musculos secundarios."
+                : "Anade nombre, grupo muscular, descripcion y tipo. Tambien puedes indicar varios musculos secundarios en bloques separados."}
             </p>
 
             <button
@@ -292,7 +309,13 @@ export default function CreateExerciseModal({
                 type="submit"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Creando..." : "Crear ejercicio"}
+                {isSubmitting
+                  ? isEditMode
+                    ? "Guardando..."
+                    : "Creando..."
+                  : isEditMode
+                    ? "Guardar cambios"
+                    : "Crear ejercicio"}
               </button>
             </div>
           </form>

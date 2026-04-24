@@ -33,7 +33,12 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 }
 
 func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
-	return nil, nil
+	return &model.User{
+		ID:       id,
+		Email:    "test@example.com",
+		Username: "testuser",
+		Role:     "user",
+	}, nil
 }
 
 func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
@@ -41,9 +46,10 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 }
 
 type MockExerciseRepository struct {
-	createFunc  func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc    func(ctx context.Context) ([]model.Exercise, error)
+	createFunc         func(ctx context.Context, exercise *model.Exercise) error
+	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
+	listFunc           func(ctx context.Context) ([]model.Exercise, error)
+	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
 }
 
 func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenService) {
@@ -79,6 +85,13 @@ func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, er
 		return m.listFunc(ctx)
 	}
 	return []model.Exercise{}, nil
+}
+
+func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	if m.updateExerciseFunc != nil {
+		return m.updateExerciseFunc(ctx, exercise)
+	}
+	return nil
 }
 
 func TestHealthEndpoint(t *testing.T) {
