@@ -305,7 +305,7 @@ func TestUserRepositoryDeleteNotFoundIntegration(t *testing.T) {
 
 	repo := NewUserRepository(db)
 
-	err := repo.Delete(context.Background(), "999999")
+	err := repo.Delete(context.Background(), "00000000-0000-0000-0000-000000000000")
 
 	if err == nil {
 		t.Fatal("se esperaba error al borrar un usuario inexistente")
