@@ -16,6 +16,14 @@ type CurrentUser = {
     role: string;
 };
 
+type ExerciseListResponse = {
+    items: Exercise[];
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+};
+
 export default function ExercisePage() {
     const [exercises, setExercises] = React.useState<Exercise[]>([]);
     const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(
@@ -35,6 +43,11 @@ export default function ExercisePage() {
     const [typeFilter, setTypeFilter] = React.useState("");
     const [muscleFilter, setMuscleFilter] = React.useState("");
 
+    const [page, setPage] = React.useState(1);
+    const [limit] = React.useState(20);
+    const [total, setTotal] = React.useState(0);
+    const [totalPages, setTotalPages] = React.useState(0);
+
     React.useEffect(() => {
         const fetchCurrentUser = async () => {
             try {
@@ -53,45 +66,98 @@ export default function ExercisePage() {
             }
         };
 
-        const fetchExercises = async () => {
-            setStatus("loading");
-            setMessage("");
-
-            try {
-                const response = await fetch(apiUrl("/api/exercises"), {
-                    credentials: "include",
-                });
-
-                if (response.status === 401) {
-                    setMessage("No autorizado. Por favor, inicia sesión.");
-                    setStatus("error");
-                    return;
-                }
-
-                if (!response.ok) {
-                    setStatus("error");
-                    setMessage("No se pudieron cargar los ejercicios.");
-                    return;
-                }
-
-                const data = await response.json();
-                setExercises(data);
-                setSelectedExerciseId((current) =>
-                    current || data.length === 0 ? current : data[0].id,
-                );
-                setStatus("success");
-            } catch (error) {
-                console.error(error);
-                setMessage(
-                    "Error al cargar los ejercicios. Por favor, intenta de nuevo.",
-                );
-                setStatus("error");
-            }
-        };
-
         void fetchCurrentUser();
-        void fetchExercises();
     }, []);
+
+    const fetchExercises = React.useCallback(async () => {
+        setStatus("loading");
+        setMessage("");
+
+        try {
+            const params = new URLSearchParams();
+
+            if (search.trim() !== "") {
+                params.set("search", search.trim());
+            }
+
+            if (typeFilter !== "") {
+                params.set("type", typeFilter);
+            }
+
+            if (muscleFilter !== "") {
+                params.set("muscle", muscleFilter);
+            }
+
+            params.set("page", String(page));
+            params.set("limit", String(limit));
+
+            const response = await fetch(
+                apiUrl(`/api/exercises?${params.toString()}`),
+                {
+                    credentials: "include",
+                },
+            );
+
+            if (response.status === 401) {
+                setMessage("No autorizado. Por favor, inicia sesión.");
+                setStatus("error");
+                return;
+            }
+
+            if (!response.ok) {
+                setStatus("error");
+                setMessage("No se pudieron cargar los ejercicios.");
+                return;
+            }
+
+            const data = (await response.json()) as ExerciseListResponse;
+
+            setExercises(data.items);
+            setTotal(data.total);
+            setTotalPages(data.total_pages);
+
+            setSelectedExerciseId((current) => {
+                const stillExists = data.items.some(
+                    (exercise) => exercise.id === current,
+                );
+
+                if (stillExists) {
+                    return current;
+                }
+
+                const firstExercise = data.items[0];
+
+                return firstExercise ? firstExercise.id : "";
+            });
+
+            setStatus("success");
+        } catch (error) {
+            console.error(error);
+            setMessage(
+                "Error al cargar los ejercicios. Por favor, intenta de nuevo.",
+            );
+            setStatus("error");
+        }
+    }, [search, typeFilter, muscleFilter, page, limit]);
+
+    React.useEffect(() => {
+        void fetchExercises();
+    }, [fetchExercises]);
+
+    const handleSearchChange = (value: string) => {
+        setSearch(value);
+        setPage(1);
+    };
+
+    const handleTypeFilterChange = (value: string) => {
+        setTypeFilter(value);
+        setPage(1);
+    };
+
+    const handleMuscleFilterChange = (value: string) => {
+        setMuscleFilter(value);
+        setPage(1);
+    };
 
     const buildExercisePayload = React.useCallback(
         (exercise: Exercise): CreateExercisePayload => {
@@ -118,6 +184,38 @@ export default function ExercisePage() {
         },
         [],
     );
+
+    const exerciseTypes = React.useMemo(() => {
+        return Array.from(
+            new Set(
+                exercises
+                    .map((exercise) => exercise.exercise_type)
+                    .filter((type): type is string => Boolean(type)),
+            ),
+        ).sort();
+    }, [exercises]);
+
+    const muscleGroups = React.useMemo(() => {
+        return Array.from(
+            new Set(exercises.map((exercise) => exercise.muscle_group)),
+        ).sort();
+    }, [exercises]);
+
+    const filteredExercises = exercises;
+
+    const selectedExercise = React.useMemo(() => {
+        const selected = filteredExercises.find(
+            (exercise) => exercise.id === selectedExerciseId,
+        );
+
+        if (selected) {
+            return selected;
+        }
+
+        const firstExercise = filteredExercises[0];
+
+        return firstExercise ?? null;
+    }, [filteredExercises, selectedExerciseId]);
 
     const handleCreateExercise = async (payload: CreateExercisePayload) => {
         setIsCreatingExercise(true);
@@ -155,6 +253,7 @@ export default function ExercisePage() {
 
             setExercises((current) => [createdExercise, ...current]);
             setSelectedExerciseId(createdExercise.id);
+            setTotal((current) => current + 1);
             setStatus("success");
             setMessage("");
             setIsCreateModalOpen(false);
@@ -211,7 +310,9 @@ export default function ExercisePage() {
 
             setExercises((current) =>
                 current.map((exercise) =>
-                    exercise.id === updatedExercise.id ? updatedExercise : exercise,
+                    exercise.id === updatedExercise.id
+                        ? updatedExercise
+                        : exercise,
                 ),
             );
             setSelectedExerciseId(updatedExercise.id);
@@ -226,58 +327,6 @@ export default function ExercisePage() {
         }
     };
 
-    const exerciseTypes = React.useMemo(() => {
-        return Array.from(
-            new Set(
-                exercises
-                    .map((exercise) => exercise.exercise_type)
-                    .filter((type): type is string => Boolean(type)),
-            ),
-        ).sort();
-    }, [exercises]);
-
-    const muscleGroups = React.useMemo(() => {
-        return Array.from(
-            new Set(exercises.map((exercise) => exercise.muscle_group)),
-        ).sort();
-    }, [exercises]);
-
-    const filteredExercises = React.useMemo(() => {
-        const normalizedSearch = search.toLowerCase().trim();
-
-        return exercises.filter((exercise) => {
-            const matchesType =
-                typeFilter === "" || exercise.exercise_type === typeFilter;
-
-            const matchesMuscle =
-                muscleFilter === "" || exercise.muscle_group === muscleFilter;
-
-            const matchesSearch =
-                normalizedSearch === "" ||
-                [
-                    exercise.name,
-                    exercise.exercise_type ?? "",
-                    exercise.muscle_group ?? "",
-                ].some((valor) =>
-                    valor.toLowerCase().includes(normalizedSearch),
-                );
-
-            return matchesType && matchesMuscle && matchesSearch;
-        });
-    }, [exercises, typeFilter, muscleFilter, search]);
-
-    const selectedExercise = React.useMemo(() => {
-        if (filteredExercises.length === 0) {
-            return null;
-        }
-
-        return (
-            filteredExercises.find(
-                (exercise) => exercise.id === selectedExerciseId,
-            ) ?? filteredExercises[0]
-        );
-    }, [filteredExercises, selectedExerciseId]);
-
     const officialCount = exercises.filter(
         (exercise) => exercise.is_official !== false,
     ).length;
@@ -285,7 +334,8 @@ export default function ExercisePage() {
     const canCreateOfficial = currentUser?.role === "admin";
     const canEditSelectedExercise =
         selectedExercise != null &&
-        (selectedExercise.is_official === false || currentUser?.role === "admin");
+        (selectedExercise.is_official === false ||
+            currentUser?.role === "admin");
     const editInitialPayload = selectedExercise
         ? buildExercisePayload(selectedExercise)
         : undefined;
@@ -383,10 +433,12 @@ export default function ExercisePage() {
                                             muscleFilter={muscleFilter}
                                             exerciseTypes={exerciseTypes}
                                             muscleGroups={muscleGroups}
-                                            onSearchChange={setSearch}
-                                            onTypeFilterChange={setTypeFilter}
+                                            onSearchChange={handleSearchChange}
+                                            onTypeFilterChange={
+                                                handleTypeFilterChange
+                                            }
                                             onMuscleFilterChange={
-                                                setMuscleFilter
+                                                handleMuscleFilterChange
                                             }
                                         />
                                     </div>
@@ -398,15 +450,19 @@ export default function ExercisePage() {
                                     </p>
                                     <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
                                         <StatTile
-                                            label="Total"
+                                            label="Resultados"
+                                            value={String(total)}
+                                        />
+                                        <StatTile
+                                            label="En página"
                                             value={String(exercises.length)}
                                         />
                                         <StatTile
-                                            label="Oficiales"
+                                            label="Oficiales página"
                                             value={String(officialCount)}
                                         />
                                         <StatTile
-                                            label="Propios"
+                                            label="Propios página"
                                             value={String(customCount)}
                                         />
                                     </div>
@@ -452,8 +508,8 @@ export default function ExercisePage() {
                                         Resultado actual
                                     </p>
                                     <p className="mt-1 text-sm text-[#5d5348]">
-                                        {filteredExercises.length} ejercicios
-                                        visibles con los filtros aplicados.
+                                        {total} ejercicios encontrados con los
+                                        filtros aplicados.
                                     </p>
                                 </div>
 
@@ -475,6 +531,43 @@ export default function ExercisePage() {
                                     }
                                 />
                             </div>
+
+                            {status === "success" && totalPages > 1 && (
+                                <div className="mt-6 flex items-center justify-between rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/60 px-4 py-3">
+                                    <button
+                                        type="button"
+                                        disabled={page <= 1}
+                                        onClick={() =>
+                                            setPage((current) =>
+                                                Math.max(1, current - 1),
+                                            )
+                                        }
+                                        className="rounded-xl border border-[#1f1b16]/15 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Anterior
+                                    </button>
+
+                                    <p className="text-sm font-bold text-[#5d5348]">
+                                        Página {page} de {totalPages}
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        disabled={page >= totalPages}
+                                        onClick={() =>
+                                            setPage((current) =>
+                                                Math.min(
+                                                    totalPages,
+                                                    current + 1,
+                                                ),
+                                            )
+                                        }
+                                        className="rounded-xl border border-[#1f1b16]/15 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Siguiente
+                                    </button>
+                                </div>
+                            )}
                         </section>
 
                         <aside
@@ -502,7 +595,9 @@ export default function ExercisePage() {
                                                     {selectedExercise.name}
                                                 </h3>
                                                 <p className="mt-2 text-sm font-semibold text-[#5d5348]">
-                                                    {selectedExercise.muscle_group}
+                                                    {
+                                                        selectedExercise.muscle_group
+                                                    }
                                                 </p>
                                             </div>
 
@@ -512,7 +607,9 @@ export default function ExercisePage() {
                                                     className="rounded-2xl border border-[#1f1b16]/15 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
                                                     onClick={() => {
                                                         setEditErrorMessage("");
-                                                        setIsEditModalOpen(true);
+                                                        setIsEditModalOpen(
+                                                            true,
+                                                        );
                                                     }}
                                                 >
                                                     Editar
