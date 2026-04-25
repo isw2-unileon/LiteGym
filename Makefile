@@ -1,4 +1,6 @@
-.PHONY: install run-backend run-frontend build-backend build-frontend test test-integration lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db start-postgres-db stop-postgres-db
+.PHONY: install run-backend run-frontend build-backend build-frontend test test-integration lint e2e \
+	start-app-snapshot down-app-snapshot delete-app-snapshot \
+	start-postgres-db stop-postgres-db down-postgres-db delete-postgres-db reset-postgres-db logs-postgres-db
 
 COMPOSE ?= docker compose
 ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
@@ -6,11 +8,7 @@ COMPOSE := podman compose
 endif
 
 TEST_DB_URL ?= postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
-
-COMPOSE ?= docker compose
-ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
-COMPOSE := podman compose
-endif
+POSTGRES_COMPOSE_FILE := postgress-local/docker-compose.yml
 
 ## Install all dependencies
 install:
@@ -38,7 +36,7 @@ build-frontend:
 	cd frontend && npm run build
 
 #
-# App snapshot (compose.yaml) management
+# App snapshot compose management
 # These targets operate the compose.yaml found at the repository root.
 #
 start-app-snapshot:
@@ -50,29 +48,33 @@ down-app-snapshot:
 	$(COMPOSE) -f compose.yaml down
 
 delete-app-snapshot:
-	@echo "Deleting application stack (volumes & local images) defined in compose.yaml..."
+	@echo "Deleting application stack, volumes and local images defined in compose.yaml..."
 	$(COMPOSE) -f compose.yaml down --volumes --rmi local --remove-orphans
 
 #
-# Postgres-local compose management
+# Postgres local compose management
 # These targets operate the docker-compose.yml inside postgress-local directory.
 #
-start-postges-db:
+start-postgres-db:
 	@echo "Starting postgres-local stack..."
-	$(COMPOSE) -f postgress-local/docker-compose.yml up -d
+	$(COMPOSE) -f $(POSTGRES_COMPOSE_FILE) up -d --build
 
-stop-postges-db:
-	@echo "Stopping postgres-local stack (without removing containers or volumes)..."
-	$(COMPOSE) -f postgress-local/docker-compose.yml stop
+stop-postgres-db:
+	@echo "Stopping postgres-local stack without removing containers or volumes..."
+	$(COMPOSE) -f $(POSTGRES_COMPOSE_FILE) stop
+
+down-postgres-db:
+	@echo "Stopping and removing postgres-local containers without deleting volumes..."
+	$(COMPOSE) -f $(POSTGRES_COMPOSE_FILE) down --remove-orphans
 
 delete-postgres-db:
-	@echo "Deleting postgres-local stack (volumes & local images)..."
-	$(COMPOSE) -f postgress-local/docker-compose.yml down --volumes --rmi local --remove-orphans
+	@echo "Deleting postgres-local stack, volumes and local images..."
+	$(COMPOSE) -f $(POSTGRES_COMPOSE_FILE) down --volumes --rmi local --remove-orphans
 
-# Correctly spelled aliases (kept for ergonomics/backward compatibility)
-start-postgres-db: start-postges-db
+reset-postgres-db: delete-postgres-db start-postgres-db
 
-stop-postgres-db: stop-postges-db
+logs-postgres-db:
+	$(COMPOSE) -f $(POSTGRES_COMPOSE_FILE) logs -f
 
 ## Run all tests
 test:
@@ -88,6 +90,6 @@ lint:
 	$(shell go env GOPATH)/bin/golangci-lint run
 	cd frontend && npm run lint
 
-## Run E2E tests (requires backend + frontend running)
+## Run E2E tests, requires backend and frontend running
 e2e:
 	cd e2e && npx playwright test
