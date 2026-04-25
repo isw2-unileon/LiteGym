@@ -127,7 +127,7 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 		query,
 		filters.Search,
 		filters.Type,
-		filters.Muscle,
+		filters.MuscleGroup,
 		filters.Official,
 		filters.Limit,
 		offset,
