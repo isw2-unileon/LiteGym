@@ -12,7 +12,7 @@ import (
 // ExerciseRepository defines the persistence operations for exercises.
 type ExerciseRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Exercise, error)
-	List(ctx context.Context) ([]model.Exercise, error)
+	List(ctx context.Context, filter model.ExerciseFilter) ([]model.Exercise, int, error)
 	Create(ctx context.Context, exercise *model.Exercise) error
 	UpdateExercise(ctx context.Context, exercise *model.Exercise) error
 	DeleteExercise(ctx context.Context, id string) error
@@ -65,7 +65,14 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 	return &exercise, nil
 }
 
-func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
+func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
+	total, err := r.countExercises(ctx, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	offset := (filters.Page - 1) * filters.Limit
+
 	query := `
 		SELECT
 			e.id::text,
@@ -79,17 +86,59 @@ func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error)
 		FROM exercises e
 		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
 		WHERE e.deleted_at IS NULL
-		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
+			AND (
+				$1 = ''
+				OR e.name ILIKE '%' || $1 || '%'
+				OR e.exercise_type ILIKE '%' || $1 || '%'
+				OR e.muscle_group ILIKE '%' || $1 || '%'
+				OR EXISTS (
+					SELECT 1
+					FROM exercise_secondary_muscle_groups esmg_search
+					WHERE esmg_search.exercise_id = e.id
+						AND esmg_search.muscle_group ILIKE '%' || $1 || '%'
+				)
+			)
+			AND ($2 = '' OR e.exercise_type = $2)
+			AND (
+				$3 = ''
+				OR e.muscle_group = $3
+				OR EXISTS (
+					SELECT 1
+					FROM exercise_secondary_muscle_groups esmg_filter
+					WHERE esmg_filter.exercise_id = e.id
+						AND esmg_filter.muscle_group = $3
+				)
+			)
+			AND ($4::boolean IS NULL OR e.is_official = $4)
+		GROUP BY
+			e.id,
+			e.name,
+			e.description,
+			e.muscle_group,
+			e.exercise_type,
+			e.is_official,
+			e.created_at
 		ORDER BY e.created_at ASC, e.id::text ASC
+		LIMIT $5 OFFSET $6
 	`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(
+		ctx,
+		query,
+		filters.Search,
+		filters.Type,
+		filters.Muscle,
+		filters.Official,
+		filters.Limit,
+		offset,
+	)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	exercises := make([]model.Exercise, 0)
+
 	for rows.Next() {
 		var exercise model.Exercise
 
@@ -104,17 +153,65 @@ func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error)
 			&exercise.CreatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		exercises = append(exercises, exercise)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return exercises, nil
+	return exercises, total, nil
+}
+
+func (r *exerciseRepository) countExercises(ctx context.Context, filters model.ExerciseFilter) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM exercises e
+		WHERE e.deleted_at IS NULL
+			AND (
+				$1 = ''
+				OR e.name ILIKE '%' || $1 || '%'
+				OR e.exercise_type ILIKE '%' || $1 || '%'
+				OR e.muscle_group ILIKE '%' || $1 || '%'
+				OR EXISTS (
+					SELECT 1
+					FROM exercise_secondary_muscle_groups esmg_search
+					WHERE esmg_search.exercise_id = e.id
+						AND esmg_search.muscle_group ILIKE '%' || $1 || '%'
+				)
+			)
+			AND ($2 = '' OR e.exercise_type = $2)
+			AND (
+				$3 = ''
+				OR e.muscle_group = $3
+				OR EXISTS (
+					SELECT 1
+					FROM exercise_secondary_muscle_groups esmg_filter
+					WHERE esmg_filter.exercise_id = e.id
+						AND esmg_filter.muscle_group = $3
+				)
+			)
+			AND ($4::boolean IS NULL OR e.is_official = $4)
+	`
+
+	var total int
+
+	err := r.db.QueryRow(
+		ctx,
+		query,
+		filters.Search,
+		filters.Type,
+		filters.MuscleGroup,
+		filters.Official,
+	).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
 }
 
 func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
