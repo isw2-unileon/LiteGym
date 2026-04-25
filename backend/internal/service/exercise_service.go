@@ -46,8 +46,40 @@ func (s *ExerciseService) GetByID(ctx context.Context, id string) (*model.Exerci
 }
 
 // List returns all exercises.
-func (s *ExerciseService) List(ctx context.Context) ([]model.Exercise, error) {
-	return s.repo.List(ctx)
+func (s *ExerciseService) List(ctx context.Context, filters model.ExerciseFilter) (model.ExerciseListResponse, error) {
+	filters.Search = strings.TrimSpace(filters.Search)
+	filters.Type = strings.TrimSpace(filters.Type)
+	filters.MuscleGroup = strings.TrimSpace(filters.MuscleGroup)
+
+	if filters.Page <= 0 {
+		filters.Page = 1
+	}
+
+	if filters.Limit <= 0 {
+		filters.Limit = 20
+	}
+
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+
+	exercises, total, err := s.repo.List(ctx, filters)
+	if err != nil {
+		return model.ExerciseListResponse{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + filters.Limit - 1) / filters.Limit
+	}
+
+	return model.ExerciseListResponse{
+		Items:      exercises,
+		Page:       filters.Page,
+		Limit:      filters.Limit,
+		Total:      total,
+		TotalPages: totalPages,
+	}, nil
 }
 
 // Create creates a new exercise after validating the input data.

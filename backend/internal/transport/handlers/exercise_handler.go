@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -49,17 +50,43 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 
 // ListExercises returns all exercises.
 func (h *ExerciseHandler) ListExercises(c *gin.Context) {
-	exercises, err := h.service.List(c.Request.Context())
-	if err != nil {
-		slog.Error("failed to list exercises", "error", err)
+	page, err := strconv.Atoi(c.Query("page"))
+	limit, err2 := strconv.Atoi(c.Query("limit"))
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to list exercises",
-		})
+	official := c.Query("official")
+
+	if err != nil || err2 != nil || page < 1 || limit < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pagination parameters"})
 		return
 	}
 
-	c.JSON(http.StatusOK, exercises)
+	var officialFilter *bool
+	if official != "" {
+		isOfficial, err := strconv.ParseBool(official)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid 'official' query parameter"})
+			return
+		}
+		officialFilter = &isOfficial
+	}
+
+	filters := model.ExerciseFilter{
+		Search:      c.Query("search"),
+		Type:        c.Query("type"),
+		MuscleGroup: c.Query("muscle_group"),
+		Official:    officialFilter,
+		Page:        page,
+		Limit:       limit,
+	}
+
+	response, err := h.service.List(c.Request.Context(), filters)
+	if err != nil {
+		slog.Error("failed to list exercises", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list exercises"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // CreateExercise creates a new exercise.
