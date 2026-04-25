@@ -18,7 +18,7 @@ import (
 type MockExerciseRepository struct {
 	createFunc         func(ctx context.Context, exercise *model.Exercise) error
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc           func(ctx context.Context) ([]model.Exercise, error)
+	listFunc           func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
 	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
 	deleteExerciseFunc func(ctx context.Context, id string) error
 }
@@ -37,11 +37,11 @@ func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model
 	return nil, nil
 }
 
-func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
+func (m *MockExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx)
+		return m.listFunc(ctx, filters)
 	}
-	return []model.Exercise{}, nil
+	return []model.Exercise{}, 0, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
@@ -187,7 +187,7 @@ func TestListExercises(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockExerciseRepository{
-		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
+		listFunc: func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 			return []model.Exercise{
 				{
 					ID:          "550e8400-e29b-41d4-a716-446655440000",
@@ -203,7 +203,7 @@ func TestListExercises(t *testing.T) {
 					IsOfficial:  true,
 					CreatedAt:   time.Now(),
 				},
-			}, nil
+			}, 2, nil
 		},
 	}
 
@@ -212,7 +212,7 @@ func TestListExercises(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/exercises", nil)
+	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
 
 	exerciseHandler.ListExercises(c)
 
@@ -220,13 +220,13 @@ func TestListExercises(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var exercises []model.Exercise
-	if err := json.Unmarshal(w.Body.Bytes(), &exercises); err != nil {
+	var result model.ExerciseListResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("failed to unmarshal response body: %v", err)
 	}
 
-	if len(exercises) != 2 {
-		t.Errorf("expected 2 exercises, got %d", len(exercises))
+	if len(result.Items) != 2 {
+		t.Errorf("expected 2 exercises, got %d", len(result.Items))
 	}
 }
 
@@ -234,8 +234,8 @@ func TestListExercisesInternalError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &MockExerciseRepository{
-		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
-			return nil, errors.New("database error")
+		listFunc: func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
+			return nil, 0, errors.New("database error")
 		},
 	}
 
@@ -244,7 +244,7 @@ func TestListExercisesInternalError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/exercises", nil)
+	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
 
 	exerciseHandler.ListExercises(c)
 

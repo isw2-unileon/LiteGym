@@ -164,7 +164,7 @@ func TestExerciseHandlerListIntegration(t *testing.T) {
 
 	router := setupExerciseHandlerRouter(db)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/exercises", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/exercises?page=1&limit=20", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -172,13 +172,13 @@ func TestExerciseHandlerListIntegration(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var exercises []model.Exercise
-	if err := json.Unmarshal(w.Body.Bytes(), &exercises); err != nil {
+	var result model.ExerciseListResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("failed to unmarshal response body: %v", err)
 	}
 
-	if len(exercises) != 2 {
-		t.Fatalf("expected 2 exercises, got %d", len(exercises))
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 exercises, got %d", len(result.Items))
 	}
 }
 

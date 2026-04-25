@@ -138,12 +138,12 @@ func TestExerciseServiceListIntegration(t *testing.T) {
 	repo := repository.NewExerciseRepository(db)
 	svc := NewExerciseService(repo)
 
-	exercises, err := svc.List(context.Background())
+	result, err := svc.List(context.Background(), model.ExerciseFilter{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatalf("expected nil error, got: %v", err)
 	}
-	if len(exercises) != 2 {
-		t.Fatalf("expected 2 exercises, got %d", len(exercises))
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 exercises, got %d", len(result.Items))
 	}
 }
 

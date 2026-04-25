@@ -228,13 +228,17 @@ func TestExerciseRepositoryListIntegration(t *testing.T) {
 
 	repo := NewExerciseRepository(db)
 
-	exercises, err := repo.List(context.Background())
+	exercises, total, err := repo.List(context.Background(), model.ExerciseFilter{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatalf("no se esperaba error en List, pero se obtuvo: %v", err)
 	}
 
 	if len(exercises) != 2 {
 		t.Fatalf("se esperaban 2 ejercicios, pero se obtuvieron %d", len(exercises))
+	}
+
+	if total != 2 {
+		t.Fatalf("se esperaba total 2, pero se obtuvo %d", total)
 	}
 
 	if exercises[0].ID == "" || exercises[1].ID == "" {
@@ -278,7 +282,7 @@ func TestExerciseRepositoryDeleteExerciseSoftDeleteIntegration(t *testing.T) {
 		t.Fatalf("se esperaba pgx.ErrNoRows en GetByID tras soft-delete, se obtuvo: %v", err)
 	}
 
-	exercises, err := repo.List(context.Background())
+	exercises, _, err := repo.List(context.Background(), model.ExerciseFilter{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatalf("no se esperaba error en List, pero se obtuvo: %v", err)
 	}

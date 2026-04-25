@@ -56,7 +56,7 @@ func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 type MockExerciseRepository struct {
 	createFunc         func(ctx context.Context, exercise *model.Exercise) error
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc           func(ctx context.Context) ([]model.Exercise, error)
+	listFunc           func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
 	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
 	deleteExerciseFunc func(ctx context.Context, id string) error
 }
@@ -89,11 +89,11 @@ func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exe
 	return nil
 }
 
-func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
+func (m *MockExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx)
+		return m.listFunc(ctx, filters)
 	}
-	return []model.Exercise{}, nil
+	return []model.Exercise{}, 0, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
@@ -387,7 +387,7 @@ func TestExerciseListRouteWithValidCookie(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, healthHandler)
 
-	req := httptest.NewRequest("GET", "/api/exercises", nil)
+	req := httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
 	addAuthCookie(t, req, tokenService)
 	w := httptest.NewRecorder()
 

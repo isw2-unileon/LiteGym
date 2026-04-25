@@ -12,7 +12,7 @@ import (
 type MockExerciseRepository struct {
 	createFunc         func(ctx context.Context, exercise *model.Exercise) error
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc           func(ctx context.Context) ([]model.Exercise, error)
+	listFunc           func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
 	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
 	deleteExerciseFunc func(ctx context.Context, id string) error
 }
@@ -31,11 +31,11 @@ func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model
 	return nil, nil
 }
 
-func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, error) {
+func (m *MockExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx)
+		return m.listFunc(ctx, filters)
 	}
-	return []model.Exercise{}, nil
+	return []model.Exercise{}, 0, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
@@ -132,7 +132,7 @@ func TestExerciseServiceGetByIDSuccess(t *testing.T) {
 
 func TestExerciseServiceListSuccess(t *testing.T) {
 	mockRepo := &MockExerciseRepository{
-		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
+		listFunc: func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 			return []model.Exercise{
 				{
 					ID:          "550e8400-e29b-41d4-a716-446655440000",
@@ -146,19 +146,19 @@ func TestExerciseServiceListSuccess(t *testing.T) {
 					MuscleGroup: "legs",
 					IsOfficial:  true,
 				},
-			}, nil
+			}, 2, nil
 		},
 	}
 
 	svc := NewExerciseService(mockRepo)
 
-	exercises, err := svc.List(context.Background())
+	result, err := svc.List(context.Background(), model.ExerciseFilter{})
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
 
-	if len(exercises) != 2 {
-		t.Errorf("expected 2 exercises, got %d", len(exercises))
+	if len(result.Items) != 2 {
+		t.Errorf("expected 2 exercises, got %d", len(result.Items))
 	}
 }
 
@@ -166,14 +166,14 @@ func TestExerciseServiceListRepositoryError(t *testing.T) {
 	expectedErr := errors.New("database error")
 
 	mockRepo := &MockExerciseRepository{
-		listFunc: func(ctx context.Context) ([]model.Exercise, error) {
-			return nil, expectedErr
+		listFunc: func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
+			return nil, 0, expectedErr
 		},
 	}
 
 	svc := NewExerciseService(mockRepo)
 
-	_, err := svc.List(context.Background())
+	_, err := svc.List(context.Background(), model.ExerciseFilter{})
 
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected %v, got %v", expectedErr, err)
