@@ -58,6 +58,7 @@ type MockExerciseRepository struct {
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc           func(ctx context.Context) ([]model.Exercise, error)
 	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
+	deleteExerciseFunc func(ctx context.Context, id string) error
 }
 
 func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenService) {
@@ -98,6 +99,13 @@ func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, er
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
 	if m.updateExerciseFunc != nil {
 		return m.updateExerciseFunc(ctx, exercise)
+	}
+	return nil
+}
+
+func (m *MockExerciseRepository) DeleteExercise(ctx context.Context, id string) error {
+	if m.deleteExerciseFunc != nil {
+		return m.deleteExerciseFunc(ctx, id)
 	}
 	return nil
 }

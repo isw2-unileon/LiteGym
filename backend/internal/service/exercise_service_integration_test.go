@@ -146,3 +146,41 @@ func TestExerciseServiceListIntegration(t *testing.T) {
 		t.Fatalf("expected 2 exercises, got %d", len(exercises))
 	}
 }
+
+func TestExerciseServiceDeleteExerciseIntegration(t *testing.T) {
+	db := setupExerciseServiceTestDB(t)
+	cleanupExercisesService(t, db)
+
+	insertedID := insertExerciseRawService(t, db, model.Exercise{
+		Name:         "Cable Row",
+		Description:  "Seated cable row",
+		MuscleGroup:  "back",
+		ExerciseType: "machine",
+		IsOfficial:   true,
+	})
+
+	repo := repository.NewExerciseRepository(db)
+	svc := NewExerciseService(repo)
+
+	if err := svc.DeleteExercise(context.Background(), insertedID); err != nil {
+		t.Fatalf("expected nil error deleting exercise, got: %v", err)
+	}
+
+	_, err := svc.GetByID(context.Background(), insertedID)
+	if !errors.Is(err, ErrExerciseNotFound) {
+		t.Fatalf("expected ErrExerciseNotFound after soft-delete, got: %v", err)
+	}
+}
+
+func TestExerciseServiceDeleteExerciseNotFoundIntegration(t *testing.T) {
+	db := setupExerciseServiceTestDB(t)
+	cleanupExercisesService(t, db)
+
+	repo := repository.NewExerciseRepository(db)
+	svc := NewExerciseService(repo)
+
+	err := svc.DeleteExercise(context.Background(), "550e8400-e29b-41d4-a716-446655449999")
+	if !errors.Is(err, ErrExerciseNotFound) {
+		t.Fatalf("expected ErrExerciseNotFound, got: %v", err)
+	}
+}

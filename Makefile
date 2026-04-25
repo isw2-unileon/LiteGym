@@ -1,4 +1,4 @@
-.PHONY: install run-backend run-frontend build-backend build-frontend test test-integration lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db
+.PHONY: install run-backend run-frontend build-backend build-frontend test test-integration lint e2e start-app-snapshot down-app-snapshot delete-app-snapshot start-postges-db stop-postges-db delete-postgres-db start-postgres-db stop-postgres-db
 
 COMPOSE ?= docker compose
 ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
@@ -62,12 +62,17 @@ start-postges-db:
 	$(COMPOSE) -f postgress-local/docker-compose.yml up -d
 
 stop-postges-db:
-	@echo "Stopping postgres-local stack..."
-	$(COMPOSE) -f postgress-local/docker-compose.yml down
+	@echo "Stopping postgres-local stack (without removing containers or volumes)..."
+	$(COMPOSE) -f postgress-local/docker-compose.yml stop
 
 delete-postgres-db:
 	@echo "Deleting postgres-local stack (volumes & local images)..."
 	$(COMPOSE) -f postgress-local/docker-compose.yml down --volumes --rmi local --remove-orphans
+
+# Correctly spelled aliases (kept for ergonomics/backward compatibility)
+start-postgres-db: start-postges-db
+
+stop-postgres-db: stop-postges-db
 
 ## Run all tests
 test:

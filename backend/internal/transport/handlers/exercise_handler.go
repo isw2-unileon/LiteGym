@@ -26,6 +26,8 @@ type createExerciseRequest struct {
 	IsOfficial            bool     `json:"is_official"`
 }
 
+const adminRole = "admin"
+
 // NewExerciseHandler creates a new ExerciseHandler.
 func NewExerciseHandler(svc *service.ExerciseService) *ExerciseHandler {
 	return &ExerciseHandler{
@@ -71,14 +73,9 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		return
 	}
 
-	userRole, _ := c.Get(middleware.ContextUserRoleKey)
-	role, _ := userRole.(string)
-
-	isOfficial := req.IsOfficial && role == "admin"
-	if req.IsOfficial && role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "only admins can create official exercises",
-		})
+	role := userRoleFromContext(c)
+	isOfficial, ok := requestedOfficialFlag(c, req.IsOfficial, role, "create")
+	if !ok {
 		return
 	}
 
@@ -125,35 +122,18 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 		return
 	}
 
-	userRole, _ := c.Get(middleware.ContextUserRoleKey)
-	role, _ := userRole.(string)
-
-	existingExercise, err := h.service.GetByID(c.Request.Context(), id)
-	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrInvalidExerciseInput):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
-		case errors.Is(err, service.ErrExerciseNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
-		default:
-			slog.Error("failed to retrieve exercise before update", "error", err, "id", id)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exercise"})
-		}
+	role := userRoleFromContext(c)
+	existingExercise, ok := h.getExerciseForMutation(c, id, "update")
+	if !ok {
 		return
 	}
 
-	if existingExercise.IsOfficial && role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "only admins can update official exercises",
-		})
+	if !allowOfficialMutation(c, existingExercise, role, "update") {
 		return
 	}
 
-	isOfficial := req.IsOfficial && role == "admin"
-	if req.IsOfficial && role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "only admins can create official exercises",
-		})
+	isOfficial, ok := requestedOfficialFlag(c, req.IsOfficial, role, "update")
+	if !ok {
 		return
 	}
 
@@ -167,7 +147,7 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 		IsOfficial:           isOfficial,
 	}
 
-	err = h.service.UpdateExercise(c.Request.Context(), &exercise)
+	err := h.service.UpdateExercise(c.Request.Context(), &exercise)
 
 	if err != nil {
 		switch {
@@ -182,4 +162,83 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, exercise)
+}
+
+// DeleteExercise soft-deletes an existing exercise by its ID.
+func (h *ExerciseHandler) DeleteExercise(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		return
+	}
+
+	role := userRoleFromContext(c)
+	existingExercise, ok := h.getExerciseForMutation(c, id, "delete")
+	if !ok {
+		return
+	}
+
+	if !allowOfficialMutation(c, existingExercise, role, "delete") {
+		return
+	}
+
+	if err := h.service.DeleteExercise(c.Request.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			slog.Error("failed to delete exercise", "error", err, "id", id)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete exercise"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "exercise deleted successfully"})
+}
+
+func userRoleFromContext(c *gin.Context) string {
+	userRole, _ := c.Get(middleware.ContextUserRoleKey)
+	role, _ := userRole.(string)
+	return role
+}
+
+func allowOfficialMutation(c *gin.Context, exercise *model.Exercise, role, action string) bool {
+	if exercise.IsOfficial && role != adminRole {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can " + action + " official exercises",
+		})
+		return false
+	}
+	return true
+}
+
+func requestedOfficialFlag(c *gin.Context, requestedOfficial bool, role, action string) (bool, bool) {
+	isOfficial := requestedOfficial && role == adminRole
+	if requestedOfficial && role != adminRole {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can " + action + " official exercises",
+		})
+		return false, false
+	}
+	return isOfficial, true
+}
+
+func (h *ExerciseHandler) getExerciseForMutation(c *gin.Context, id, action string) (*model.Exercise, bool) {
+	existingExercise, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			slog.Error("failed to retrieve exercise before "+action, "error", err, "id", id)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to " + action + " exercise"})
+		}
+		return nil, false
+	}
+
+	return existingExercise, true
 }

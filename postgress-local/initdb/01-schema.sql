@@ -57,6 +57,7 @@ CREATE TABLE public.exercises (
   exercise_type VARCHAR,
   is_official BOOLEAN NOT NULL DEFAULT true,
   owner_user_id UUID,
+  deleted_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT exercises_owner_user_id_fkey
@@ -191,8 +192,8 @@ CREATE TABLE public.workout_sets (
 
 CREATE UNIQUE INDEX exercises_official_name_unique
 ON public.exercises (LOWER(name))
-WHERE is_official = true;
+WHERE is_official = true AND deleted_at IS NULL;
 
 CREATE UNIQUE INDEX exercises_private_owner_name_unique
 ON public.exercises (owner_user_id, LOWER(name))
-WHERE is_official = false;
+WHERE is_official = false AND deleted_at IS NULL;

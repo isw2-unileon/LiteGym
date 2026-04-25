@@ -20,6 +20,7 @@ type MockExerciseRepository struct {
 	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc           func(ctx context.Context) ([]model.Exercise, error)
 	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
+	deleteExerciseFunc func(ctx context.Context, id string) error
 }
 
 func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
@@ -46,6 +47,13 @@ func (m *MockExerciseRepository) List(ctx context.Context) ([]model.Exercise, er
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
 	if m.updateExerciseFunc != nil {
 		return m.updateExerciseFunc(ctx, exercise)
+	}
+	return nil
+}
+
+func (m *MockExerciseRepository) DeleteExercise(ctx context.Context, id string) error {
+	if m.deleteExerciseFunc != nil {
+		return m.deleteExerciseFunc(ctx, id)
 	}
 	return nil
 }
@@ -277,5 +285,76 @@ func TestUpdateExerciseOfficialRequiresAdmin(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestDeleteExerciseOfficialRequiresAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockExerciseRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
+			return &model.Exercise{
+				ID:          id,
+				Name:        "Bench Press",
+				MuscleGroup: "chest",
+				IsOfficial:  true,
+			}, nil
+		},
+	}
+
+	exerciseService := service.NewExerciseService(mockRepo)
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Set("user_role", "user")
+	c.Request = httptest.NewRequest(
+		http.MethodDelete,
+		"/api/exercises/550e8400-e29b-41d4-a716-446655440000",
+		nil,
+	)
+
+	exerciseHandler.DeleteExercise(c)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestDeleteExerciseSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockExerciseRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
+			return &model.Exercise{
+				ID:          id,
+				Name:        "Custom Curl",
+				MuscleGroup: "biceps",
+				IsOfficial:  false,
+			}, nil
+		},
+		deleteExerciseFunc: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+
+	exerciseService := service.NewExerciseService(mockRepo)
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Set("user_role", "user")
+	c.Request = httptest.NewRequest(
+		http.MethodDelete,
+		"/api/exercises/550e8400-e29b-41d4-a716-446655440000",
+		nil,
+	)
+
+	exerciseHandler.DeleteExercise(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }

@@ -93,3 +93,18 @@ func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Ex
 
 	return err
 }
+
+// DeleteExercise validates and soft-deletes an existing exercise by ID.
+func (s *ExerciseService) DeleteExercise(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrInvalidExerciseInput
+	}
+
+	err := s.repo.DeleteExercise(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrExerciseNotFound
+	}
+
+	return err
+}

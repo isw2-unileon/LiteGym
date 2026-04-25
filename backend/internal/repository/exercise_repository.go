@@ -15,6 +15,7 @@ type ExerciseRepository interface {
 	List(ctx context.Context) ([]model.Exercise, error)
 	Create(ctx context.Context, exercise *model.Exercise) error
 	UpdateExercise(ctx context.Context, exercise *model.Exercise) error
+	DeleteExercise(ctx context.Context, id string) error
 }
 
 type exerciseRepository struct {
@@ -41,7 +42,7 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 			e.created_at
 		FROM exercises e
 		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
-		WHERE e.id = $1::uuid
+		WHERE e.id = $1::uuid AND e.deleted_at IS NULL
 		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
 	`
 
@@ -77,6 +78,7 @@ func (r *exerciseRepository) List(ctx context.Context) ([]model.Exercise, error)
 			e.created_at
 		FROM exercises e
 		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
+		WHERE e.deleted_at IS NULL
 		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
 		ORDER BY e.created_at ASC, e.id::text ASC
 	`
@@ -186,7 +188,7 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
             muscle_group = $3,
             exercise_type = $4,
             is_official = $5
-        WHERE id = $6::uuid
+        WHERE id = $6::uuid AND deleted_at IS NULL
     `
 
 	// 2. Ejecutamos la actualización
@@ -230,6 +232,25 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+// DeleteExercise performs a soft-delete of an exercise.
+func (r *exerciseRepository) DeleteExercise(ctx context.Context, id string) error {
+	query := `
+		UPDATE exercises
+		SET deleted_at = now(), updated_at = now()
+		WHERE id = $1::uuid AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
 	}
 
 	return nil

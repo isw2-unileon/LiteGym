@@ -241,3 +241,59 @@ func TestExerciseRepositoryListIntegration(t *testing.T) {
 		t.Fatal("se esperaban IDs informados en la lista")
 	}
 }
+
+func TestExerciseRepositoryDeleteExerciseSoftDeleteIntegration(t *testing.T) {
+	db := setupExerciseTestDB(t)
+	cleanupExercisesRepository(t, db)
+
+	insertedID := insertExerciseRawRepository(t, db, model.Exercise{
+		Name:         "Incline Press",
+		Description:  "Incline bench press",
+		MuscleGroup:  "chest",
+		ExerciseType: "strength",
+		IsOfficial:   true,
+	})
+
+	repo := NewExerciseRepository(db)
+
+	if err := repo.DeleteExercise(context.Background(), insertedID); err != nil {
+		t.Fatalf("no se esperaba error en DeleteExercise, pero se obtuvo: %v", err)
+	}
+
+	var deletedAtValid bool
+	err := db.QueryRow(context.Background(), `
+		SELECT deleted_at IS NOT NULL
+		FROM public.exercises
+		WHERE id = $1::uuid
+	`, insertedID).Scan(&deletedAtValid)
+	if err != nil {
+		t.Fatalf("error comprobando deleted_at: %v", err)
+	}
+	if !deletedAtValid {
+		t.Fatal("se esperaba deleted_at informado tras soft-delete")
+	}
+
+	_, err = repo.GetByID(context.Background(), insertedID)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows en GetByID tras soft-delete, se obtuvo: %v", err)
+	}
+
+	exercises, err := repo.List(context.Background())
+	if err != nil {
+		t.Fatalf("no se esperaba error en List, pero se obtuvo: %v", err)
+	}
+	if len(exercises) != 0 {
+		t.Fatalf("se esperaban 0 ejercicios visibles tras soft-delete, se obtuvieron %d", len(exercises))
+	}
+}
+
+func TestExerciseRepositoryDeleteExerciseNotFoundIntegration(t *testing.T) {
+	db := setupExerciseTestDB(t)
+	cleanupExercisesRepository(t, db)
+
+	repo := NewExerciseRepository(db)
+	err := repo.DeleteExercise(context.Background(), "550e8400-e29b-41d4-a716-446655449999")
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("se esperaba pgx.ErrNoRows, se obtuvo: %v", err)
+	}
+}

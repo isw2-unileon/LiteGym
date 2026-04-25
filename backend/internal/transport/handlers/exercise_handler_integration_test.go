@@ -7,6 +7,7 @@ import (
 
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -83,6 +84,10 @@ func setupExerciseHandlerRouter(db *pgxpool.Pool) *gin.Engine {
 	router := gin.New()
 	router.GET("/api/exercises/:id", handler.GetExerciseByID)
 	router.GET("/api/exercises", handler.ListExercises)
+	router.DELETE("/api/exercises/:id", func(c *gin.Context) {
+		c.Set("user_role", "admin")
+		handler.DeleteExercise(c)
+	})
 
 	return router
 }
@@ -174,5 +179,69 @@ func TestExerciseHandlerListIntegration(t *testing.T) {
 
 	if len(exercises) != 2 {
 		t.Fatalf("expected 2 exercises, got %d", len(exercises))
+	}
+}
+
+func TestExerciseHandlerDeleteIntegration(t *testing.T) {
+	db := setupExerciseHandlerTestDB(t)
+	cleanupExercisesHandler(t, db)
+
+	insertedID := insertExerciseRawHandler(t, db, model.Exercise{
+		Name:         "Leg Press",
+		Description:  "Machine leg press",
+		MuscleGroup:  "legs",
+		ExerciseType: "machine",
+		IsOfficial:   true,
+	})
+
+	router := setupExerciseHandlerRouter(db)
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/exercises/"+insertedID, nil)
+	deleteW := httptest.NewRecorder()
+	router.ServeHTTP(deleteW, deleteReq)
+
+	if deleteW.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, deleteW.Code)
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/exercises/"+insertedID, nil)
+	getW := httptest.NewRecorder()
+	router.ServeHTTP(getW, getReq)
+
+	if getW.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, getW.Code)
+	}
+}
+
+func TestExerciseHandlerDeleteOfficialRequiresAdminIntegration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := setupExerciseHandlerTestDB(t)
+	cleanupExercisesHandler(t, db)
+
+	insertedID := insertExerciseRawHandler(t, db, model.Exercise{
+		Name:         "Overhead Press",
+		Description:  "Standing barbell press",
+		MuscleGroup:  "shoulders",
+		ExerciseType: "strength",
+		IsOfficial:   true,
+	})
+
+	repo := repository.NewExerciseRepository(db)
+	svc := service.NewExerciseService(repo)
+	handler := NewExerciseHandler(svc)
+
+	router := gin.New()
+	router.DELETE("/api/exercises/:id", func(c *gin.Context) {
+		c.Set("user_role", "user")
+		handler.DeleteExercise(c)
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/exercises/"+insertedID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusForbidden, w.Code, strings.TrimSpace(w.Body.String()))
 	}
 }
