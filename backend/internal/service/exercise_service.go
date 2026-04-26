@@ -89,6 +89,11 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 	return s.repo.Create(ctx, exercise)
 }
 
+// GetMetadata returns the valid exercise domain options exposed to clients.
+func (s *ExerciseService) GetMetadata() model.ExerciseMetadataResponse {
+	return exerciseMetadata()
+}
+
 // UpdateExercise validates and updates an existing exercise.
 func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
 	if exercise == nil {
