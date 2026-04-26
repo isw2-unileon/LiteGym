@@ -7,6 +7,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 )
 
+// Exercise type values accepted by the exercise domain.
 const (
 	ExerciseTypeStrength    = "strength"
 	ExerciseTypeCardio      = "cardio"

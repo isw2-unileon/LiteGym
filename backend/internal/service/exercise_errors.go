@@ -2,6 +2,7 @@ package service
 
 import "errors"
 
+// Exercise domain errors returned by the exercise service.
 var (
 	ErrInvalidExerciseInput   = errors.New("invalid exercise input")
 	ErrExerciseNotFound       = errors.New("exercise not found")
