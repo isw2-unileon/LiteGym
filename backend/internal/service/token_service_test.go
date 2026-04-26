@@ -26,7 +26,7 @@ func TestNewTokenServiceTTL(t *testing.T) {
 func TestGenerateTokenSuccess(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -48,7 +48,7 @@ func TestGenerateTokenSuccess(t *testing.T) {
 func TestGenerateTokenWithoutSecret(t *testing.T) {
 	svc := NewTokenService("", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -61,7 +61,7 @@ func TestGenerateTokenWithoutSecret(t *testing.T) {
 func TestGenerateTokenContainsExpectedClaims(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440042", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440042", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -93,6 +93,10 @@ func TestGenerateTokenContainsExpectedClaims(t *testing.T) {
 		t.Errorf("expected username testuser, got %s", claims.Username)
 	}
 
+	if claims.Role != "user" {
+		t.Errorf("expected role user, got %s", claims.Role)
+	}
+
 	if claims.Issuer != "my-app" {
 		t.Errorf("expected issuer my-app, got %s", claims.Issuer)
 	}
@@ -122,7 +126,7 @@ func TestVerifyTokenInvalidFormat(t *testing.T) {
 func TestVerifyTokenInvalidSignature(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -143,7 +147,7 @@ func TestVerifyTokenInvalidSignature(t *testing.T) {
 func TestVerifyTokenInvalidPayloadBase64(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -194,7 +198,7 @@ func TestVerifyTokenInvalidPayloadJSON(t *testing.T) {
 func TestVerifyTokenExpired(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", -1*time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -209,7 +213,7 @@ func TestVerifyTokenWithDifferentSecret(t *testing.T) {
 	generator := NewTokenService("secret-one", "my-app", time.Hour)
 	verifier := NewTokenService("secret-two", "my-app", time.Hour)
 
-	token, err := generator.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := generator.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -223,7 +227,7 @@ func TestVerifyTokenWithDifferentSecret(t *testing.T) {
 func TestParseTokenReturnsClaims(t *testing.T) {
 	svc := NewTokenService("my-secret", "my-app", time.Hour)
 
-	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440007", "test@example.com", "testuser")
+	token, err := svc.GenerateToken("550e8400-e29b-41d4-a716-446655440007", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

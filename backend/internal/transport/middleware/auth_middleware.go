@@ -10,11 +10,12 @@ import (
 // Context keys used by the authentication middleware to store user values in the request context.
 //
 // These keys are placed into the Gin context by the middleware and can be read by
-// handlers to obtain the authenticated user's ID, email and username.
+// handlers to obtain the authenticated user's ID, email, username and role.
 const (
 	ContextUserIDKey    = "user_id"
 	ContextUserEmailKey = "user_email"
 	ContextUsernameKey  = "username"
+	ContextUserRoleKey  = "user_role"
 )
 
 // AuthMiddleware provides HTTP middleware for authentication.
@@ -40,7 +41,7 @@ func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *A
 // RequireAuth returns a Gin middleware handler that enforces authentication.
 //
 // The returned handler reads the configured cookie, validates the token using the
-// TokenService, and on success stores the claims (subject, email, username) in the
+// TokenService, and on success stores the claims (subject, email, username, role) in the
 // request context.
 // It reads the JWT from the cookie, validates it, and injects the user data into the context.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
@@ -61,6 +62,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		c.Set(ContextUserIDKey, claims.Subject)
 		c.Set(ContextUserEmailKey, claims.Email)
 		c.Set(ContextUsernameKey, claims.Username)
+		c.Set(ContextUserRoleKey, claims.Role)
 
 		c.Next()
 	}

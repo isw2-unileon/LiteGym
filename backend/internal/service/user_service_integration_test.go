@@ -3,32 +3,17 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func setupTestDBService(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURLService := os.Getenv("TEST_DB_URL")
-	if testDBURLService == "" {
-		t.Skip("TEST_DB_URL is not set; skipping service integration test")
-	}
-
-	db, err := pgxpool.New(context.Background(), testDBURLService)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
@@ -61,8 +46,6 @@ func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
 
 func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -119,8 +102,6 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -161,8 +142,6 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)

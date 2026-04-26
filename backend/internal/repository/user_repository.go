@@ -54,6 +54,10 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		return err
 	}
 
+	if user.Role == "" {
+		user.Role = "user"
+	}
+
 	return nil
 }
 

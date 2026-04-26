@@ -26,6 +26,7 @@ type TokenClaims struct {
 	Subject   string `json:"sub"`
 	Email     string `json:"email"`
 	Username  string `json:"username"`
+	Role      string `json:"role"`
 	Issuer    string `json:"iss"`
 	IssuedAt  int64  `json:"iat"`
 	ExpiresAt int64  `json:"exp"`
@@ -46,7 +47,7 @@ func NewTokenService(secret, issuer string, ttl time.Duration) *TokenService {
 }
 
 // GenerateToken creates a signed token for the given user data.
-func (s *TokenService) GenerateToken(userID string, email, username string) (string, error) {
+func (s *TokenService) GenerateToken(userID string, email, username, role string) (string, error) {
 	if len(s.secretKey) == 0 {
 		return "", errors.New("token secret is required")
 	}
@@ -64,6 +65,7 @@ func (s *TokenService) GenerateToken(userID string, email, username string) (str
 		Subject:   userID,
 		Email:     email,
 		Username:  username,
+		Role:      role,
 		Issuer:    s.issuer,
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(s.ttl).Unix(),

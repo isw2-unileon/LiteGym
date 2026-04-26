@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,7 +62,7 @@ func TestRequireAuthWithValidToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser")
+	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
@@ -75,9 +76,14 @@ func TestRequireAuthWithValidToken(t *testing.T) {
 		if !ok {
 			t.Fatal("expected user_id in context")
 		}
+		role, ok := c.Get(ContextUserRoleKey)
+		if !ok {
+			t.Fatal("expected user_role in context")
+		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"user_id": userID,
+			"role":    role,
 		})
 	})
 
@@ -92,5 +98,14 @@ func TestRequireAuthWithValidToken(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if gotRole, _ := body["role"].(string); gotRole != "user" {
+		t.Fatalf("expected role user, got %v", body["role"])
 	}
 }
