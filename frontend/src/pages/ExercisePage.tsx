@@ -53,6 +53,7 @@ export default function ExercisePage() {
     const [muscleGroupOptions, setMuscleGroupOptions] = React.useState<
         SelectOption[]
     >([]);
+    const [metadataMessage, setMetadataMessage] = React.useState("");
 
     const [page, setPage] = React.useState(1);
     const [limit] = React.useState(20);
@@ -82,12 +83,17 @@ export default function ExercisePage() {
 
     React.useEffect(() => {
         const fetchExerciseMetadata = async () => {
+            setMetadataMessage("");
+
             try {
                 const response = await fetch(apiUrl("/api/exercises/metadata"), {
                     credentials: "include",
                 });
 
                 if (!response.ok) {
+                    setMetadataMessage(
+                        "No se pudieron cargar las opciones de ejercicios.",
+                    );
                     return;
                 }
 
@@ -97,6 +103,9 @@ export default function ExercisePage() {
                 setMuscleGroupOptions(data.muscle_groups);
             } catch (error) {
                 console.error(error);
+                setMetadataMessage(
+                    "No se pudieron cargar las opciones de ejercicios.",
+                );
             }
         };
 
@@ -119,7 +128,7 @@ export default function ExercisePage() {
             }
 
             if (muscleFilter !== "") {
-                params.set("muscle", muscleFilter);
+                params.set("muscle_group", muscleFilter);
             }
 
             params.set("page", String(page));
@@ -459,6 +468,11 @@ export default function ExercisePage() {
                                                 handleMuscleFilterChange
                                             }
                                         />
+                                        {metadataMessage && (
+                                            <p className="mt-3 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9f2f22]">
+                                                {metadataMessage}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 

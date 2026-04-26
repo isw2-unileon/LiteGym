@@ -61,6 +61,42 @@ var validMuscleGroups = map[string]struct{}{
 	"cardio":      {},
 }
 
+var exerciseTypeLabels = map[string]string{
+	ExerciseTypeStrength:    "Fuerza",
+	ExerciseTypeCardio:      "Cardio",
+	ExerciseTypeMobility:    "Movilidad",
+	ExerciseTypeBalance:     "Equilibrio",
+	ExerciseTypePlyometric:  "Pliometría",
+	ExerciseTypeFlexibility: "Flexibilidad",
+	ExerciseTypeEndurance:   "Resistencia",
+	ExerciseTypeWarmup:      "Calentamiento",
+	ExerciseTypeCooldown:    "Vuelta a la calma",
+	ExerciseTypeTechnique:   "Técnica",
+	ExerciseTypeRehab:       "Rehabilitación",
+}
+
+var muscleGroupLabels = map[string]string{
+	"chest":       "Pecho",
+	"back":        "Espalda",
+	"legs":        "Piernas",
+	"shoulders":   "Hombros",
+	"biceps":      "Bíceps",
+	"triceps":     "Tríceps",
+	"core":        "Core",
+	"glutes":      "Glúteos",
+	"forearms":    "Antebrazos",
+	"calves":      "Gemelos",
+	"hamstrings":  "Isquiotibiales",
+	"quadriceps":  "Cuádriceps",
+	"lats":        "Dorsales",
+	"traps":       "Trapecios",
+	"rear_delts":  "Deltoides posteriores",
+	"front_delts": "Deltoides anteriores",
+	"side_delts":  "Deltoides laterales",
+	"full_body":   "Cuerpo completo",
+	"cardio":      "Cardio",
+}
+
 func normalizeDomainValue(value string) string {
 	value = strings.TrimSpace(value)
 	value = strings.ToLower(value)
@@ -86,18 +122,18 @@ func isValidMuscleGroup(value string) bool {
 
 func exerciseMetadata() model.ExerciseMetadataResponse {
 	return model.ExerciseMetadataResponse{
-		ExerciseTypes: selectOptionsFromCatalog(validExerciseTypes),
-		MuscleGroups:  selectOptionsFromCatalog(validMuscleGroups),
+		ExerciseTypes: selectOptionsFromCatalog(validExerciseTypes, exerciseTypeLabels),
+		MuscleGroups:  selectOptionsFromCatalog(validMuscleGroups, muscleGroupLabels),
 	}
 }
 
-func selectOptionsFromCatalog(catalog map[string]struct{}) []model.SelectOption {
+func selectOptionsFromCatalog(catalog map[string]struct{}, labels map[string]string) []model.SelectOption {
 	options := make([]model.SelectOption, 0, len(catalog))
 
 	for value := range catalog {
 		options = append(options, model.SelectOption{
 			Value: value,
-			Label: labelFromDomainValue(value),
+			Label: labelFromDomainValue(value, labels),
 		})
 	}
 
@@ -111,7 +147,11 @@ func selectOptionsFromCatalog(catalog map[string]struct{}) []model.SelectOption 
 	return options
 }
 
-func labelFromDomainValue(value string) string {
+func labelFromDomainValue(value string, labels map[string]string) string {
+	if label, ok := labels[value]; ok {
+		return label
+	}
+
 	words := strings.Split(value, "_")
 	for index, word := range words {
 		if word == "" {

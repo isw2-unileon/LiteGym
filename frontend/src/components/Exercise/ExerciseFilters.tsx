@@ -38,6 +38,11 @@ export default function ExerciseFilters({
                     className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
                 >
                     <option value="">Todos los tipos</option>
+                    {exerciseTypes.length === 0 && (
+                        <option value="" disabled>
+                            Cargando tipos...
+                        </option>
+                    )}
                     {exerciseTypes.map((type) => (
                         <option key={type.value} value={type.value}>
                             {type.label}
@@ -51,6 +56,11 @@ export default function ExerciseFilters({
                     className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
                 >
                     <option value="">Todos los músculos</option>
+                    {muscleGroups.length === 0 && (
+                        <option value="" disabled>
+                            Cargando músculos...
+                        </option>
+                    )}
                     {muscleGroups.map((muscle) => (
                         <option key={muscle.value} value={muscle.value}>
                             {muscle.label}

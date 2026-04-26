@@ -15,12 +15,12 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
 
 function exerciseMetadataResponse() {
   return {
-    exercise_types: [{ value: "strength", label: "Strength" }],
+    exercise_types: [{ value: "strength", label: "Fuerza" }],
     muscle_groups: [
-      { value: "chest", label: "Chest" },
-      { value: "triceps", label: "Triceps" },
-      { value: "shoulders", label: "Shoulders" },
-      { value: "front_delts", label: "Front Delts" },
+      { value: "chest", label: "Pecho" },
+      { value: "triceps", label: "Tríceps" },
+      { value: "shoulders", label: "Hombros" },
+      { value: "front_delts", label: "Deltoides anteriores" },
     ],
   };
 }

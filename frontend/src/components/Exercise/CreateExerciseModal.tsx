@@ -210,7 +210,11 @@ export default function CreateExerciseModal({
                   onChange={handleChange("muscle_group")}
                   className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
                 >
-                  <option value="">Selecciona un grupo muscular</option>
+                  <option value="">
+                    {muscleGroupOptions.length === 0
+                      ? "Cargando grupos musculares..."
+                      : "Selecciona un grupo muscular"}
+                  </option>
                   {muscleGroupOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -238,8 +242,12 @@ export default function CreateExerciseModal({
                 value={form.exercise_type}
                 onChange={handleChange("exercise_type")}
                 className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-              >
-                <option value="">Selecciona un tipo</option>
+                >
+                <option value="">
+                  {exerciseTypeOptions.length === 0
+                    ? "Cargando tipos..."
+                    : "Selecciona un tipo"}
+                </option>
                 {exerciseTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -269,7 +277,11 @@ export default function CreateExerciseModal({
                       onChange={handleSecondaryMuscleGroupChange(index)}
                       className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
                     >
-                      <option value="">Sin musculo secundario</option>
+                      <option value="">
+                        {muscleGroupOptions.length === 0
+                          ? "Cargando grupos musculares..."
+                          : "Sin musculo secundario"}
+                      </option>
                       {muscleGroupOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
