@@ -13,6 +13,28 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
+function exerciseMetadataResponse() {
+  return {
+    exercise_types: [{ value: "strength", label: "Strength" }],
+    muscle_groups: [
+      { value: "chest", label: "Chest" },
+      { value: "triceps", label: "Triceps" },
+      { value: "shoulders", label: "Shoulders" },
+      { value: "front_delts", label: "Front Delts" },
+    ],
+  };
+}
+
+function exerciseListResponse(items: unknown[]) {
+  return {
+    items,
+    page: 1,
+    limit: 20,
+    total: items.length,
+    total_pages: items.length > 0 ? 1 : 0,
+  };
+}
+
 function renderExercisePage() {
   return render(
     <MemoryRouter>
@@ -38,7 +60,8 @@ describe("ExercisePage", () => {
             { status: 200 },
           ),
         )
-        .mockResolvedValueOnce(jsonResponse([], { status: 200 })),
+        .mockResolvedValueOnce(jsonResponse(exerciseMetadataResponse(), { status: 200 }))
+        .mockResolvedValueOnce(jsonResponse(exerciseListResponse([]), { status: 200 })),
     );
     const user = userEvent.setup();
 
@@ -68,7 +91,8 @@ describe("ExercisePage", () => {
           { status: 200 },
         ),
       )
-      .mockResolvedValueOnce(jsonResponse([], { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(exerciseMetadataResponse(), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(exerciseListResponse([]), { status: 200 }))
       .mockResolvedValueOnce(
         jsonResponse(
           {
@@ -90,16 +114,16 @@ describe("ExercisePage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Crear nuevo ejercicio" }));
     await user.type(screen.getByLabelText("Nombre"), "Bench Press");
-    await user.type(screen.getByLabelText("Grupo muscular"), "chest");
+    await user.selectOptions(screen.getByLabelText("Grupo muscular"), "chest");
     await user.type(screen.getByLabelText("Descripcion"), "Flat bench press");
-    const secondaryMuscleInputs = screen.getAllByPlaceholderText("Ej. triceps");
+    const secondaryMuscleInputs = screen.getAllByLabelText("Musculos secundarios");
     expect(secondaryMuscleInputs).toHaveLength(1);
-    await user.type(secondaryMuscleInputs[0]!, "triceps");
+    await user.selectOptions(secondaryMuscleInputs[0]!, "triceps");
     await user.click(screen.getByRole("button", { name: "Anadir musculo secundario" }));
-    const expandedSecondaryMuscleInputs = screen.getAllByPlaceholderText("Ej. triceps");
+    const expandedSecondaryMuscleInputs = screen.getAllByLabelText("Musculos secundarios");
     expect(expandedSecondaryMuscleInputs).toHaveLength(2);
-    await user.type(expandedSecondaryMuscleInputs[1]!, "shoulders");
-    await user.type(screen.getByLabelText("Tipo de ejercicio"), "strength");
+    await user.selectOptions(expandedSecondaryMuscleInputs[1]!, "shoulders");
+    await user.selectOptions(screen.getByLabelText("Tipo de ejercicio"), "strength");
     await user.click(screen.getByRole("button", { name: "Crear ejercicio" }));
 
     await waitFor(() => {
@@ -137,7 +161,8 @@ describe("ExercisePage", () => {
             { status: 200 },
           ),
         )
-        .mockResolvedValueOnce(jsonResponse([], { status: 200 })),
+        .mockResolvedValueOnce(jsonResponse(exerciseMetadataResponse(), { status: 200 }))
+        .mockResolvedValueOnce(jsonResponse(exerciseListResponse([]), { status: 200 })),
     );
     const user = userEvent.setup();
 
@@ -159,8 +184,11 @@ describe("ExercisePage", () => {
         ),
       )
       .mockResolvedValueOnce(
+        jsonResponse(exerciseMetadataResponse(), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
         jsonResponse(
-          [
+          exerciseListResponse([
             {
               id: "550e8400-e29b-41d4-a716-446655440111",
               name: "Bench Press",
@@ -171,7 +199,7 @@ describe("ExercisePage", () => {
               is_official: false,
               created_at: "2026-04-24T10:00:00Z",
             },
-          ],
+          ]),
           { status: 200 },
         ),
       )
@@ -205,11 +233,9 @@ describe("ExercisePage", () => {
     await user.clear(descriptionInput);
     await user.type(descriptionInput, "Incline bench press");
 
-    const secondaryMuscleInputs = screen.getAllByPlaceholderText("Ej. triceps");
-    await user.clear(secondaryMuscleInputs[0]!);
-    await user.type(secondaryMuscleInputs[0]!, "front delts");
-    await user.clear(secondaryMuscleInputs[1]!);
-    await user.type(secondaryMuscleInputs[1]!, "triceps");
+    const secondaryMuscleInputs = screen.getAllByLabelText("Musculos secundarios");
+    await user.selectOptions(secondaryMuscleInputs[0]!, "front_delts");
+    await user.selectOptions(secondaryMuscleInputs[1]!, "triceps");
 
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
@@ -226,7 +252,7 @@ describe("ExercisePage", () => {
             name: "Bench Press Incline",
             description: "Incline bench press",
             muscle_group: "chest",
-            secondary_muscle_groups: ["front delts", "triceps"],
+            secondary_muscle_groups: ["front_delts", "triceps"],
             exercise_type: "strength",
             is_official: false,
           }),
@@ -250,7 +276,13 @@ describe("ExercisePage", () => {
         )
         .mockResolvedValueOnce(
           jsonResponse(
-            [
+            exerciseMetadataResponse(),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            exerciseListResponse([
               {
                 id: "550e8400-e29b-41d4-a716-446655440222",
                 name: "Deadlift",
@@ -261,7 +293,7 @@ describe("ExercisePage", () => {
                 is_official: true,
                 created_at: "2026-04-24T10:00:00Z",
               },
-            ],
+            ]),
             { status: 200 },
           ),
         ),

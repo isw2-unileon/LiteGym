@@ -10,12 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ErrInvalidExerciseInput indicates that the provided exercise data is invalid.
-var ErrInvalidExerciseInput = errors.New("invalid exercise input")
-
-// ErrExerciseNotFound indicates that the requested exercise does not exist.
-var ErrExerciseNotFound = errors.New("exercise not found")
-
 // ExerciseService provides business logic for exercises.
 type ExerciseService struct {
 	repo repository.ExerciseRepository
@@ -48,8 +42,8 @@ func (s *ExerciseService) GetByID(ctx context.Context, id string) (*model.Exerci
 // List returns all exercises.
 func (s *ExerciseService) List(ctx context.Context, filters model.ExerciseFilter) (model.ExerciseListResponse, error) {
 	filters.Search = strings.TrimSpace(filters.Search)
-	filters.Type = strings.TrimSpace(filters.Type)
-	filters.MuscleGroup = strings.TrimSpace(filters.MuscleGroup)
+	filters.Type = normalizeDomainValue(filters.Type)
+	filters.MuscleGroup = normalizeDomainValue(filters.MuscleGroup)
 
 	if filters.Page <= 0 {
 		filters.Page = 1
@@ -88,14 +82,8 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 		return ErrInvalidExerciseInput
 	}
 
-	exercise.Name = strings.TrimSpace(exercise.Name)
-	exercise.Description = strings.TrimSpace(exercise.Description)
-	exercise.MuscleGroup = strings.TrimSpace(exercise.MuscleGroup)
-	exercise.SecondaryMuscleGroup = strings.TrimSpace(exercise.SecondaryMuscleGroup)
-	exercise.ExerciseType = strings.TrimSpace(exercise.ExerciseType)
-
-	if strings.TrimSpace(exercise.Name) == "" {
-		return ErrInvalidExerciseInput
+	if err := s.normalizeAndValidateExercise(exercise); err != nil {
+		return err
 	}
 
 	return s.repo.Create(ctx, exercise)
@@ -108,14 +96,12 @@ func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Ex
 	}
 
 	exercise.ID = strings.TrimSpace(exercise.ID)
-	exercise.Name = strings.TrimSpace(exercise.Name)
-	exercise.Description = strings.TrimSpace(exercise.Description)
-	exercise.MuscleGroup = strings.TrimSpace(exercise.MuscleGroup)
-	exercise.SecondaryMuscleGroup = strings.TrimSpace(exercise.SecondaryMuscleGroup)
-	exercise.ExerciseType = strings.TrimSpace(exercise.ExerciseType)
-
-	if exercise.ID == "" || strings.TrimSpace(exercise.Name) == "" {
+	if exercise.ID == "" {
 		return ErrInvalidExerciseInput
+	}
+
+	if err := s.normalizeAndValidateExercise(exercise); err != nil {
+		return err
 	}
 
 	err := s.repo.UpdateExercise(ctx, exercise)
@@ -139,4 +125,51 @@ func (s *ExerciseService) DeleteExercise(ctx context.Context, id string) error {
 	}
 
 	return err
+}
+
+func (s *ExerciseService) normalizeAndValidateExercise(exercise *model.Exercise) error {
+	exercise.Name = normalizeName(exercise.Name)
+	exercise.Description = strings.TrimSpace(exercise.Description)
+	exercise.MuscleGroup = normalizeDomainValue(exercise.MuscleGroup)
+	exercise.SecondaryMuscleGroup = normalizeDomainValue(exercise.SecondaryMuscleGroup)
+	exercise.ExerciseType = normalizeDomainValue(exercise.ExerciseType)
+
+	if exercise.Name == "" {
+		return ErrExerciseNameRequired
+	}
+
+	if len([]rune(exercise.Name)) > maxExerciseNameLength {
+		return ErrExerciseNameTooLong
+	}
+
+	if len([]rune(exercise.Description)) > maxExerciseDescriptionLength {
+		return ErrDescriptionTooLong
+	}
+
+	if exercise.MuscleGroup == "" {
+		return ErrMuscleGroupRequired
+	}
+
+	if !isValidMuscleGroup(exercise.MuscleGroup) {
+		return ErrInvalidMuscleGroup
+	}
+
+	if exercise.SecondaryMuscleGroup != "" {
+		if !isValidMuscleGroup(exercise.SecondaryMuscleGroup) {
+			return ErrInvalidMuscleGroup
+		}
+		if exercise.SecondaryMuscleGroup == exercise.MuscleGroup {
+			return ErrSecondaryEqualsPrimary
+		}
+	}
+
+	if exercise.ExerciseType == "" {
+		return ErrExerciseTypeRequired
+	}
+
+	if !isValidExerciseType(exercise.ExerciseType) {
+		return ErrInvalidExerciseType
+	}
+
+	return nil
 }

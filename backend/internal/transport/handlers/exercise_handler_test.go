@@ -253,6 +253,46 @@ func TestListExercisesInternalError(t *testing.T) {
 	}
 }
 
+func TestGetExerciseMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	exerciseService := service.NewExerciseService(&MockExerciseRepository{})
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/exercises/metadata", nil)
+
+	exerciseHandler.GetMetadata(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response model.ExerciseMetadataResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+
+	if !hasOptionValue(response.ExerciseTypes, "strength") {
+		t.Fatal("expected exercise_types to include strength")
+	}
+
+	if !hasOptionValue(response.MuscleGroups, "chest") {
+		t.Fatal("expected muscle_groups to include chest")
+	}
+}
+
+func hasOptionValue(options []model.SelectOption, value string) bool {
+	for _, option := range options {
+		if option.Value == value {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestUpdateExerciseOfficialRequiresAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

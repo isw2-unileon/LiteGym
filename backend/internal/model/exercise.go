@@ -30,3 +30,13 @@ type ExerciseListResponse struct {
 	Total      int        `json:"total"`
 	TotalPages int        `json:"total_pages"`
 }
+
+type SelectOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+type ExerciseMetadataResponse struct {
+	ExerciseTypes []SelectOption `json:"exercise_types"`
+	MuscleGroups  []SelectOption `json:"muscle_groups"`
+}

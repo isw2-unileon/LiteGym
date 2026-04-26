@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import type { SelectOption } from "../../types/exercise";
 
 export type CreateExercisePayload = {
   name: string;
@@ -16,6 +17,8 @@ type CreateExerciseModalProps = {
   canCreateOfficial: boolean;
   mode?: "create" | "edit";
   initialPayload?: CreateExercisePayload;
+  exerciseTypeOptions: SelectOption[];
+  muscleGroupOptions: SelectOption[];
   onClose: () => void;
   onSubmit: (payload: CreateExercisePayload) => Promise<void>;
 };
@@ -36,6 +39,8 @@ export default function CreateExerciseModal({
   canCreateOfficial,
   mode = "create",
   initialPayload,
+  exerciseTypeOptions,
+  muscleGroupOptions,
   onClose,
   onSubmit,
 }: CreateExerciseModalProps) {
@@ -64,7 +69,7 @@ export default function CreateExerciseModal({
 
   const handleChange =
     (field: keyof CreateExercisePayload) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const value =
         event.target instanceof HTMLInputElement &&
         event.target.type === "checkbox"
@@ -79,7 +84,7 @@ export default function CreateExerciseModal({
     };
 
   const handleSecondaryMuscleGroupChange =
-    (index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    (index: number) => (event: React.ChangeEvent<HTMLSelectElement>) => {
       const nextValue = event.target.value;
       setForm((current) => ({
         ...current,
@@ -199,14 +204,19 @@ export default function CreateExerciseModal({
 
               <label className="grid gap-2 text-sm font-semibold text-[#3b3128]">
                 <span>Grupo muscular</span>
-                <input
+                <select
                   id={muscleGroupId}
-                  type="text"
                   value={form.muscle_group}
                   onChange={handleChange("muscle_group")}
                   className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-                  placeholder="Ej. chest"
-                />
+                >
+                  <option value="">Selecciona un grupo muscular</option>
+                  {muscleGroupOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
@@ -223,14 +233,19 @@ export default function CreateExerciseModal({
 
             <label className="grid gap-2 text-sm font-semibold text-[#3b3128]">
               <span>Tipo de ejercicio</span>
-              <input
+              <select
                 id={exerciseTypeId}
-                type="text"
                 value={form.exercise_type}
                 onChange={handleChange("exercise_type")}
                 className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-                placeholder="Ej. strength"
-              />
+              >
+                <option value="">Selecciona un tipo</option>
+                {exerciseTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <div className="grid gap-3 rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-4 text-sm font-semibold text-[#3b3128]">
@@ -247,14 +262,20 @@ export default function CreateExerciseModal({
                     key={`${secondaryMuscleGroupId}-${index}`}
                     className="flex flex-col gap-2 sm:flex-row sm:items-center"
                   >
-                    <input
+                    <select
                       id={index === 0 ? secondaryMuscleGroupId : undefined}
-                      type="text"
+                      aria-label="Musculos secundarios"
                       value={secondaryMuscleGroup}
                       onChange={handleSecondaryMuscleGroupChange(index)}
                       className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none transition focus:border-[#ea7130]"
-                      placeholder="Ej. triceps"
-                    />
+                    >
+                      <option value="">Sin musculo secundario</option>
+                      {muscleGroupOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       className="rounded-2xl border border-[#1f1b16]/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] disabled:opacity-40 sm:shrink-0"

@@ -11,3 +11,13 @@ export type Exercise = {
 };
 
 export type ExerciseStatus = "idle" | "loading" | "success" | "error";
+
+export type SelectOption = {
+    value: string;
+    label: string;
+};
+
+export type ExerciseMetadataResponse = {
+    exercise_types: SelectOption[];
+    muscle_groups: SelectOption[];
+};

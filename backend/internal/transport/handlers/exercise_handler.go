@@ -89,6 +89,11 @@ func (h *ExerciseHandler) ListExercises(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetMetadata returns the valid exercise options used by clients.
+func (h *ExerciseHandler) GetMetadata(c *gin.Context) {
+	c.JSON(http.StatusOK, h.service.GetMetadata())
+}
+
 // CreateExercise creates a new exercise.
 func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	var req createExerciseRequest

@@ -1,9 +1,11 @@
+import type { SelectOption } from "../../types/exercise";
+
 type ExerciseFiltersProps = {
     search: string;
     typeFilter: string;
     muscleFilter: string;
-    exerciseTypes: string[];
-    muscleGroups: string[];
+    exerciseTypes: SelectOption[];
+    muscleGroups: SelectOption[];
     onSearchChange: (value: string) => void;
     onTypeFilterChange: (value: string) => void;
     onMuscleFilterChange: (value: string) => void;
@@ -37,8 +39,8 @@ export default function ExerciseFilters({
                 >
                     <option value="">Todos los tipos</option>
                     {exerciseTypes.map((type) => (
-                        <option key={type} value={type}>
-                            {type}
+                        <option key={type.value} value={type.value}>
+                            {type.label}
                         </option>
                     ))}
                 </select>
@@ -50,8 +52,8 @@ export default function ExerciseFilters({
                 >
                     <option value="">Todos los músculos</option>
                     {muscleGroups.map((muscle) => (
-                        <option key={muscle} value={muscle}>
-                            {muscle}
+                        <option key={muscle.value} value={muscle.value}>
+                            {muscle.label}
                         </option>
                     ))}
                 </select>

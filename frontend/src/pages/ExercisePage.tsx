@@ -7,7 +7,12 @@ import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseList from "../components/Exercise/ExerciseList";
 import { apiUrl } from "../lib/api";
-import type { Exercise, ExerciseStatus } from "../types/exercise";
+import type {
+    Exercise,
+    ExerciseMetadataResponse,
+    ExerciseStatus,
+    SelectOption,
+} from "../types/exercise";
 
 type CurrentUser = {
     id: string;
@@ -42,6 +47,12 @@ export default function ExercisePage() {
     const [search, setSearch] = React.useState("");
     const [typeFilter, setTypeFilter] = React.useState("");
     const [muscleFilter, setMuscleFilter] = React.useState("");
+    const [exerciseTypeOptions, setExerciseTypeOptions] = React.useState<
+        SelectOption[]
+    >([]);
+    const [muscleGroupOptions, setMuscleGroupOptions] = React.useState<
+        SelectOption[]
+    >([]);
 
     const [page, setPage] = React.useState(1);
     const [limit] = React.useState(20);
@@ -67,6 +78,29 @@ export default function ExercisePage() {
         };
 
         void fetchCurrentUser();
+    }, []);
+
+    React.useEffect(() => {
+        const fetchExerciseMetadata = async () => {
+            try {
+                const response = await fetch(apiUrl("/api/exercises/metadata"), {
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data =
+                    (await response.json()) as ExerciseMetadataResponse;
+                setExerciseTypeOptions(data.exercise_types);
+                setMuscleGroupOptions(data.muscle_groups);
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        void fetchExerciseMetadata();
     }, []);
 
     const fetchExercises = React.useCallback(async () => {
@@ -184,22 +218,6 @@ export default function ExercisePage() {
         },
         [],
     );
-
-    const exerciseTypes = React.useMemo(() => {
-        return Array.from(
-            new Set(
-                exercises
-                    .map((exercise) => exercise.exercise_type)
-                    .filter((type): type is string => Boolean(type)),
-            ),
-        ).sort();
-    }, [exercises]);
-
-    const muscleGroups = React.useMemo(() => {
-        return Array.from(
-            new Set(exercises.map((exercise) => exercise.muscle_group)),
-        ).sort();
-    }, [exercises]);
 
     const filteredExercises = exercises;
 
@@ -431,8 +449,8 @@ export default function ExercisePage() {
                                             search={search}
                                             typeFilter={typeFilter}
                                             muscleFilter={muscleFilter}
-                                            exerciseTypes={exerciseTypes}
-                                            muscleGroups={muscleGroups}
+                                            exerciseTypes={exerciseTypeOptions}
+                                            muscleGroups={muscleGroupOptions}
                                             onSearchChange={handleSearchChange}
                                             onTypeFilterChange={
                                                 handleTypeFilterChange
@@ -673,6 +691,8 @@ export default function ExercisePage() {
                 errorMessage={createErrorMessage}
                 canCreateOfficial={canCreateOfficial}
                 mode="create"
+                exerciseTypeOptions={exerciseTypeOptions}
+                muscleGroupOptions={muscleGroupOptions}
                 onClose={() => {
                     setCreateErrorMessage("");
                     setIsCreateModalOpen(false);
@@ -687,6 +707,8 @@ export default function ExercisePage() {
                 canCreateOfficial={canCreateOfficial}
                 mode="edit"
                 initialPayload={editInitialPayload}
+                exerciseTypeOptions={exerciseTypeOptions}
+                muscleGroupOptions={muscleGroupOptions}
                 onClose={() => {
                     setEditErrorMessage("");
                     setIsEditModalOpen(false);
