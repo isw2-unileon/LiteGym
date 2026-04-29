@@ -5,16 +5,29 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 // ExerciseHandler handles exercise-related HTTP requests.
 type ExerciseHandler struct {
 	service *service.ExerciseService
 }
+
+type createExerciseRequest struct {
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	MuscleGroup           string   `json:"muscle_group"`
+	SecondaryMuscleGroups []string `json:"secondary_muscle_groups"`
+	ExerciseType          string   `json:"exercise_type"`
+	IsOfficial            bool     `json:"is_official"`
+}
+
+const adminRole = "admin"
 
 // NewExerciseHandler creates a new ExerciseHandler.
 func NewExerciseHandler(svc *service.ExerciseService) *ExerciseHandler {
@@ -23,19 +36,67 @@ func NewExerciseHandler(svc *service.ExerciseService) *ExerciseHandler {
 	}
 }
 
-// CreateExerciseRequest represents the expected payload for creating an exercise.
-type CreateExerciseRequest struct {
-	Name                 string `json:"name"`
-	Description          string `json:"description"`
-	MuscleGroup          string `json:"muscle_group"`
-	SecondaryMuscleGroup string `json:"secondary_muscle_group"`
-	ExerciseType         string `json:"exercise_type"`
-	IsOfficial           *bool  `json:"is_official"`
+// GetExerciseByID retrieves an exercise by its ID.
+func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
+	respondWithResourceByID(c, h.service.GetByID, getByIDConfig{
+		invalidIDMessage: "invalid exercise id",
+		notFoundMessage:  "exercise not found",
+		logMessage:       "failed to retrieve exercise",
+		internalMessage:  "failed to retrieve exercise",
+		invalidInputErr:  service.ErrInvalidExerciseInput,
+		notFoundErr:      service.ErrExerciseNotFound,
+	})
+}
+
+// ListExercises returns all exercises.
+func (h *ExerciseHandler) ListExercises(c *gin.Context) {
+	page, err := strconv.Atoi(c.Query("page"))
+	limit, err2 := strconv.Atoi(c.Query("limit"))
+
+	official := c.Query("official")
+
+	if err != nil || err2 != nil || page < 1 || limit < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pagination parameters"})
+		return
+	}
+
+	var officialFilter *bool
+	if official != "" {
+		isOfficial, err := strconv.ParseBool(official)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid 'official' query parameter"})
+			return
+		}
+		officialFilter = &isOfficial
+	}
+
+	filters := model.ExerciseFilter{
+		Search:      c.Query("search"),
+		Type:        c.Query("type"),
+		MuscleGroup: c.Query("muscle_group"),
+		Official:    officialFilter,
+		Page:        page,
+		Limit:       limit,
+	}
+
+	response, err := h.service.List(c.Request.Context(), filters)
+	if err != nil {
+		slog.Error("failed to list exercises", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list exercises"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetMetadata returns the valid exercise options used by clients.
+func (h *ExerciseHandler) GetMetadata(c *gin.Context) {
+	c.JSON(http.StatusOK, h.service.GetMetadata())
 }
 
 // CreateExercise creates a new exercise.
 func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
-	var req CreateExerciseRequest
+	var req createExerciseRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -44,30 +105,31 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		return
 	}
 
-	isOfficial := true
-	if req.IsOfficial != nil {
-		isOfficial = *req.IsOfficial
+	role := userRoleFromContext(c)
+	isOfficial, ok := requestedOfficialFlag(c, req.IsOfficial, role, "create")
+	if !ok {
+		return
 	}
 
-	exercise := &model.Exercise{
+	exercise := model.Exercise{
 		Name:                 req.Name,
 		Description:          req.Description,
 		MuscleGroup:          req.MuscleGroup,
-		SecondaryMuscleGroup: req.SecondaryMuscleGroup,
+		SecondaryMuscleGroup: strings.Join(req.SecondaryMuscleGroups, ", "),
 		ExerciseType:         req.ExerciseType,
 		IsOfficial:           isOfficial,
 	}
 
-	if err := h.service.Create(c.Request.Context(), exercise); err != nil {
+	err := h.service.Create(c.Request.Context(), &exercise)
+	if err != nil {
 		if errors.Is(err, service.ErrInvalidExerciseInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "name and muscle_group are required",
+				"error": "invalid exercise input",
 			})
 			return
 		}
 
-		slog.Error("failed to create exercise", "error", err, "name", req.Name)
-
+		slog.Error("failed to create exercise", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create exercise",
 		})
@@ -77,56 +139,138 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	c.JSON(http.StatusCreated, exercise)
 }
 
-// GetExerciseByID retrieves an exercise by its ID.
-func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
-	idParam := c.Param("id")
+// UpdateExercise updates an existing exercise by its ID.
+func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
 
-	id, err := strconv.ParseInt(idParam, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid exercise id",
-		})
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
 		return
 	}
 
-	exercise, err := h.service.GetByID(c.Request.Context(), id)
+	var req createExerciseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	role := userRoleFromContext(c)
+	existingExercise, ok := h.getExerciseForMutation(c, id, "update")
+	if !ok {
+		return
+	}
+
+	if !allowOfficialMutation(c, existingExercise, role, "update") {
+		return
+	}
+
+	isOfficial, ok := requestedOfficialFlag(c, req.IsOfficial, role, "update")
+	if !ok {
+		return
+	}
+
+	exercise := model.Exercise{
+		ID:                   id,
+		Name:                 req.Name,
+		Description:          req.Description,
+		MuscleGroup:          req.MuscleGroup,
+		SecondaryMuscleGroup: strings.Join(req.SecondaryMuscleGroups, ", "),
+		ExerciseType:         req.ExerciseType,
+		IsOfficial:           isOfficial,
+	}
+
+	err := h.service.UpdateExercise(c.Request.Context(), &exercise)
+
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidExerciseInput) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid exercise id",
-			})
-			return
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise input"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exercise"})
 		}
-
-		if errors.Is(err, service.ErrExerciseNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "exercise not found",
-			})
-			return
-		}
-
-		slog.Error("failed to retrieve exercise", "error", err, "id", id)
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve exercise",
-		})
 		return
 	}
 
 	c.JSON(http.StatusOK, exercise)
 }
 
-// ListExercises returns all exercises.
-func (h *ExerciseHandler) ListExercises(c *gin.Context) {
-	exercises, err := h.service.List(c.Request.Context())
-	if err != nil {
-		slog.Error("failed to list exercises", "error", err)
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to list exercises",
-		})
+// DeleteExercise soft-deletes an existing exercise by its ID.
+func (h *ExerciseHandler) DeleteExercise(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
 		return
 	}
 
-	c.JSON(http.StatusOK, exercises)
+	role := userRoleFromContext(c)
+	existingExercise, ok := h.getExerciseForMutation(c, id, "delete")
+	if !ok {
+		return
+	}
+
+	if !allowOfficialMutation(c, existingExercise, role, "delete") {
+		return
+	}
+
+	if err := h.service.DeleteExercise(c.Request.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			slog.Error("failed to delete exercise", "error", err, "id", id)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete exercise"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "exercise deleted successfully"})
+}
+
+func userRoleFromContext(c *gin.Context) string {
+	userRole, _ := c.Get(middleware.ContextUserRoleKey)
+	role, _ := userRole.(string)
+	return role
+}
+
+func allowOfficialMutation(c *gin.Context, exercise *model.Exercise, role, action string) bool {
+	if exercise.IsOfficial && role != adminRole {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can " + action + " official exercises",
+		})
+		return false
+	}
+	return true
+}
+
+func requestedOfficialFlag(c *gin.Context, requestedOfficial bool, role, action string) (bool, bool) {
+	isOfficial := requestedOfficial && role == adminRole
+	if requestedOfficial && role != adminRole {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "only admins can " + action + " official exercises",
+		})
+		return false, false
+	}
+	return isOfficial, true
+}
+
+func (h *ExerciseHandler) getExerciseForMutation(c *gin.Context, id, action string) (*model.Exercise, bool) {
+	existingExercise, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrExerciseNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		default:
+			slog.Error("failed to retrieve exercise before "+action, "error", err, "id", id)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to " + action + " exercise"})
+		}
+		return nil, false
+	}
+
+	return existingExercise, true
 }

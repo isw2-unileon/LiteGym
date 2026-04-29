@@ -10,7 +10,7 @@ import (
 // Context keys used by the authentication middleware to store user values in the request context.
 //
 // These keys are placed into the Gin context by the middleware and can be read by
-// handlers to obtain the authenticated user's ID, email and username.
+// handlers to obtain the authenticated user's ID, email, username and role.
 const (
 	ContextUserIDKey    = "user_id"
 	ContextUserEmailKey = "user_email"
@@ -41,25 +41,19 @@ func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *A
 // RequireAuth returns a Gin middleware handler that enforces authentication.
 //
 // The returned handler reads the configured cookie, validates the token using the
-// TokenService, and on success stores the claims (subject, email, username) in the
-// request context. On failure it responds with 401 and aborts the request.
+// TokenService, and on success stores the claims (subject, email, username, role) in the
+// request context.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Cookie(m.cookieName)
+		tokenString, err := c.Cookie(m.cookieName)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "authentication required",
-			})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: missing cookie"})
 			return
 		}
 
-		claims, err := m.tokenService.ParseToken(cookie)
+		claims, err := m.tokenService.ParseToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid or expired authentication token",
-			})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: invalid or expired token"})
 			return
 		}
 

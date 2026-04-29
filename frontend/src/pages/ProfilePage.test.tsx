@@ -1,0 +1,90 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import ProfilePage from "./ProfilePage";
+
+function setupFetchMock(mockData: unknown, isOk = true) {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(mockData), {
+      status: isOk ? 200 : 401,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function renderProfilePage() {
+  return render(
+    <MemoryRouter>
+      <ProfilePage />
+    </MemoryRouter>,
+  );
+}
+
+describe("ProfilePage", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("renders the loading state initially", () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+
+    renderProfilePage();
+
+    expect(screen.getByText("Loading profile...")).toBeInTheDocument();
+  });
+
+  it("renders an error message if the fetch fails", async () => {
+    setupFetchMock({ error: "unauthorized" }, false);
+
+    renderProfilePage();
+
+    expect(await screen.findByText("Error: Profile not found or unauthorized")).toBeInTheDocument();
+  });
+
+  it("renders user data correctly for a normal user", async () => {
+    const mockUser = {
+      user: {
+        id: "uuid-1234",
+        username: "atleta_pro",
+        email: "atleta@test.com",
+        role: "user",
+        created_at: "2026-04-24T10:00:00Z",
+      },
+    };
+    setupFetchMock(mockUser, true);
+
+    renderProfilePage();
+
+    expect(await screen.findByRole("heading", { name: "atleta_pro" })).toBeInTheDocument();
+    expect(screen.getByText("atleta@test.com")).toBeInTheDocument();
+    expect(screen.getByText("Rol actual: user")).toBeInTheDocument();
+    expect(screen.getByText("a")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Panel de Administración" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Admin Panel button if the user is an admin", async () => {
+    const mockAdmin = {
+      user: {
+        id: "uuid-9999",
+        username: "super_admin",
+        email: "admin@test.com",
+        role: "admin",
+        created_at: "2026-01-01T10:00:00Z",
+      },
+    };
+    setupFetchMock(mockAdmin, true);
+
+    renderProfilePage();
+
+    expect(await screen.findByRole("heading", { name: "super_admin" })).toBeInTheDocument();
+    expect(screen.getByText("Rol actual: admin")).toBeInTheDocument();
+
+    const adminLink = screen.getByRole("link", { name: "Panel de Administración" });
+    expect(adminLink).toBeInTheDocument();
+    expect(adminLink.getAttribute("href")).toBe("/admin");
+  });
+});

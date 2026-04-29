@@ -13,6 +13,23 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
+function exerciseMetadataResponse() {
+  return {
+    exercise_types: [{ value: "strength", label: "Fuerza" }],
+    muscle_groups: [{ value: "chest", label: "Pecho" }],
+  };
+}
+
+function exerciseListResponse(items: unknown[]) {
+  return {
+    items,
+    page: 1,
+    limit: 20,
+    total: items.length,
+    total_pages: items.length > 0 ? 1 : 0,
+  };
+}
+
 describe("App", () => {
   afterEach(() => {
     cleanup();
@@ -88,7 +105,24 @@ describe("App", () => {
   });
 
   it("does not allow regular users to open the admin route directly", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: { id: "user-id", role: "user" } }, { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/api/auth/me")) {
+          return Promise.resolve(jsonResponse({ user: { id: "user-id", role: "user" } }, { status: 200 }));
+        }
+
+        if (url.includes("/api/exercises/metadata")) {
+          return Promise.resolve(jsonResponse(exerciseMetadataResponse(), { status: 200 }));
+        }
+
+        if (url.includes("/api/exercises")) {
+          return Promise.resolve(jsonResponse(exerciseListResponse([]), { status: 200 }));
+        }
+
+        return Promise.resolve(jsonResponse({}, { status: 200 }));
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={["/admin"]}>
@@ -96,7 +130,7 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Crear nuevo ejercicio" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Panel admin" })).not.toBeInTheDocument();
   });
 });

@@ -29,8 +29,9 @@ export default function DashboardPage() {
           return;
         }
 
-        const data = (await response.json()) as Exercise[];
-        setExercises(data);
+        const payload = await response.json();
+        const items = Array.isArray(payload) ? payload : (payload.items ?? []);
+        setExercises(items as Exercise[]);
         setExerciseStatus("success");
       } catch {
         setExerciseStatus("error");
@@ -47,7 +48,7 @@ export default function DashboardPage() {
           return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
         }
 
-        return second.id - first.id;
+        return Number(second.id) - Number(first.id);
       })
       .slice(0, 5);
   }, [exercises]);

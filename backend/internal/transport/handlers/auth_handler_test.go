@@ -17,7 +17,10 @@ import (
 )
 
 type MockAuthUserRepository struct {
+	getByIDFunc    func(ctx context.Context, id string) (*model.User, error)
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
+	listAllFunc    func(ctx context.Context) ([]*model.User, error)
+	deleteFunc     func(ctx context.Context, id string) error
 }
 
 func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -25,6 +28,9 @@ func (m *MockAuthUserRepository) Create(ctx context.Context, user *model.User) e
 }
 
 func (m *MockAuthUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+	if m.getByIDFunc != nil {
+		return m.getByIDFunc(ctx, id)
+	}
 	return nil, nil
 }
 
@@ -33,6 +39,20 @@ func (m *MockAuthUserRepository) GetByEmail(ctx context.Context, email string) (
 		return m.getByEmailFunc(ctx, email)
 	}
 	return nil, nil
+}
+
+func (m *MockAuthUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
+	if m.listAllFunc != nil {
+		return m.listAllFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthUserRepository) Delete(ctx context.Context, id string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
 }
 
 func TestLoginSuccessSetsCookie(t *testing.T) {
@@ -49,7 +69,7 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
-				Role:         "admin",
+				Role:         "user",
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -109,6 +129,7 @@ func TestLoginInvalidCredentials(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
+				Role:         "user",
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -141,16 +162,23 @@ func TestLoginInvalidCredentials(t *testing.T) {
 func TestMeReturnsAuthenticatedUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	userService := service.NewUserService(&MockAuthUserRepository{})
+	userService := service.NewUserService(&MockAuthUserRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
+			return &model.User{
+				ID:        id,
+				Username:  "testuser",
+				Email:     "test@example.com",
+				Role:      "admin",
+				CreatedAt: time.Now(),
+			}, nil
+		},
+	})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
 	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440000")
-	c.Set(middleware.ContextUserEmailKey, "test@example.com")
-	c.Set(middleware.ContextUsernameKey, "testuser")
-	c.Set(middleware.ContextUserRoleKey, "admin")
 	c.Request = httptest.NewRequest("GET", "/api/auth/me", nil)
 
 	authHandler.Me(c)
@@ -159,17 +187,15 @@ func TestMeReturnsAuthenticatedUser(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var body struct {
-		User struct {
-			Role string `json:"role"`
-		} `json:"user"`
+	var payload struct {
+		User model.User `json:"user"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("failed to parse response: %v", err)
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
 	}
 
-	if body.User.Role != "admin" {
-		t.Errorf("expected role admin, got %s", body.User.Role)
+	if payload.User.Role != "admin" {
+		t.Fatalf("expected role admin, got %s", payload.User.Role)
 	}
 }
 
