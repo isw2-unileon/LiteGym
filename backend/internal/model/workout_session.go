@@ -11,7 +11,7 @@ import (
 type WorkoutSession struct {
 	ID             uuid.UUID    `json:"id"`
 	UserID         uuid.UUID   `json:"user_id"`
-	RoutineID      uuid.UUID   `json:"routine_id,omitempty"`
+	RoutineID      *uuid.UUID   `json:"routine_id,omitempty"`
 	Name           string    `json:"name"`
 	StartedAt      time.Time `json:"started_at"`
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
