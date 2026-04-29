@@ -42,17 +42,19 @@ export default function AppLayout({ user }: AppLayoutProps) {
   };
 
   return (
-    <main className="min-h-screen bg-[#f4efe2] text-[#1f1b16]">
-      <div className="min-h-screen">
+    <main className="min-h-screen bg-[#f4efe2] text-[#1f1b16] !border !border-black">
+      <div className="min-h-screen !border !border-black">
         <aside
           aria-hidden={!isSidebarOpen}
-          className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#1f1b16]/10 bg-[#1f1b16] px-5 py-6 text-[#fffaf0] shadow-[20px_0_60px_rgba(31,27,22,0.18)] transition-transform duration-300 ${
+          className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#1f1b16]/10 bg-[#1f1b16] px-5 py-6 text-[#fffaf0] shadow-[20px_0_60px_rgba(31,27,22,0.18)] transition-transform duration-300 !border !border-black ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between gap-4">
-            <Link to="/dashboard">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">Grupo 16</p>
+          <div className="flex items-center justify-between gap-4 !border !border-black">
+            <Link to="/dashboard" className="!border !border-black">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">
+                Grupo 16
+              </p>
               <h1 className="mt-3 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.05em]">
                 Fitness
               </h1>
@@ -61,7 +63,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
             <button
               aria-expanded={isSidebarOpen}
               aria-label="Ocultar menu"
-              className="grid h-10 w-10 place-items-center rounded-r-none rounded-l-2xl border border-white/15 text-lg font-black text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b]"
+              className="grid h-10 w-10 place-items-center rounded-r-none rounded-l-2xl border border-white/15 text-lg font-black text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b] !border !border-black"
               type="button"
               onClick={() => setIsSidebarOpen(false)}
             >
@@ -69,12 +71,17 @@ export default function AppLayout({ user }: AppLayoutProps) {
             </button>
           </div>
 
-          <nav className="mt-8 space-y-2" aria-label="Navegacion principal">
+          <nav
+            className="mt-8 space-y-2 !border !border-black"
+            aria-label="Navegacion principal"
+          >
             {navigationItems.map((item) => (
               <NavLink
                 className={({ isActive }) =>
-                  `block rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    isActive ? "bg-white/15 text-white" : "text-[#fffaf0]/80 hover:bg-white/10 hover:text-white"
+                  `block rounded-2xl px-4 py-3 text-sm font-black transition !border !border-black ${
+                    isActive
+                      ? "bg-white/15 text-white"
+                      : "text-[#fffaf0]/80 hover:bg-white/10 hover:text-white"
                   }`
                 }
                 key={item.to}
@@ -87,8 +94,10 @@ export default function AppLayout({ user }: AppLayoutProps) {
             {isAdmin && (
               <NavLink
                 className={({ isActive }) =>
-                  `block rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    isActive ? "bg-[#ffbc76] text-[#1f1b16]" : "bg-[#f1a45b] text-[#1f1b16] hover:bg-[#ffbc76]"
+                  `block rounded-2xl px-4 py-3 text-sm font-black transition !border !border-black ${
+                    isActive
+                      ? "bg-[#ffbc76] text-[#1f1b16]"
+                      : "bg-[#f1a45b] text-[#1f1b16] hover:bg-[#ffbc76]"
                   }`
                 }
                 to="/admin"
@@ -98,12 +107,13 @@ export default function AppLayout({ user }: AppLayoutProps) {
             )}
           </nav>
 
-          <div className="mt-8 border-t border-white/10 pt-5">
-            <p className="mb-4 text-xs font-semibold text-[#fffaf0]/65">
+          <div className="mt-8 border-t border-white/10 pt-5 !border !border-black">
+            <p className="mb-4 text-xs font-semibold text-[#fffaf0]/65 !border !border-black">
               {user?.username ?? user?.email ?? "Usuario"}
             </p>
+
             <button
-              className="w-full rounded-2xl border border-white/15 px-4 py-3 text-sm font-bold text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b]"
+              className="w-full rounded-2xl border border-white/15 px-4 py-3 text-sm font-bold text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b] !border !border-black"
               type="button"
               onClick={handleLogout}
             >
@@ -113,8 +123,8 @@ export default function AppLayout({ user }: AppLayoutProps) {
         </aside>
 
         <section
-          className={`relative isolate min-h-screen px-6 py-8 transition-[padding] duration-300 sm:px-10 lg:px-14 ${
-            isSidebarOpen ? "lg:pl-[22rem]" : "lg:pl-14"
+          className={`relative isolate min-h-screen transition-[padding] duration-300 !border !border-black ${
+            isSidebarOpen ? "lg:pl-72" : "lg:pl-0"
           }`}
         >
           <div className={pageBackground} />
@@ -122,8 +132,10 @@ export default function AppLayout({ user }: AppLayoutProps) {
           <button
             aria-expanded={isSidebarOpen}
             aria-label="Mostrar menu"
-            className={`fixed left-0 top-8 z-40 grid h-14 w-9 place-items-center rounded-r-2xl bg-[#1f1b16] text-lg font-black text-[#fffaf0] shadow-[10px_10px_35px_rgba(31,27,22,0.18)] transition hover:bg-[#265c52] ${
-              isSidebarOpen ? "pointer-events-none -translate-x-full opacity-0" : "translate-x-0 opacity-100"
+            className={`fixed left-0 top-8 z-40 grid h-14 w-9 place-items-center rounded-r-2xl bg-[#1f1b16] text-lg font-black text-[#fffaf0] shadow-[10px_10px_35px_rgba(31,27,22,0.18)] transition hover:bg-[#265c52] !border !border-black ${
+              isSidebarOpen
+                ? "pointer-events-none -translate-x-full opacity-0"
+                : "translate-x-0 opacity-100"
             }`}
             type="button"
             onClick={() => setIsSidebarOpen(true)}
@@ -131,7 +143,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
             &gt;
           </button>
 
-          <div className="mx-auto w-full max-w-[1600px] pt-12">
+          <div className="w-full !border !border-black">
             <Outlet context={{ user }} />
           </div>
         </section>
