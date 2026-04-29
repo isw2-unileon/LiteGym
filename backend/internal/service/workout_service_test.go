@@ -106,7 +106,7 @@ func TestWorkoutServiceCreateSessionSuccess(t *testing.T) {
 
 	workoutSession := &model.WorkoutSession{
 		UserID:    uuid.New(),
-		RoutineID: uuid.Nil,
+		RoutineID: uuidPointer(uuid.Nil),
 		Name:      "Morning Workout",
 	}
 
@@ -660,4 +660,8 @@ func floatPointer(f float64) *float64 {
 
 func boolPointer(b bool) *bool {
 	return &b
+}
+
+func uuidPointer(u uuid.UUID) *uuid.UUID {
+	return &u
 }
