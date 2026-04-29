@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import AppLayout, { type LayoutUser } from "./AppLayout";
 import { apiUrl } from "../lib/api";
 
 type AuthStatus = "checking" | "allowed" | "blocked";
 
-type ProtectedRouteProps = {
-  children: React.ReactNode;
+type SessionResponse = {
+  user?: LayoutUser;
 };
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function AuthenticatedLayoutRoute() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
+  const [user, setUser] = useState<LayoutUser | null>(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -18,7 +20,14 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
           credentials: "include",
         });
 
-        setAuthStatus(response.ok ? "allowed" : "blocked");
+        if (!response.ok) {
+          setAuthStatus("blocked");
+          return;
+        }
+
+        const payload = (await response.json().catch(() => ({}))) as SessionResponse;
+        setUser(payload.user ?? null);
+        setAuthStatus("allowed");
       } catch {
         setAuthStatus("blocked");
       }
@@ -41,5 +50,5 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <AppLayout user={user} />;
 }

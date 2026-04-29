@@ -47,13 +47,18 @@ func NewTokenService(secret, issuer string, ttl time.Duration) *TokenService {
 }
 
 // GenerateToken creates a signed token for the given user data.
-func (s *TokenService) GenerateToken(userID string, email, username, role string) (string, error) {
+func (s *TokenService) GenerateToken(userID string, email, username string, role string) (string, error) {
 	if len(s.secretKey) == 0 {
 		return "", errors.New("token secret is required")
 	}
 
 	if strings.TrimSpace(userID) == "" {
 		return "", errors.New("user id is required")
+	}
+
+	role = strings.TrimSpace(role)
+	if role == "" {
+		role = "user"
 	}
 
 	now := time.Now().UTC()

@@ -1,14 +1,9 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import AppLayout from "../components/AppLayout";
 import DashboardPage from "./DashboardPage";
-
-function mockFetch(response: Response) {
-  const fetchMock = vi.fn().mockResolvedValue(response);
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-}
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
@@ -19,10 +14,38 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-function renderDashboardPage() {
+function renderDashboardPage(role = "user") {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      jsonResponse([
+        {
+          id: 1,
+          name: "Sentadilla",
+          muscle_group: "Pierna",
+          exercise_type: "Fuerza",
+          description: null,
+          created_at: "2026-04-20T10:00:00Z",
+        },
+        {
+          id: 2,
+          name: "Press banca",
+          muscle_group: "Pecho",
+          exercise_type: "Fuerza",
+          description: null,
+          created_at: "2026-04-21T10:00:00Z",
+        },
+      ]),
+    ),
+  );
+
   return render(
-    <MemoryRouter>
-      <DashboardPage />
+    <MemoryRouter initialEntries={["/dashboard"]}>
+      <Routes>
+        <Route element={<AppLayout user={{ id: "1", username: "raul", email: "raul@example.com", role }} />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+        </Route>
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -33,75 +56,56 @@ describe("DashboardPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("checks api access with cookies when it loads", async () => {
-    const fetchMock = mockFetch(jsonResponse([], { status: 200 }));
-
+  it("shows the dashboard inside the shared sidebar layout", () => {
     renderDashboardPage();
 
-    expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/me"),
-        expect.objectContaining({
-          credentials: "include",
-        }),
-      );
-    });
-
-    expect(await screen.findByText("Todo listo, ya tienes acceso.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hola, raul" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Navegacion principal" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Perfil" })).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("link", { name: "Crear rutina" })).toHaveAttribute("href", "/routines/new");
+    expect(screen.getByRole("link", { name: "Crear ejercicio" })).toHaveAttribute("href", "/exercises/new");
+    expect(screen.getByRole("link", { name: "Mis rutinas" })).toHaveAttribute("href", "/routines");
+    expect(screen.getByRole("link", { name: "Mis ejercicios" })).toHaveAttribute("href", "/exercises");
+    expect(screen.queryByText("Usa el menu lateral para entrar en las secciones principales de la aplicacion.")).not.toBeInTheDocument();
   });
 
-  it("redirects when the backend says the user is not authenticated", async () => {
-    mockFetch(jsonResponse({ error: "authentication required" }, { status: 401 }));
-
+  it("shows the latest exercises and the routines panel", async () => {
     renderDashboardPage();
 
-    expect(await screen.findByText("Todavia no puedes entrar. Inicia sesion primero.")).toBeInTheDocument();
+    expect(await screen.findByText("Press banca")).toBeInTheDocument();
+    expect(screen.getByText("Sentadilla")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tus rutinas" })).toBeInTheDocument();
+    expect(screen.getByText("Todavia no hay rutinas para mostrar.")).toBeInTheDocument();
   });
 
-  it("lets the user re-check api access from the dashboard", async () => {
+  it("shows the admin shortcut only for admin users", () => {
+    renderDashboardPage("admin");
+
+    expect(screen.getByRole("link", { name: "Panel admin" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("does not show the admin shortcut for regular users", () => {
+    renderDashboardPage();
+
+    expect(screen.queryByRole("link", { name: "Panel admin" })).not.toBeInTheDocument();
+  });
+
+  it("hides the sidebar completely and shows the edge handle", async () => {
     const user = userEvent.setup();
-    const fetchMock = mockFetch(jsonResponse([], { status: 200 }));
-
     renderDashboardPage();
 
-    await screen.findByText("Todo listo, ya tienes acceso.");
-    await user.click(screen.getByRole("button", { name: "Probar" }));
+    const sidebar = screen.getByRole("complementary", { hidden: true });
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    });
+    expect(sidebar).toHaveClass("translate-x-0");
 
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      expect.stringContaining("/api/exercises"),
-      expect.objectContaining({
-        credentials: "include",
-      }),
-    );
-  });
+    await user.click(screen.getByRole("button", { name: "Ocultar menu" }));
 
-  it("logs out and returns to login", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 }))
-      .mockResolvedValueOnce(jsonResponse({ message: "session closed" }, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+    expect(sidebar).toHaveClass("-translate-x-full");
+    expect(screen.getByRole("button", { name: "Mostrar menu" })).toHaveClass("translate-x-0");
 
-    renderDashboardPage();
+    await user.click(screen.getByRole("button", { name: "Mostrar menu" }));
 
-    await screen.findByText("Todo listo, ya tienes acceso.");
-    await user.click(screen.getByRole("button", { name: "Cerrar sesion" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenLastCalledWith(
-        expect.stringContaining("/api/auth/logout"),
-        expect.objectContaining({
-          method: "POST",
-          credentials: "include",
-        }),
-      );
-    });
+    expect(sidebar).toHaveClass("translate-x-0");
   });
 });

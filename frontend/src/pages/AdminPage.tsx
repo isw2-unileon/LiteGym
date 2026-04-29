@@ -1,11 +1,14 @@
 import * as React from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useOutletContext } from "react-router-dom";
+import type { LayoutUser } from "../components/AppLayout";
+import { apiUrl } from "../lib/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+type OutletContext = {
+  user?: LayoutUser | null;
+};
 
-// --- Interfaces ---
 interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
   role: string;
@@ -13,137 +16,126 @@ interface User {
 }
 
 export default function AdminPage() {
-  // --- State: Auth & UI ---
+  const { user } = useOutletContext<OutletContext>();
   const [isAuthorized, setIsAuthorized] = React.useState<boolean | null>(null);
   const [activeTab, setActiveTab] = React.useState<"users" | "exercises">("users");
   const [statusMessage, setStatusMessage] = React.useState<{ text: string; type: "success" | "error" } | null>(null);
-
-  // --- State: Data ---
   const [users, setUsers] = React.useState<User[]>([]);
-
-  // --- State: Forms ---
   const [newUser, setNewUser] = React.useState({ username: "", email: "", password: "", role: "user" });
-  
   const [newExercise, setNewExercise] = React.useState({ name: "", muscle_group: "", exercise_type: "", description: "" });
 
-  // --- Effect: Check Admin Role & Fetch Data ---
   React.useEffect(() => {
     const verifyAdminAndFetchData = async () => {
+      if (user?.role !== "admin") {
+        setIsAuthorized(false);
+        return;
+      }
+
       try {
-        const meResponse = await fetch(`${API_BASE_URL}/api/users/me`, { credentials: "include" });
-        if (!meResponse.ok) throw new Error("Unauthorized");
-        
-        const meData = await meResponse.json();
-        if (meData.role !== "admin") {
-          setIsAuthorized(false);
-          return;
-        }
-        
         setIsAuthorized(true);
 
-        const usersResponse = await fetch(`${API_BASE_URL}/api/users`, { credentials: "include" });
+        const usersResponse = await fetch(apiUrl("/api/users"), { credentials: "include" });
         if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
+          const usersData = (await usersResponse.json()) as User[];
           setUsers(usersData);
         }
       } catch {
-  setIsAuthorized(false);
-}
+        setIsAuthorized(false);
+      }
     };
 
-    verifyAdminAndFetchData();
-  }, []);
+    void verifyAdminAndFetchData();
+  }, [user]);
 
-  // --- Handlers: Users ---
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateUser = async (event: React.FormEvent) => {
+    event.preventDefault();
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      const response = await fetch(apiUrl("/api/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newUser),
         credentials: "include",
       });
 
-      if (!response.ok) throw new Error("Error creating user");
-      
+      if (!response.ok) {
+        throw new Error("Error creating user");
+      }
+
       setStatusMessage({ text: "Usuario creado correctamente.", type: "success" });
-      setNewUser({ username: "", email: "", password: "", role: "user" }); // Reset form
-      
-      // Refresh user list
-      const usersResponse = await fetch(`${API_BASE_URL}/api/users`, { credentials: "include" });
-      if (usersResponse.ok) setUsers(await usersResponse.json());
-      
+      setNewUser({ username: "", email: "", password: "", role: "user" });
+
+      const usersResponse = await fetch(apiUrl("/api/users"), { credentials: "include" });
+      if (usersResponse.ok) {
+        setUsers((await usersResponse.json()) as User[]);
+      }
     } catch {
       setStatusMessage({ text: "Error al crear el usuario.", type: "error" });
     }
   };
 
-  const handleDeleteUser = async (id: number) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este usuario?")) return;
-    
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este usuario?")) {
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await fetch(apiUrl(`/api/users/${id}`), {
         method: "DELETE",
         credentials: "include",
       });
 
-      if (!response.ok) throw new Error("Error deleting user");
-      
+      if (!response.ok) {
+        throw new Error("Error deleting user");
+      }
+
       setStatusMessage({ text: "Usuario eliminado.", type: "success" });
-      setUsers(users.filter((user) => user.id !== id));
-    } catch  {
+      setUsers(users.filter((item) => item.id !== id));
+    } catch {
       setStatusMessage({ text: "Error al eliminar el usuario.", type: "error" });
     }
   };
 
-  // --- Handlers: Exercises ---
-  const handleCreateExercise = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateExercise = async (event: React.FormEvent) => {
+    event.preventDefault();
     try {
       const payload = {
         ...newExercise,
-        is_official: true, 
+        is_official: true,
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/exercises`, {
+      const response = await fetch(apiUrl("/api/exercises"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         credentials: "include",
       });
 
-      if (!response.ok) throw new Error("Error creating exercise");
-      
+      if (!response.ok) {
+        throw new Error("Error creating exercise");
+      }
+
       setStatusMessage({ text: "Ejercicio global creado correctamente.", type: "success" });
-      
-      setNewExercise({ name: "", muscle_group: "", exercise_type: "", description: "" }); 
-    } catch  {
+      setNewExercise({ name: "", muscle_group: "", exercise_type: "", description: "" });
+    } catch {
       setStatusMessage({ text: "Error al crear el ejercicio.", type: "error" });
     }
   };
 
-  // --- Render States ---
   if (isAuthorized === null) {
     return <div className="flex min-h-screen items-center justify-center bg-[#f4efe2] text-[#1f1b16]">Cargando panel...</div>;
   }
 
   if (isAuthorized === false) {
-    return <Navigate to="/exercises" replace />; // Kick non-admins out to the exercises page
+    return <Navigate to="/exercises" replace />;
   }
 
-  // --- Main Render ---
   return (
     <main className="min-h-screen overflow-hidden bg-[#f4efe2] text-[#1f1b16]">
       <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-16">
-        
-        {/* Background Gradients (Matching the app theme) */}
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(234,113,48,0.30),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(38,92,82,0.35),_transparent_32%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_44%,_#d8e1d0_100%)]" />
         <div className="absolute left-8 top-10 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/25 blur-sm" />
-        
+
         <div className="mx-auto max-w-5xl">
-          
-          {/* Header & Navigation */}
           <div className="mb-8 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">Administración</p>
@@ -154,17 +146,13 @@ export default function AdminPage() {
             </Link>
           </div>
 
-          {/* Status Message Alert */}
           {statusMessage && (
             <div className={`mb-6 rounded-xl p-4 text-center font-bold ${statusMessage.type === "success" ? "bg-[#265c52]/20 text-[#265c52]" : "bg-[#c94b32]/20 text-[#c94b32]"}`}>
               {statusMessage.text}
             </div>
           )}
 
-          {/* Main Content Glass Panel */}
           <div className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-6 shadow-xl backdrop-blur-md sm:p-8">
-            
-            {/* Tabs */}
             <div className="mb-8 flex border-b border-[#1f1b16]/10">
               <button
                 className={`px-6 py-3 font-bold transition-colors ${activeTab === "users" ? "border-b-2 border-[#ea7130] text-[#ea7130]" : "text-[#5d5348] hover:text-[#1f1b16]"}`}
@@ -180,10 +168,8 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* TAB CONTENT: USERS */}
             {activeTab === "users" && (
               <div className="grid gap-8 lg:grid-cols-3">
-                {/* Create User Form */}
                 <div className="rounded-2xl bg-white/50 p-6 lg:col-span-1">
                   <h3 className="mb-4 text-xl font-black">Nuevo Usuario</h3>
                   <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
@@ -198,17 +184,16 @@ export default function AdminPage() {
                   </form>
                 </div>
 
-                {/* Users List */}
                 <div className="rounded-2xl bg-white/50 p-6 lg:col-span-2">
                   <h3 className="mb-4 text-xl font-black">Usuarios Registrados ({users.length})</h3>
                   <div className="max-h-[400px] overflow-y-auto pr-2">
-                    {users.map((user) => (
-                      <div key={user.id} className="mb-3 flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
+                    {users.map((item) => (
+                      <div key={item.id} className="mb-3 flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
                         <div>
-                          <p className="font-bold">{user.username} <span className="ml-2 rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">{user.role}</span></p>
-                          <p className="text-sm text-gray-500">{user.email}</p>
+                          <p className="font-bold">{item.username} <span className="ml-2 rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">{item.role}</span></p>
+                          <p className="text-sm text-gray-500">{item.email}</p>
                         </div>
-                        <button onClick={() => handleDeleteUser(user.id)} className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-200">
+                        <button onClick={() => handleDeleteUser(item.id)} className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-200">
                           Eliminar
                         </button>
                       </div>
@@ -218,7 +203,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* TAB CONTENT: EXERCISES */}
             {activeTab === "exercises" && (
               <div className="mx-auto max-w-md rounded-2xl bg-white/50 p-6">
                 <h3 className="mb-4 text-xl font-black">Crear Ejercicio Global</h3>
@@ -226,15 +210,11 @@ export default function AdminPage() {
                   <input type="text" placeholder="Nombre del ejercicio (ej: Press Banca)" required className="rounded-xl border-none bg-white p-3 shadow-inner" value={newExercise.name} onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })} />
                   <input type="text" placeholder="Grupo muscular (ej: Pecho)" required className="rounded-xl border-none bg-white p-3 shadow-inner" value={newExercise.muscle_group} onChange={(e) => setNewExercise({ ...newExercise, muscle_group: e.target.value })} />
                   <input type="text" placeholder="Tipo (ej: Fuerza, Cardio)" className="rounded-xl border-none bg-white p-3 shadow-inner" value={newExercise.exercise_type} onChange={(e) => setNewExercise({ ...newExercise, exercise_type: e.target.value })} />
-                  
-                  {/* CORRECTION 4: Added the description input field */}
                   <input type="text" placeholder="Detalle (ej: Tracción horizontal)" className="rounded-xl border-none bg-white p-3 shadow-inner" value={newExercise.description} onChange={(e) => setNewExercise({ ...newExercise, description: e.target.value })} />
-                  
                   <button type="submit" className="mt-2 rounded-xl bg-[#265c52] py-3 font-bold text-[#fffaf0] transition hover:bg-[#1a4039]">Publicar Ejercicio</button>
                 </form>
               </div>
             )}
-
           </div>
         </div>
       </section>
