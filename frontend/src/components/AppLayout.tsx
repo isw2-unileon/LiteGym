@@ -112,7 +112,11 @@ export default function AppLayout({ user }: AppLayoutProps) {
           </div>
         </aside>
 
-        <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-14">
+        <section
+          className={`relative isolate min-h-screen px-6 py-8 transition-[padding] duration-300 sm:px-10 lg:px-14 ${
+            isSidebarOpen ? "lg:pl-[22rem]" : "lg:pl-14"
+          }`}
+        >
           <div className={pageBackground} />
 
           <button
@@ -127,7 +131,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
             &gt;
           </button>
 
-          <div className="mx-auto max-w-5xl pt-12">
+          <div className="mx-auto w-full max-w-[1600px] pt-12">
             <Outlet context={{ user }} />
           </div>
         </section>
