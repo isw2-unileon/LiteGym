@@ -82,39 +82,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 // GetUserByID retrieves a user by ID.
 func (h *UserHandler) GetUserByID(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid user id",
-		})
-		return
-	}
-
-	user, err := h.service.GetByID(c.Request.Context(), id)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidUserInput) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid user id",
-			})
-			return
-		}
-
-		if errors.Is(err, service.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "user not found",
-			})
-			return
-		}
-
-		slog.Error("failed to retrieve user", "error", err, "id", id)
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve user",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, user)
+	respondWithResourceByID(c, h.service.GetByID, getByIDConfig{
+		invalidIDMessage: "invalid user id",
+		notFoundMessage:  "user not found",
+		logMessage:       "failed to retrieve user",
+		internalMessage:  "failed to retrieve user",
+		invalidInputErr:  service.ErrInvalidUserInput,
+		notFoundErr:      service.ErrUserNotFound,
+	})
 }
 
 // GetMe returns the authenticated user profile

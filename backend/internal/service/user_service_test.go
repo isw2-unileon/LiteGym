@@ -182,6 +182,7 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 
 	if user == nil {
 		t.Fatal("expected user profile, got nil")
+		return
 	}
 
 	if user.Username != "profileuser" {

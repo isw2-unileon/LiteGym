@@ -3,32 +3,17 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func setupTestDBService(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-
-	testDBURLService := os.Getenv("TEST_DB_URL")
-	if testDBURLService == "" {
-		t.Skip("TEST_DB_URL is not set; skipping service integration test")
-	}
-
-	db, err := pgxpool.New(context.Background(), testDBURLService)
-	if err != nil {
-		t.Fatalf("error conectando a la base de test: %v", err)
-	}
-
-	if err := db.Ping(context.Background()); err != nil {
-		t.Fatalf("error haciendo ping a la base de test: %v", err)
-	}
-
-	return db
+	return testutil.NewIntegrationTestPool(t)
 }
 
 func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
@@ -61,8 +46,6 @@ func cleanupUsersService(t *testing.T, db *pgxpool.Pool) {
 
 func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -76,7 +59,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		PasswordHash: "plain-password-123",
 	}
 
-	// Create (service should hash the password and persist)
+	// Create the user through the service so the password is hashed before persisting.
 	if err := svc.Create(ctx, user); err != nil {
 		t.Fatalf("expected nil error creating user via service, got: %v", err)
 	}
@@ -88,13 +71,14 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected created user to have CreatedAt set")
 	}
 
-	// Authenticate with correct password
+	// Authenticate with the correct password.
 	authUser, err := svc.Authenticate(ctx, "svccreated@example.com", "plain-password-123")
 	if err != nil {
 		t.Fatalf("expected nil error authenticating user, got: %v", err)
 	}
 	if authUser == nil {
 		t.Fatalf("expected authenticated user, got nil")
+		return
 	}
 	if authUser.ID != user.ID {
 		t.Fatalf("expected auth user ID %s, got %s", user.ID, authUser.ID)
@@ -103,7 +87,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected auth user email %s, got %s", user.Email, authUser.Email)
 	}
 
-	// Authenticate with wrong password
+	// Authenticate with a wrong password.
 	_, err = svc.Authenticate(ctx, "svccreated@example.com", "wrong-password")
 	if err == nil {
 		t.Fatalf("expected error when authenticating with wrong password")
@@ -119,8 +103,6 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)
@@ -147,6 +129,7 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 	}
 	if ret == nil {
 		t.Fatalf("expected user, got nil")
+		return
 	}
 	if ret.ID != user.ID {
 		t.Fatalf("expected ID %s, got %s", user.ID, ret.ID)
@@ -161,8 +144,6 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 
 func TestUserServiceGetByIDNotFoundIntegration(t *testing.T) {
 	db := setupTestDBService(t)
-	defer db.Close()
-
 	cleanupUsersService(t, db)
 
 	repo := repository.NewUserRepository(db)

@@ -80,6 +80,8 @@ linters:
     presets:
       - std-error-handling
       - common-false-positives
+    paths:
+      - frontend/node_modules
     rules:
       - path: "_test\\.go$"
         linters:

@@ -74,7 +74,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username)
+	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username, user.Role)
 	if err != nil {
 		slog.Error("failed to generate auth token", "error", err, "user_id", user.ID)
 
@@ -109,15 +109,18 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
-	email, _ := c.Get(middleware.ContextUserEmailKey)
-	username, _ := c.Get(middleware.ContextUsernameKey)
+	userIDString, _ := userID.(string)
+	user, err := h.userService.GetByID(c.Request.Context(), userIDString)
+	if err != nil {
+		slog.Error("failed to retrieve authenticated user", "error", err, "user_id", userIDString)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to retrieve authenticated user",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"user": gin.H{
-			"id":       userID,
-			"email":    email,
-			"username": username,
-		},
+		"user": user,
 	})
 }
 
