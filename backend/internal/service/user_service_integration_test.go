@@ -59,7 +59,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		PasswordHash: "plain-password-123",
 	}
 
-	// Create (service should hash the password and persist)
+	// Create the user through the service so the password is hashed before persisting.
 	if err := svc.Create(ctx, user); err != nil {
 		t.Fatalf("expected nil error creating user via service, got: %v", err)
 	}
@@ -71,13 +71,14 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected created user to have CreatedAt set")
 	}
 
-	// Authenticate with correct password
+	// Authenticate with the correct password.
 	authUser, err := svc.Authenticate(ctx, "svccreated@example.com", "plain-password-123")
 	if err != nil {
 		t.Fatalf("expected nil error authenticating user, got: %v", err)
 	}
 	if authUser == nil {
 		t.Fatalf("expected authenticated user, got nil")
+		return
 	}
 	if authUser.ID != user.ID {
 		t.Fatalf("expected auth user ID %s, got %s", user.ID, authUser.ID)
@@ -86,7 +87,7 @@ func TestUserServiceCreateAndAuthenticateIntegration(t *testing.T) {
 		t.Fatalf("expected auth user email %s, got %s", user.Email, authUser.Email)
 	}
 
-	// Authenticate with wrong password
+	// Authenticate with a wrong password.
 	_, err = svc.Authenticate(ctx, "svccreated@example.com", "wrong-password")
 	if err == nil {
 		t.Fatalf("expected error when authenticating with wrong password")
@@ -128,6 +129,7 @@ func TestUserServiceGetByIDIntegration(t *testing.T) {
 	}
 	if ret == nil {
 		t.Fatalf("expected user, got nil")
+		return
 	}
 	if ret.ID != user.ID {
 		t.Fatalf("expected ID %s, got %s", user.ID, ret.ID)

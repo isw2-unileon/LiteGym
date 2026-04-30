@@ -16,8 +16,6 @@ type AppLayoutProps = {
 const navigationItems = [
   { label: "Dashboard", to: "/dashboard" },
   { label: "Perfil", to: "/profile" },
-  { label: "Crear rutina", to: "/routines/new" },
-  { label: "Crear ejercicio", to: "/exercises/new" },
   { label: "Mis rutinas", to: "/routines" },
   { label: "Mis ejercicios", to: "/exercises" },
 ];

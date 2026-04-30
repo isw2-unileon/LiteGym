@@ -57,15 +57,7 @@ func (m *mockBodyMetricRepository) ListRecentByUser(ctx context.Context, userID 
 	return []model.OverviewBodyMetricEntry{}, nil
 }
 
-func TestOverviewServiceGetOverview(t *testing.T) {
-	referenceDate := time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC)
-	currentWeight := 78.5
-	previousWeight := 79.2
-	currentBodyFat := 17.9
-	previousBodyFat := 18.5
-	currentMuscleMass := 36.4
-	previousMuscleMass := 36.0
-
+func newOverviewServiceTestSubject(referenceDate time.Time) (*OverviewService, float64) {
 	routineRepo := &mockRoutineRepository{
 		listRecentByUserFunc: func(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 			return []model.OverviewRoutineSummary{{ID: "routine-1", Name: "Push Pull Legs", ExerciseCount: 3}}, nil
@@ -76,14 +68,6 @@ func TestOverviewServiceGetOverview(t *testing.T) {
 			return []model.OverviewWorkoutSummary{{ID: "workout-1", Name: "Push Day", DurationMinutes: 70, ExerciseCount: 3}}, nil
 		},
 		listTrainingDatesInRangeFunc: func(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
-			if from.Month() == time.April && from.Day() == 1 {
-				return []time.Time{
-					time.Date(2026, time.April, 28, 0, 0, 0, 0, time.UTC),
-					time.Date(2026, time.April, 27, 0, 0, 0, 0, time.UTC),
-					time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC),
-				}, nil
-			}
-
 			return []time.Time{
 				time.Date(2026, time.April, 28, 0, 0, 0, 0, time.UTC),
 				time.Date(2026, time.April, 27, 0, 0, 0, 0, time.UTC),
@@ -91,20 +75,16 @@ func TestOverviewServiceGetOverview(t *testing.T) {
 			}, nil
 		},
 		listMuscleDistributionByUserFunc: func(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
-			if from.Month() == time.April && from.Day() == 1 {
-				return []model.OverviewMuscleGroupShare{
-					{Name: "back", Count: 2, Percentage: 67},
-					{Name: "chest", Count: 1, Percentage: 33},
-				}, 3, nil
-			}
-
-			return []model.OverviewMuscleGroupShare{
-				{Name: "back", Count: 5, Percentage: 50},
-				{Name: "chest", Count: 3, Percentage: 30},
-				{Name: "legs", Count: 2, Percentage: 20},
-			}, 10, nil
+			return overviewMuscleDistributionFixture(from)
 		},
 	}
+
+	currentWeight := 78.5
+	previousWeight := 79.2
+	currentBodyFat := 17.9
+	previousBodyFat := 18.5
+	currentMuscleMass := 36.4
+	previousMuscleMass := 36.0
 	bodyMetricRepo := &mockBodyMetricRepository{
 		listRecentByUserFunc: func(ctx context.Context, userID string, limit int) ([]model.OverviewBodyMetricEntry, error) {
 			return []model.OverviewBodyMetricEntry{
@@ -124,12 +104,26 @@ func TestOverviewServiceGetOverview(t *testing.T) {
 		},
 	}
 
-	svc := NewOverviewService(routineRepo, workoutRepo, bodyMetricRepo)
+	return NewOverviewService(routineRepo, workoutRepo, bodyMetricRepo), currentWeight
+}
 
-	overview, err := svc.GetOverview(context.Background(), "11111111-1111-1111-1111-111111111111", referenceDate)
-	if err != nil {
-		t.Fatalf("unexpected error building dashboard overview: %v", err)
+func overviewMuscleDistributionFixture(from time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
+	if from.Month() == time.April && from.Day() == 1 {
+		return []model.OverviewMuscleGroupShare{
+			{Name: "back", Count: 2, Percentage: 67},
+			{Name: "chest", Count: 1, Percentage: 33},
+		}, 3, nil
 	}
+
+	return []model.OverviewMuscleGroupShare{
+		{Name: "back", Count: 5, Percentage: 50},
+		{Name: "chest", Count: 3, Percentage: 30},
+		{Name: "legs", Count: 2, Percentage: 20},
+	}, 10, nil
+}
+
+func assertOverviewPayload(t *testing.T, overview model.Overview, currentWeight float64) {
+	t.Helper()
 
 	if overview.Calendar.Month != "2026-04" {
 		t.Fatalf("expected month 2026-04, got %s", overview.Calendar.Month)
@@ -166,6 +160,18 @@ func TestOverviewServiceGetOverview(t *testing.T) {
 	if overview.MuscleDistribution.MonthExerciseCount != 3 {
 		t.Fatalf("expected month exercise count 3, got %d", overview.MuscleDistribution.MonthExerciseCount)
 	}
+}
+
+func TestOverviewServiceGetOverview(t *testing.T) {
+	referenceDate := time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC)
+	svc, currentWeight := newOverviewServiceTestSubject(referenceDate)
+
+	overview, err := svc.GetOverview(context.Background(), "11111111-1111-1111-1111-111111111111", referenceDate)
+	if err != nil {
+		t.Fatalf("unexpected error building dashboard overview: %v", err)
+	}
+
+	assertOverviewPayload(t, overview, currentWeight)
 }
 
 func TestOverviewServiceGetOverviewRequiresUserID(t *testing.T) {

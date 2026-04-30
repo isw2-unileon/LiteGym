@@ -38,8 +38,8 @@ func TestRoutineRepositoryListRecentByUserIntegration(t *testing.T) {
 		IsOfficial:   true,
 	})
 
-	oldRoutineID := insertRoutineRawRepository(t, db, userID, "Rutina vieja", "Descripcion vieja", time.Now().Add(-48*time.Hour))
-	newRoutineID := insertRoutineRawRepository(t, db, userID, "Rutina nueva", "Descripcion nueva", time.Now().Add(-2*time.Hour))
+	oldRoutineID := insertRoutineRawRepository(t, db, userID, "Rutina vieja", "Description antigua", time.Now().Add(-48*time.Hour))
+	newRoutineID := insertRoutineRawRepository(t, db, userID, "Rutina nueva", "Description reciente", time.Now().Add(-2*time.Hour))
 
 	if _, err := db.Exec(context.Background(), `
 		INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
@@ -190,7 +190,7 @@ func TestBodyMetricRepositoryListRecentByUserIntegration(t *testing.T) {
 	}
 
 	if len(entries) != 2 {
-		t.Fatalf("se esperaban 2 metricas, pero se obtuvieron %d", len(entries))
+		t.Fatalf("se esperaban 2 medidas, pero se obtuvieron %d", len(entries))
 	}
 
 	if entries[0].WeightKg == nil || *entries[0].WeightKg != 78.5 {

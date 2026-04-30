@@ -91,6 +91,7 @@ func TestExerciseServiceGetByIDIntegration(t *testing.T) {
 
 	if exercise == nil {
 		t.Fatal("expected exercise, got nil")
+		return
 	}
 	if exercise.ID != insertedID {
 		t.Fatalf("expected ID %s, got %s", insertedID, exercise.ID)
