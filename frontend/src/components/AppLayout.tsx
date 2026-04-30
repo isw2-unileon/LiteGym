@@ -99,6 +99,14 @@ export default function AppLayout({ user }: AppLayoutProps) {
           </nav>
 
           <div className="mt-8 border-t border-white/10 pt-5">
+            {/* support link */}
+            <Link 
+              to="/support" 
+              className="mb-6 block text-sm font-bold text-[#fffaf0]/80 transition hover:text-[#f1a45b]"
+            >
+              Soporte Técnico
+            </Link>
+
             <p className="mb-4 text-xs font-semibold text-[#fffaf0]/65">
               {user?.username ?? user?.email ?? "Usuario"}
             </p>

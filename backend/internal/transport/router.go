@@ -24,6 +24,7 @@ func SetupRouter(
 	authMiddleware *middleware.AuthMiddleware,
 	exerciseHandler *handlers.ExerciseHandler,
 	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
@@ -91,6 +92,12 @@ func SetupRouter(
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+
+	// Tickets
+	protected.POST("/tickets", ticketHandler.CreateTicket)
+	protected.GET("/tickets", ticketHandler.ListTickets)
+	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
+
 	return r
 }
 

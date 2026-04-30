@@ -3,11 +3,10 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"testing"
-
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
