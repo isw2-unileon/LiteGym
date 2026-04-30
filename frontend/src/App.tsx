@@ -1,8 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import AuthenticatedLayoutRoute from "./components/AuthenticatedLayoutRoute";
 import AdminPage from "./pages/AdminPage";
-import CreateExercisePage from "./pages/CreateExercisePage";
-import CreateRoutinePage from "./pages/CreateRoutinePage";
 import DashboardPage from "./pages/DashboardPage";
 import ExercisePage from "./pages/ExercisePage";
 import LoginPage from "./pages/LoginPage";
@@ -19,8 +17,6 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/exercises" element={<ExercisePage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/routines/new" element={<CreateRoutinePage />} />
-        <Route path="/exercises/new" element={<CreateExercisePage />} />
         <Route path="/routines" element={<UserRoutinesPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/support" element={<SupportPage />} />

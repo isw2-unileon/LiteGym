@@ -16,8 +16,6 @@ type AppLayoutProps = {
 const navigationItems = [
   { label: "Dashboard", to: "/dashboard" },
   { label: "Perfil", to: "/profile" },
-  { label: "Crear rutina", to: "/routines/new" },
-  { label: "Crear ejercicio", to: "/exercises/new" },
   { label: "Mis rutinas", to: "/routines" },
   { label: "Mis ejercicios", to: "/exercises" },
 ];
@@ -27,7 +25,7 @@ const pageBackground =
 
 export default function AppLayout({ user }: AppLayoutProps) {
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAdmin = user?.role === "admin";
 
   const handleLogout = async () => {
@@ -99,9 +97,8 @@ export default function AppLayout({ user }: AppLayoutProps) {
           </nav>
 
           <div className="mt-8 border-t border-white/10 pt-5">
-            {/* support link */}
-            <Link 
-              to="/support" 
+            <Link
+              to="/support"
               className="mb-6 block text-sm font-bold text-[#fffaf0]/80 transition hover:text-[#f1a45b]"
             >
               Soporte Técnico
@@ -120,7 +117,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
           </div>
         </aside>
 
-        <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-14">
+        <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
           <div className={pageBackground} />
 
           <button
@@ -135,7 +132,13 @@ export default function AppLayout({ user }: AppLayoutProps) {
             &gt;
           </button>
 
-          <div className="mx-auto max-w-5xl pt-12">
+          <div
+            className={`mx-auto pt-3 transition-[max-width,padding] duration-300 ${
+              isSidebarOpen
+                ? "max-w-6xl lg:max-w-[min(1100px,calc(100vw-9rem))] xl:max-w-[min(1180px,calc(100vw-10rem))]"
+                : "max-w-7xl lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]"
+            }`}
+          >
             <Outlet context={{ user }} />
           </div>
         </section>

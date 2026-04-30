@@ -23,6 +23,7 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	exerciseHandler *handlers.ExerciseHandler,
+	overviewHandler *handlers.OverviewHandler,
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	corsAllowOrigin ...string,
@@ -92,6 +93,9 @@ func SetupRouter(
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+
+	// Dashboard
+	protected.GET("/dashboard", overviewHandler.GetOverview)
 
 	// Tickets
 	protected.POST("/tickets", ticketHandler.CreateTicket)
