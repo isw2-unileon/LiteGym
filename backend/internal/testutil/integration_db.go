@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -8,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 const integrationDBAdvisoryLockKey int64 = 20260424
@@ -43,7 +45,7 @@ func LoadIntegrationDBURL(t *testing.T) string {
 		testDBURL = strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	}
 	if testDBURL == "" {
-		t.Fatal("TEST_DB_URL is not set and DATABASE_URL is not available as fallback")
+		t.Skip("skipping integration test: TEST_DB_URL/DATABASE_URL not set. To run them, start Postgres with `make start-postgres-db` and run `make test-integration`.")
 	}
 
 	parsed, err := url.Parse(testDBURL)
@@ -61,7 +63,7 @@ func LoadIntegrationDBURL(t *testing.T) string {
 
 	dbName := strings.TrimPrefix(parsed.Path, "/")
 	if dbName != "test_db" {
-		t.Fatalf("integration database URL must point to test_db, got %q", dbName)
+		t.Fatalf("integration database URL must point to test_db, got %q. Use TEST_DB_URL=postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable", dbName)
 	}
 
 	resolvedURL := parsed.String()
@@ -85,6 +87,9 @@ func NewIntegrationTestPool(t *testing.T) *pgxpool.Pool {
 
 	if err := db.Ping(t.Context()); err != nil {
 		db.Close()
+		if canSkipIntegrationDBError(err) {
+			t.Skipf("skipping integration test: test database is not reachable (%v). Start it with `make start-postgres-db`, then run `make test-integration`.", err)
+		}
 		t.Fatalf("error haciendo ping a la base de test: %v", err)
 	}
 
@@ -107,4 +112,17 @@ func NewIntegrationTestPool(t *testing.T) *pgxpool.Pool {
 	})
 
 	return db
+}
+
+func canSkipIntegrationDBError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := err.Error()
+	return errors.Is(err, pgx.ErrNoRows) ||
+		strings.Contains(message, "connection refused") ||
+		strings.Contains(message, "socket: operation not permitted") ||
+		strings.Contains(message, "dial error") ||
+		strings.Contains(message, "timeout")
 }
