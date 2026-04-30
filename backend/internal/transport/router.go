@@ -25,6 +25,7 @@ func SetupRouter(
 	exerciseHandler *handlers.ExerciseHandler,
 	overviewHandler *handlers.OverviewHandler,
 	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
@@ -95,6 +96,12 @@ func SetupRouter(
 
 	// Dashboard
 	protected.GET("/dashboard", overviewHandler.GetOverview)
+
+	// Tickets
+	protected.POST("/tickets", ticketHandler.CreateTicket)
+	protected.GET("/tickets", ticketHandler.ListTickets)
+	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
+
 	return r
 }
 

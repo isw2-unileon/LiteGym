@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import NotFoundRedirect from "./pages/NotFoundRedirect";
 import ProfilePage from "./pages/ProfilePage";
 import UserRoutinesPage from "./pages/UserRoutinesPage";
+import SupportPage from "./pages/SupportPage";
 
 export default function App() {
   return (
@@ -22,6 +23,8 @@ export default function App() {
         <Route path="/exercises/new" element={<CreateExercisePage />} />
         <Route path="/routines" element={<UserRoutinesPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/support" element={<SupportPage />} />
+        
       </Route>
       <Route path="*" element={<NotFoundRedirect />} />
     </Routes>

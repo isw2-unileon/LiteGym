@@ -48,12 +48,14 @@ func main() {
 	routineRepo := repository.NewRoutineRepository(db)
 	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
+	ticketRepo := repository.NewTicketRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, workoutSessionRepo, bodyMetricRepo)
+	ticketService := service.NewTicketService(ticketRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
@@ -61,6 +63,7 @@ func main() {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
+	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
 	r := transport.SetupRouter(
@@ -71,6 +74,7 @@ func main() {
 		exerciseHandler,
 		overviewHandler,
 		healthHandler,
+		ticketHandler,
 		cfg.CORSAllowOrigin,
 	)
 
