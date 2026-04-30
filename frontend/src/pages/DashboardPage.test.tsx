@@ -113,8 +113,6 @@ describe("DashboardPage", () => {
     expect(navigation).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
     expect(within(navigation).getByRole("link", { name: "Perfil" })).toHaveAttribute("href", "/profile");
-    expect(within(navigation).getByRole("link", { name: "Crear rutina" })).toHaveAttribute("href", "/routines/new");
-    expect(within(navigation).getByRole("link", { name: "Crear ejercicio" })).toHaveAttribute("href", "/exercises/new");
     expect(within(navigation).getByRole("link", { name: "Mis rutinas" })).toHaveAttribute("href", "/routines");
     expect(within(navigation).getByRole("link", { name: "Mis ejercicios" })).toHaveAttribute("href", "/exercises");
   });

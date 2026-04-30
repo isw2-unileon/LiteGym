@@ -154,7 +154,10 @@ func TestWorkoutSessionRepositoryIntegration(t *testing.T) {
 		t.Fatalf("se esperaba 1 fecha de entreno este mes, pero se obtuvieron %d", len(dates))
 	}
 
-	shares, total, err := repo.ListMuscleDistributionByUser(context.Background(), userID, now.AddDate(0, -1, 0), now.AddDate(0, 0, 1))
+	distributionStart := monthStart.AddDate(0, 0, -2)
+	distributionEnd := now.AddDate(0, 0, 1)
+
+	shares, total, err := repo.ListMuscleDistributionByUser(context.Background(), userID, distributionStart, distributionEnd)
 	if err != nil {
 		t.Fatalf("no se esperaba error en ListMuscleDistributionByUser, pero se obtuvo: %v", err)
 	}
