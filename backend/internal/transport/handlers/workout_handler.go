@@ -24,27 +24,27 @@ func NewWorkoutHandler(svc *service.WorkoutService) *WorkoutHandler {
 	}
 }
 
-type CreateWorkoutRequest struct {
+type createWorkoutRequest struct {
 	UserID    uuid.UUID  `json:"user_id"`
 	RoutineID *uuid.UUID `json:"routine_id"`
 	Name      string     `json:"name"`
 	Notes     *string    `json:"notes"`
 }
 
-type FinishWorkoutRequest struct {
+type finishWorkoutRequest struct {
 	Name           string   `json:"name"`
 	Duration       *int     `json:"duration_minutes"`
 	CaloriesBurned *float64 `json:"calories_burned"`
 	Notes          *string  `json:"notes"`
 }
 
-type CreateExerciseToWorkoutRequest struct {
+type createExerciseToWorkoutRequest struct {
 	ExerciseID    uuid.UUID `json:"exercise_id"`
 	ExerciseOrder int       `json:"exercise_order"`
 	Notes         string    `json:"notes"`
 }
 
-type CreateSetToExerciseRequest struct {
+type createSetToExerciseRequest struct {
 	SetNumber   int      `json:"set_number"`
 	Repetitions *int     `json:"reps"`
 	WeightKg    *float64 `json:"weight_kg"`
@@ -59,7 +59,7 @@ type CreateSetToExerciseRequest struct {
 // CreateWorkout handles the HTTP Request for creating a new Workout via the
 // API Route /api/workout/start
 func (h *WorkoutHandler) CreateWorkout(c *gin.Context) {
-	var req CreateWorkoutRequest
+	var req createWorkoutRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -106,7 +106,7 @@ func (h *WorkoutHandler) FinishWorkout(c *gin.Context) {
 		return
 	}
 
-	var req FinishWorkoutRequest
+	var req finishWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body",
@@ -149,39 +149,16 @@ func (h *WorkoutHandler) FinishWorkout(c *gin.Context) {
 // GetWorkoutByID handles the HTTP Request for getting a Workout Session using the
 // Session ID via the API Route /api/workout/:id
 func (h *WorkoutHandler) GetWorkoutByID(c *gin.Context) {
-	workoutID := c.Param("id")
-	parsedWorkoutID, ok := ParseUUID(workoutID)
+	parsedWorkoutID, ok := ParseUUID(c.Param("id"))
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid workout id",
-		})
-		c.Abort()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout id"})
 		return
 	}
 
 	session, err := h.service.GetSessionByID(c.Request.Context(), parsedWorkoutID)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidWorkoutSessionInput) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid workout id",
-			})
-			return
-		}
-		if errors.Is(err, service.ErrWorkoutNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "workout session not found",
-			})
-			return
-		}
-
-		slog.Error("failed to retrieve workout session", "error", err, "workout_id", workoutID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve workout session",
-		})
+	if handleWorkoutError(c, err, "failed to retrieve workout session", "workout_id", c.Param("id")) {
 		return
-
 	}
-
 	c.JSON(http.StatusOK, session)
 }
 
@@ -237,7 +214,7 @@ func (h *WorkoutHandler) CreateWorkoutExercise(c *gin.Context) {
 		return
 	}
 
-	var req CreateExerciseToWorkoutRequest
+	var req createExerciseToWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body",
@@ -273,38 +250,16 @@ func (h *WorkoutHandler) CreateWorkoutExercise(c *gin.Context) {
 // GetExercisesByWorkoutID handles the HTTP Request for getting the Exercises using the
 // associated Workout Session ID via the API Route /api/workout/:id/exercises
 func (h *WorkoutHandler) GetExercisesByWorkoutID(c *gin.Context) {
-	workoutID := c.Param("id")
-	parsedWorkoutID, ok := ParseUUID(workoutID)
+	parsedWorkoutID, ok := ParseUUID(c.Param("id"))
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid workout id",
-		})
-		c.Abort()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout id"})
 		return
 	}
 
 	exercises, err := h.service.GetWorkoutExercisesBySessionID(c.Request.Context(), parsedWorkoutID)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidWorkoutExerciseInput) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid workout id",
-			})
-			return
-		}
-		if errors.Is(err, service.ErrWorkoutExerciseNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "workout session not found",
-			})
-			return
-		}
-
-		slog.Error("failed to retrieve exercises for workout session", "error", err, "workout_id", workoutID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve exercises for workout session",
-		})
+	if handleWorkoutError(c, err, "failed to retrieve exercises for workout session", "workout_id", c.Param("id")) {
 		return
 	}
-
 	c.JSON(http.StatusOK, exercises)
 }
 
@@ -331,7 +286,7 @@ func (h *WorkoutHandler) CreateWorkoutSet(c *gin.Context) {
 		c.Abort()
 	}
 
-	var req CreateSetToExerciseRequest
+	var req createSetToExerciseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body",
@@ -438,7 +393,7 @@ func (h *WorkoutHandler) UpdateWorkoutSet(c *gin.Context) {
 		c.Abort()
 	}
 
-	var req CreateSetToExerciseRequest
+	var req createSetToExerciseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid request body",
@@ -491,4 +446,26 @@ func ParseUUID(uuidStr string) (uuid.UUID, bool) {
 // TimePointer helps to parse a Time.time to a pointer to use the nil value if needed
 func TimePointer(t time.Time) *time.Time {
 	return &t
+}
+
+// handleWorkoutError writes the appropriate HTTP response for known service errors.
+// Returns true if an error was handled (so the caller can return early).
+func handleWorkoutError(c *gin.Context, err error, logMsg string, logArgs ...any) bool {
+	if err == nil {
+		return false
+	}
+	switch {
+	case errors.Is(err, service.ErrInvalidWorkoutSessionInput),
+		errors.Is(err, service.ErrInvalidWorkoutExerciseInput),
+		errors.Is(err, service.ErrInvalidWorkoutSetInput):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, service.ErrWorkoutNotFound),
+		errors.Is(err, service.ErrWorkoutExerciseNotFound),
+		errors.Is(err, service.ErrWorkoutSetNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	default:
+		slog.Error(logMsg, append([]any{"error", err}, logArgs...)...)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": logMsg})
+	}
+	return true
 }
