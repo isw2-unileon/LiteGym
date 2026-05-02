@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -119,14 +120,8 @@ func TestWorkoutHandlerCreateWorkout(t *testing.T) {
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
 
-	reqBody := CreateWorkoutRequest{
-		UserID: uuid.New(),
-		Name:   "Routine 1",
-		Notes:  strPointer("This are notes"),
-	}
-
-	body := mustMarshalJSON(t, reqBody)
-	ctx.Request = httptest.NewRequest("POST", "/api/workout", bytes.NewBuffer(body))
+	jsonPayload := fmt.Sprintf(`{"user_id":"%s","name":"Routine 1","notes":"This are notes"}`, uuid.New().String())
+	ctx.Request = httptest.NewRequest("POST", "/api/workout", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
 	workoutHandler.CreateWorkout(ctx)
@@ -199,14 +194,8 @@ func TestWorkoutHandlerCreateWorkoutInternalServerError(t *testing.T) {
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
 
-	reqBody := CreateWorkoutRequest{
-		UserID: uuid.New(),
-		Name:   "Routine 1",
-		Notes:  strPointer("This are notes"),
-	}
-
-	body := mustMarshalJSON(t, reqBody)
-	ctx.Request = httptest.NewRequest("POST", "/api/workout", bytes.NewBuffer(body))
+	jsonPayload := fmt.Sprintf(`{"user_id":"%s","name":"Routine 1","notes":"This are notes"}`, uuid.New().String())
+	ctx.Request = httptest.NewRequest("POST", "/api/workout", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
 	workoutHandler.CreateWorkout(ctx)
@@ -539,14 +528,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseSuccess(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 3,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":3,"notes":"These are notes"}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusCreated {
@@ -570,14 +555,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInvalidWorkoutID(t *testing.T) {
 
 	workoutID := uuid.Nil
 	exerciseID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 3,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":3,"notes":"These are notes"}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -601,14 +582,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInvalidExerciseID(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.Nil
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 3,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":3,"notes":"These are notes"}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -632,14 +609,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInvalidExerciseOrder(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 0,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":0,"notes":"These are notes"}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -663,14 +636,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInvalidNotes(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 3,
-		Notes:         "",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":3,"notes":""}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -694,14 +663,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInternalServerError(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseID:    exerciseID,
-		ExerciseOrder: 3,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := fmt.Sprintf(`{"exercise_id":"%s","exercise_order":3,"notes":"These are notes"}`, exerciseID.String())
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusInternalServerError {
@@ -724,13 +689,10 @@ func TestWorkoutHandlerCreateWorkoutExerciseInvalidJSON(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(w)
 
 	workoutID := uuid.New()
-	exerciseBody := CreateExerciseToWorkoutRequest{
-		ExerciseOrder: 3,
-		Notes:         "These are notes",
-	}
-	body := mustMarshalJSON(t, exerciseBody)
+
+	jsonPayload := `{"exercise_order":3,"notes":"These are notes"}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}}
-	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBuffer(body))
+	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercise", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutExercise(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -854,19 +816,11 @@ func TestWorkoutHandlerCreateWorkoutSetSuccessFalse(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(false),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":false}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusCreated {
@@ -890,19 +844,11 @@ func TestWorkoutHandlerCreateWorkoutSetSuccessTrue(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusCreated {
@@ -926,19 +872,11 @@ func TestWorkoutHandlerCreateWorkoutSetInvalidWorkoutID(t *testing.T) {
 
 	workoutID := uuid.Nil
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -962,19 +900,11 @@ func TestWorkoutHandlerCreateWorkoutSetInvalidExerciseID(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.Nil
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -998,19 +928,11 @@ func TestWorkoutHandlerCreateWorkoutSetInvalidSetNumber(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   0,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":0,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1034,19 +956,12 @@ func TestWorkoutHandlerCreateWorkoutSetInvalidCompleted(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   nil,
-	}
-	body := mustMarshalJSON(t, set)
+
+	// Completed omitted
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1070,19 +985,11 @@ func TestWorkoutHandlerCreateWorkoutSetInternalServerError(t *testing.T) {
 
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+"/exercises/"+
-		exerciseID.String()+"/set", bytes.NewBuffer(body))
+		exerciseID.String()+"/set", bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.CreateWorkoutSet(ctx)
 	if w.Code != http.StatusInternalServerError {
@@ -1241,19 +1148,11 @@ func TestWorkoutHandlerUpdateWorkoutSetSuccess(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusNoContent {
@@ -1278,19 +1177,11 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidWorkoutID(t *testing.T) {
 	workoutID := uuid.Nil
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1315,19 +1206,11 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidExerciseID(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.Nil
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1352,19 +1235,11 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidSetID(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.Nil
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1389,19 +1264,11 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidSeNumber(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   0,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":0,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1426,19 +1293,12 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidCompleted(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   nil,
-	}
-	body := mustMarshalJSON(t, set)
+
+	// Completed omitted
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1463,19 +1323,11 @@ func TestWorkoutHandlerUpdateWorkoutSetNotFound(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusNotFound {
@@ -1500,18 +1352,11 @@ func TestWorkoutHandlerUpdateWorkoutSetInvalidJSON(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.Nil
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusBadRequest {
@@ -1536,39 +1381,14 @@ func TestWorkoutHandlerUpdateWorkoutSetInternalServerError(t *testing.T) {
 	workoutID := uuid.New()
 	exerciseID := uuid.New()
 	setID := uuid.New()
-	set := CreateSetToExerciseRequest{
-		SetNumber:   1,
-		Repetitions: intPointer(10),
-		WeightKg:    floatPointer(50.0),
-		Duration:    intPointer(30),
-		DistanceKm:  floatPointer(0.0),
-		Rir:         intPointer(2),
-		Completed:   boolPointer(true),
-	}
-	body := mustMarshalJSON(t, set)
+
+	jsonPayload := `{"set_number":1,"repetitions":10,"weight_kg":50.0,"duration":30,"distance_km":0.0,"rir":2,"completed":true}`
 	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
 	ctx.Request = httptest.NewRequest("POST", "/api/workout/"+workoutID.String()+
-		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBuffer(body))
+		"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), bytes.NewBufferString(jsonPayload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
 }
-
-func intPointer(i int) *int {
-	return &i
-}
-
-func floatPointer(f float64) *float64 {
-	return &f
-}
-
-func boolPointer(b bool) *bool {
-	return &b
-}
-
-func strPointer(s string) *string {
-	return &s
-}
-
