@@ -49,6 +49,7 @@ func main() {
 	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
 	ticketRepo := repository.NewTicketRepository(db)
+	workoutRepo := repository.NewWorkoutRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -56,6 +57,7 @@ func main() {
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, workoutSessionRepo, bodyMetricRepo)
 	ticketService := service.NewTicketService(ticketRepo)
+	workoutService := service.NewWorkoutService(workoutRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
@@ -64,6 +66,7 @@ func main() {
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
 	r := transport.SetupRouter(
@@ -75,6 +78,7 @@ func main() {
 		overviewHandler,
 		healthHandler,
 		ticketHandler,
+		workoutHandler,
 		cfg.CORSAllowOrigin,
 	)
 
