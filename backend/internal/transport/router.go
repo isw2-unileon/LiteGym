@@ -23,7 +23,10 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	exerciseHandler *handlers.ExerciseHandler,
+	overviewHandler *handlers.OverviewHandler,
 	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
+	workoutHandler *handlers.WorkoutHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
@@ -91,6 +94,26 @@ func SetupRouter(
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+
+	// Dashboard
+	protected.GET("/dashboard", overviewHandler.GetOverview)
+
+	// Tickets
+	protected.POST("/tickets", ticketHandler.CreateTicket)
+	protected.GET("/tickets", ticketHandler.ListTickets)
+	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
+
+	// Workout
+	protected.POST("/workout/start", workoutHandler.CreateWorkout)
+	protected.GET("/workout/:id", workoutHandler.GetWorkoutByID)
+	protected.POST("/workout/:id/finish", workoutHandler.FinishWorkout)
+	protected.DELETE("/workout/:id", workoutHandler.RemoveWorkout)
+	protected.POST("/workout/:id/exercise", workoutHandler.CreateWorkoutExercise)
+	protected.GET("/workout/:id/exercises", workoutHandler.GetExercisesByWorkoutID)
+	protected.POST("/workout/:id/exercises/:exercise_id/set", workoutHandler.CreateWorkoutSet)
+	protected.GET("/workout/:id/exercises/:exercise_id/sets", workoutHandler.GetWorkoutSetsByExerciseID)
+	protected.POST("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.UpdateWorkoutSet)
+
 	return r
 }
 

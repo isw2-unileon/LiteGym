@@ -52,7 +52,7 @@ func insertExerciseRawRepository(t *testing.T, db *pgxpool.Pool, exercise model.
 		RETURNING id::text
 	`, exercise.Name, exercise.Description, exercise.MuscleGroup, exercise.ExerciseType, exercise.IsOfficial).Scan(&id)
 	if err != nil {
-		t.Fatalf("error insertando en public.exercises: %v", err)
+		t.Fatalf("error inserting into public.exercises: %v", err)
 	}
 
 	if exercise.SecondaryMuscleGroup != "" {
@@ -61,7 +61,7 @@ func insertExerciseRawRepository(t *testing.T, db *pgxpool.Pool, exercise model.
 			VALUES ($1::uuid, $2)
 		`, id, exercise.SecondaryMuscleGroup)
 		if err != nil {
-			t.Fatalf("error insertando secondary muscle group: %v", err)
+			t.Fatalf("error inserting secondary muscle group: %v", err)
 		}
 	}
 
@@ -84,15 +84,15 @@ func TestExerciseRepositoryCreateIntegration(t *testing.T) {
 	}
 
 	if err := repo.Create(context.Background(), exercise); err != nil {
-		t.Fatalf("no se esperaba error en Create, pero se obtuvo: %v", err)
+		t.Fatalf("expected no error from Create, got: %v", err)
 	}
 
 	if exercise.ID == "" {
-		t.Fatal("se esperaba que el ejercicio tuviera ID tras el Create")
+		t.Fatal("expected exercise to have ID after Create")
 	}
 
 	if exercise.CreatedAt.IsZero() {
-		t.Fatal("se esperaba que el ejercicio tuviera CreatedAt tras el Create")
+		t.Fatal("expected exercise to have CreatedAt after Create")
 	}
 
 	var (
@@ -125,26 +125,26 @@ func TestExerciseRepositoryCreateIntegration(t *testing.T) {
 		&dbSecondaryMusl,
 	)
 	if err != nil {
-		t.Fatalf("error comprobando ejercicio creado en la base: %v", err)
+		t.Fatalf("error checking created exercise in database: %v", err)
 	}
 
 	if dbName != exercise.Name {
-		t.Fatalf("name incorrecto: esperado %s, obtenido %s", exercise.Name, dbName)
+		t.Fatalf("incorrect name: expected %s, got %s", exercise.Name, dbName)
 	}
 	if dbDescription != exercise.Description {
-		t.Fatalf("description incorrecta: esperada %s, obtenida %s", exercise.Description, dbDescription)
+		t.Fatalf("incorrect description: expected %s, got %s", exercise.Description, dbDescription)
 	}
 	if dbMuscleGroup != exercise.MuscleGroup {
-		t.Fatalf("muscle_group incorrecto: esperado %s, obtenido %s", exercise.MuscleGroup, dbMuscleGroup)
+		t.Fatalf("incorrect muscle_group: expected %s, got %s", exercise.MuscleGroup, dbMuscleGroup)
 	}
 	if dbExerciseType != exercise.ExerciseType {
-		t.Fatalf("exercise_type incorrecto: esperado %s, obtenido %s", exercise.ExerciseType, dbExerciseType)
+		t.Fatalf("incorrect exercise_type: expected %s, got %s", exercise.ExerciseType, dbExerciseType)
 	}
 	if dbIsOfficial != exercise.IsOfficial {
-		t.Fatalf("is_official incorrecto: esperado %t, obtenido %t", exercise.IsOfficial, dbIsOfficial)
+		t.Fatalf("incorrect is_official: expected %t, got %t", exercise.IsOfficial, dbIsOfficial)
 	}
 	if dbSecondaryMusl != exercise.SecondaryMuscleGroup {
-		t.Fatalf("secondary_muscle_group incorrecto: esperado %s, obtenido %s", exercise.SecondaryMuscleGroup, dbSecondaryMusl)
+		t.Fatalf("incorrect secondary_muscle_group: expected %s, got %s", exercise.SecondaryMuscleGroup, dbSecondaryMusl)
 	}
 }
 
@@ -165,24 +165,25 @@ func TestExerciseRepositoryGetByIDIntegration(t *testing.T) {
 
 	exercise, err := repo.GetByID(context.Background(), insertedID)
 	if err != nil {
-		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
+		t.Fatalf("expected no error from GetByID, got: %v", err)
 	}
 
 	if exercise == nil {
-		t.Fatal("se esperaba un ejercicio, pero se obtuvo nil")
+		t.Fatal("expected exercise, got nil")
+		return
 	}
 
 	if exercise.ID != insertedID {
-		t.Fatalf("id incorrecto: esperado %s, obtenido %s", insertedID, exercise.ID)
+		t.Fatalf("incorrect id: expected %s, got %s", insertedID, exercise.ID)
 	}
 	if exercise.Name != "Squat" {
-		t.Fatalf("name incorrecto: esperado Squat, obtenido %s", exercise.Name)
+		t.Fatalf("incorrect name: expected Squat, got %s", exercise.Name)
 	}
 	if exercise.SecondaryMuscleGroup != "glutes" {
-		t.Fatalf("secondary muscle group incorrecto: esperado glutes, obtenido %s", exercise.SecondaryMuscleGroup)
+		t.Fatalf("incorrect secondary muscle group: expected glutes, got %s", exercise.SecondaryMuscleGroup)
 	}
 	if exercise.CreatedAt.IsZero() {
-		t.Fatal("se esperaba CreatedAt informado")
+		t.Fatal("expected CreatedAt to be set")
 	}
 }
 
@@ -194,15 +195,15 @@ func TestExerciseRepositoryGetByIDNotFoundIntegration(t *testing.T) {
 
 	exercise, err := repo.GetByID(context.Background(), "550e8400-e29b-41d4-a716-446655449999")
 	if err == nil {
-		t.Fatal("se esperaba error al buscar un ejercicio inexistente")
+		t.Fatal("expected error when finding a missing exercise")
 	}
 
 	if exercise != nil {
-		t.Fatalf("se esperaba ejercicio nil, pero se obtuvo: %#v", exercise)
+		t.Fatalf("expected nil exercise, got: %#v", exercise)
 	}
 
 	if !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatalf("se esperaba pgx.ErrNoRows, pero se obtuvo: %v", err)
+		t.Fatalf("expected pgx.ErrNoRows, got: %v", err)
 	}
 }
 

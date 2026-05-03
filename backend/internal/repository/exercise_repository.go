@@ -288,7 +288,7 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
         WHERE id = $6::uuid AND deleted_at IS NULL
     `
 
-	// 2. Ejecutamos la actualización
+	// 2. Execute the update.
 	result, err := r.db.Exec(
 		ctx,
 		query,
@@ -306,15 +306,15 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
 		return pgx.ErrNoRows
 	}
 
-	// 3. Manejo de Músculos Secundarios
+	// 3. Handle secondary muscles.
 
-	// Borrar actuales
+	// Delete current secondary muscles.
 	_, err = r.db.Exec(ctx, "DELETE FROM exercise_secondary_muscle_groups WHERE exercise_id = $1::uuid", exercise.ID)
 	if err != nil {
 		return err
 	}
 
-	// Insertar los nuevos
+	// Insert new secondary muscles.
 	if exercise.SecondaryMuscleGroup != "" {
 		groups := strings.Split(exercise.SecondaryMuscleGroup, ",")
 		for _, g := range groups {

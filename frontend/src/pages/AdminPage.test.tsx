@@ -9,6 +9,7 @@ function setupFetchMock() {
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const method = options?.method || "GET";
 
+    // --- USER MOCKS ---
     if (url.endsWith("/api/users") && method === "GET") {
       return Promise.resolve(jsonResponse([
         { id: "1", username: "admin_user", email: "admin@test.com", role: "admin", is_active: true },
@@ -24,8 +25,20 @@ function setupFetchMock() {
       return Promise.resolve(jsonResponse({ message: "Deleted" }, { status: 200 }));
     }
 
+    // --- EXERCISE MOCKS ---
     if (url.endsWith("/api/exercises") && method === "POST") {
       return Promise.resolve(jsonResponse({ message: "Created" }, { status: 201 }));
+    }
+
+    // --- TICKET MOCKS ---
+    if (url.endsWith("/api/tickets") && method === "GET") {
+      return Promise.resolve(jsonResponse([
+        { id: "t1", user_id: "u1", title: "[General] Problema app", description: "No carga", status: "open", created_at: "2026-04-29T10:00:00Z" },
+      ], { status: 200 }));
+    }
+
+    if (url.includes("/api/tickets/") && url.endsWith("/close") && method === "PATCH") {
+      return Promise.resolve(jsonResponse({ message: "Closed" }, { status: 200 }));
     }
 
     return Promise.resolve(jsonResponse({}, { status: 200 }));
@@ -70,11 +83,38 @@ describe("AdminPage", () => {
     expect(await screen.findByText("Exercises Page Mock")).toBeInTheDocument();
   });
 
-  it("renders admin panel and fetches users if user is an admin", async () => {
-    setupFetchMock();
+  // --- TICKET TESTS ---
+  it("renders admin panel, shows tickets tab by default, and allows closing a ticket", async () => {
+    const user = userEvent.setup();
+    const fetchMock = setupFetchMock();
     renderAdminPage();
 
     expect(await screen.findByRole("heading", { name: "Centro de Mando" })).toBeInTheDocument();
+    
+    // Verify that the tickets tab is active and shows the mocked ticket
+    expect(await screen.findByText("[General] Problema app")).toBeInTheDocument();
+    
+    // Verificamos que funciona el botón de cerrar
+    const closeButton = screen.getByRole("button", { name: "Marcar como resuelto" });
+    await user.click(closeButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/tickets/t1/close"),
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
+  });
+
+  // --- USER TESTS ---
+  it("switches to users tab and fetches users", async () => {
+    const user = userEvent.setup();
+    setupFetchMock();
+    renderAdminPage();
+
+    const usersTab = await screen.findByRole("button", { name: "Gestión de Usuarios" });
+    await user.click(usersTab);
+
     expect(await screen.findByText("Usuarios Registrados (2)")).toBeInTheDocument();
     expect(screen.getByText("admin_user")).toBeInTheDocument();
     expect(screen.getByText("normal_user")).toBeInTheDocument();
@@ -85,7 +125,8 @@ describe("AdminPage", () => {
     const fetchMock = setupFetchMock();
     renderAdminPage();
 
-    expect(await screen.findByRole("heading", { name: "Centro de Mando" })).toBeInTheDocument();
+    const usersTab = await screen.findByRole("button", { name: "Gestión de Usuarios" });
+    await user.click(usersTab);
 
     await user.type(screen.getByPlaceholderText("Nombre de usuario"), "newcomer");
     await user.type(screen.getByPlaceholderText("Correo electrónico"), "new@test.com");
@@ -117,6 +158,9 @@ describe("AdminPage", () => {
 
     renderAdminPage();
 
+    const usersTab = await screen.findByRole("button", { name: "Gestión de Usuarios" });
+    await user.click(usersTab);
+
     const deleteButtons = await screen.findAllByRole("button", { name: "Eliminar" });
     await user.click(deleteButtons[0]!);
 
@@ -132,6 +176,7 @@ describe("AdminPage", () => {
     expect(await screen.findByText("Usuario eliminado.")).toBeInTheDocument();
   });
 
+  // --- EXERCISE TESTS ---
   it("switches to exercises tab and creates an exercise", async () => {
     const user = userEvent.setup();
     const fetchMock = setupFetchMock();
