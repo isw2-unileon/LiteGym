@@ -497,60 +497,60 @@ export default function ExercisePage() {
         >
           <div
             data-ui="exercise-three-column-grid"
-            className="grid w-full gap-5 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(250px,0.75fr)_minmax(0,1.7fr)_minmax(300px,0.9fr)]"
+            className="grid w-full gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.75fr)]"
             data-block="exercise-shell"
           >
             <aside
               data-ui="exercise-left-sidebar"
-              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md"
+              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md xl:col-span-2"
               data-block="exercise-sidebar"
             >
               <div
-                data-ui="exercise-left-sidebar-header-card"
-                className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
-              >
-                <p
-                  data-ui="exercise-left-sidebar-label"
-                  className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
-                >
-                  Control
-                </p>
-
-                <h2
-                  data-ui="exercise-left-sidebar-title"
-                  className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
-                >
-                  Explora o crea
-                </h2>
-
-                <p
-                  data-ui="exercise-left-sidebar-description"
-                  className="mt-3 text-sm leading-6 text-[#efe4d2]"
-                >
-                  Filtra tu biblioteca y abre nuevos movimientos desde un solo
-                  panel.
-                </p>
-              </div>
-
-              <div
                 data-ui="exercise-left-sidebar-content"
-                className="mt-6 grid gap-4"
+                className="grid gap-4 xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.4fr)_minmax(16rem,0.8fr)] xl:items-stretch"
               >
-                <button
-                  data-ui="create-exercise-button"
-                  type="button"
-                  className="rounded-2xl bg-[#ea7130] pl-5 pr-5 py-4 text-sm font-black text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
-                  onClick={() => {
-                    setCreateErrorMessage("");
-                    setIsCreateModalOpen(true);
-                  }}
+                <div
+                  data-ui="exercise-left-sidebar-header-card"
+                  className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
                 >
-                  Crear nuevo ejercicio
-                </button>
+                  <p
+                    data-ui="exercise-left-sidebar-label"
+                    className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
+                  >
+                    Control
+                  </p>
+
+                  <h2
+                    data-ui="exercise-left-sidebar-title"
+                    className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
+                  >
+                    Explora o crea
+                  </h2>
+
+                  <p
+                    data-ui="exercise-left-sidebar-description"
+                    className="mt-3 text-sm leading-6 text-[#efe4d2]"
+                  >
+                    Filtra tu biblioteca y abre nuevos movimientos desde un
+                    solo panel.
+                  </p>
+
+                  <button
+                    data-ui="create-exercise-button"
+                    type="button"
+                    className="mt-5 w-full rounded-2xl bg-[#ea7130] pl-5 pr-5 py-4 text-sm font-black text-[#1f1b16] transition hover:bg-[#fffaf0] hover:text-[#1f1b16]"
+                    onClick={() => {
+                      setCreateErrorMessage("");
+                      setIsCreateModalOpen(true);
+                    }}
+                  >
+                    Crear nuevo ejercicio
+                  </button>
+                </div>
 
                 {status === "success" && (
                   <div
-                    data-ui="exercise-filters-card"
+                  data-ui="exercise-filters-card"
                     className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/65 p-4"
                   >
                     <p
@@ -595,7 +595,7 @@ export default function ExercisePage() {
 
                   <div
                     data-ui="exercise-library-stats-grid"
-                    className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1"
+                    className="grid gap-3 sm:grid-cols-2"
                   >
                     <StatTile label="Resultados" value={String(total)} />
                     <StatTile
@@ -740,7 +740,7 @@ export default function ExercisePage() {
 
             <aside
               data-ui="exercise-right-detail-panel"
-              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md xl:col-span-2 2xl:col-span-1"
+              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md"
               data-block="exercise-detail-panel"
             >
               <div
@@ -819,7 +819,7 @@ export default function ExercisePage() {
 
                   <div
                     data-ui="selected-exercise-info-grid"
-                    className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1"
+                    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"
                   >
                     <InfoTile
                       label="Tipo"
