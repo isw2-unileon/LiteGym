@@ -428,7 +428,9 @@ describe("ExercisePage", () => {
 
     renderExercisePage();
 
-    await user.click(await screen.findByRole("button", { name: "Rendimiento" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Ver rendimiento" }),
+    );
 
     expect(await screen.findByText("Vista avanzada")).toBeInTheDocument();
     expect(await screen.findByText("Subiendo")).toBeInTheDocument();

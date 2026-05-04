@@ -7,6 +7,7 @@ type ExerciseInsightPanelProps = {
   insights: ExerciseInsights | null;
   status: "idle" | "loading" | "success" | "error";
   message: string;
+  variant?: "card" | "embedded";
 };
 
 const trendLabels: Record<ExerciseInsightTrend, string> = {
@@ -20,9 +21,15 @@ export default function ExerciseInsightPanel({
   insights,
   status,
   message,
+  variant = "card",
 }: ExerciseInsightPanelProps) {
+  const rootClassName =
+    variant === "embedded"
+      ? "rounded-[1.5rem] bg-transparent"
+      : "rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5";
+
   return (
-    <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5">
+    <div className={rootClassName}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
