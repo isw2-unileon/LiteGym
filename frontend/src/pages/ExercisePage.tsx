@@ -5,10 +5,12 @@ import CreateExerciseModal, {
 import { Link } from "react-router-dom";
 import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
+import ExerciseInsightPanel from "../components/Exercise/ExerciseInsightPanel";
 import ExerciseList from "../components/Exercise/ExerciseList";
 import { apiUrl } from "../lib/api";
 import type {
   Exercise,
+  ExerciseInsights,
   ExerciseMetadataResponse,
   ExerciseStatus,
   ExerciseWorkoutSessionSummary,
@@ -57,6 +59,15 @@ export default function ExercisePage() {
     React.useState<ExerciseStatus>("idle");
   const [exerciseWorkoutSessionsMessage, setExerciseWorkoutSessionsMessage] =
     React.useState("");
+  const [exerciseInsights, setExerciseInsights] =
+    React.useState<ExerciseInsights | null>(null);
+  const [exerciseInsightsStatus, setExerciseInsightsStatus] =
+    React.useState<ExerciseStatus>("idle");
+  const [exerciseInsightsMessage, setExerciseInsightsMessage] =
+    React.useState("");
+  const [exerciseDetailTab, setExerciseDetailTab] = React.useState<
+    "overview" | "insights"
+  >("overview");
 
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
@@ -258,6 +269,9 @@ export default function ExercisePage() {
       setExerciseWorkoutSessions([]);
       setExerciseWorkoutSessionsStatus("idle");
       setExerciseWorkoutSessionsMessage("");
+      setExerciseInsights(null);
+      setExerciseInsightsStatus("idle");
+      setExerciseInsightsMessage("");
       return;
     }
 
@@ -317,6 +331,72 @@ export default function ExercisePage() {
     };
 
     void fetchExerciseWorkoutSessions();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedExercise?.id]);
+
+  React.useEffect(() => {
+    if (!selectedExercise?.id) {
+      return;
+    }
+
+    let ignore = false;
+
+    const fetchExerciseInsights = async () => {
+      setExerciseInsights(null);
+      setExerciseInsightsStatus("loading");
+      setExerciseInsightsMessage("");
+
+      try {
+        const response = await fetch(
+          apiUrl(`/api/exercises/${selectedExercise.id}/insights`),
+          {
+            credentials: "include",
+          },
+        );
+
+        if (ignore) {
+          return;
+        }
+
+        if (response.status === 401) {
+          setExerciseInsights(null);
+          setExerciseInsightsStatus("error");
+          setExerciseInsightsMessage(
+            "No autorizado. Por favor, inicia sesión.",
+          );
+          return;
+        }
+
+        if (!response.ok) {
+          setExerciseInsights(null);
+          setExerciseInsightsStatus("error");
+          setExerciseInsightsMessage(
+            "No se pudieron cargar las estadisticas del ejercicio.",
+          );
+          return;
+        }
+
+        const data = (await response.json()) as ExerciseInsights;
+        setExerciseInsights(data);
+        setExerciseInsightsStatus("success");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        console.error(error);
+        setExerciseInsights(null);
+        setExerciseInsightsStatus("error");
+        setExerciseInsightsMessage(
+          "No se pudieron cargar las estadisticas del ejercicio.",
+        );
+      }
+    };
+
+    void fetchExerciseInsights();
 
     return () => {
       ignore = true;
@@ -767,186 +847,224 @@ export default function ExercisePage() {
                   data-ui="selected-exercise-detail-content"
                   className="mt-6 grid gap-4"
                 >
-                  <div
-                    data-ui="selected-exercise-name-card"
-                    className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5"
-                  >
-                    <div
-                      data-ui="selected-exercise-name-card-content"
-                      className="flex flex-col items-start gap-4"
+                  <div className="grid grid-cols-2 rounded-2xl border border-[#1f1b16]/10 bg-white/50 p-1">
+                    <button
+                      type="button"
+                      className={`rounded-xl px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
+                        exerciseDetailTab === "overview"
+                          ? "bg-[#1f1b16] text-[#fffaf0]"
+                          : "text-[#5d5348] hover:bg-white/70 hover:text-[#1f1b16]"
+                      }`}
+                      onClick={() => setExerciseDetailTab("overview")}
                     >
+                      Ficha
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-xl px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
+                        exerciseDetailTab === "insights"
+                          ? "bg-[#265c52] text-[#fffaf0]"
+                          : "text-[#5d5348] hover:bg-white/70 hover:text-[#1f1b16]"
+                      }`}
+                      onClick={() => setExerciseDetailTab("insights")}
+                    >
+                      Rendimiento
+                    </button>
+                  </div>
+
+                  {exerciseDetailTab === "overview" && (
+                    <>
                       <div
-                        data-ui="selected-exercise-name-text-group"
-                        className="min-w-0"
+                        data-ui="selected-exercise-name-card"
+                        className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5"
+                      >
+                        <div
+                          data-ui="selected-exercise-name-card-content"
+                          className="flex flex-col items-start gap-4"
+                        >
+                          <div
+                            data-ui="selected-exercise-name-text-group"
+                            className="min-w-0"
+                          >
+                            <p
+                              data-ui="selected-exercise-name-label"
+                              className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
+                            >
+                              Nombre
+                            </p>
+
+                            <h3
+                              data-ui="selected-exercise-name"
+                              className="mt-3 break-words text-2xl font-black tracking-[-0.04em] text-[#1f1b16]"
+                            >
+                              {selectedExercise.name}
+                            </h3>
+
+                            <p
+                              data-ui="selected-exercise-muscle-group"
+                              className="mt-2 break-words text-sm font-semibold text-[#5d5348]"
+                            >
+                              {selectedExercise.muscle_group}
+                            </p>
+                          </div>
+
+                          {canEditSelectedExercise && (
+                            <button
+                              data-ui="edit-exercise-button"
+                              type="button"
+                              className="rounded-2xl border border-[#1f1b16]/15 pl-4 pr-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
+                              onClick={() => {
+                                setEditErrorMessage("");
+                                setIsEditModalOpen(true);
+                              }}
+                            >
+                              Editar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        data-ui="selected-exercise-info-grid"
+                        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"
+                      >
+                        <InfoTile
+                          label="Tipo"
+                          value={
+                            selectedExercise.exercise_type ?? "Sin especificar"
+                          }
+                        />
+                        <InfoTile
+                          label="Musculo secundario"
+                          value={
+                            selectedExercise.secondary_muscle_group ||
+                            "No definido"
+                          }
+                        />
+                        <InfoTile
+                          label="Estado"
+                          value={
+                            selectedExercise.is_official === false
+                              ? "Ejercicio propio"
+                              : "Ejercicio oficial"
+                          }
+                        />
+                      </div>
+
+                      <div
+                        data-ui="selected-exercise-description-card"
+                        className="rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-[#fff8ea] p-5"
                       >
                         <p
-                          data-ui="selected-exercise-name-label"
+                          data-ui="selected-exercise-description-label"
                           className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
                         >
-                          Nombre
+                          Descripcion
                         </p>
 
-                        <h3
-                          data-ui="selected-exercise-name"
-                          className="mt-3 break-words text-2xl font-black tracking-[-0.04em] text-[#1f1b16]"
-                        >
-                          {selectedExercise.name}
-                        </h3>
-
                         <p
-                          data-ui="selected-exercise-muscle-group"
-                          className="mt-2 break-words text-sm font-semibold text-[#5d5348]"
+                          data-ui="selected-exercise-description-text"
+                          className="mt-3 break-words text-sm leading-7 text-[#5d5348]"
                         >
-                          {selectedExercise.muscle_group}
+                          {selectedExercise.description ||
+                            "Todavia no hay una descripcion para este ejercicio. Puedes completarla cuando edites o crees uno nuevo."}
                         </p>
                       </div>
 
-                      {canEditSelectedExercise && (
-                        <button
-                          data-ui="edit-exercise-button"
-                          type="button"
-                          className="rounded-2xl border border-[#1f1b16]/15 pl-4 pr-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
-                          onClick={() => {
-                            setEditErrorMessage("");
-                            setIsEditModalOpen(true);
-                          }}
-                        >
-                          Editar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    data-ui="selected-exercise-info-grid"
-                    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"
-                  >
-                    <InfoTile
-                      label="Tipo"
-                      value={
-                        selectedExercise.exercise_type ?? "Sin especificar"
-                      }
-                    />
-                    <InfoTile
-                      label="Musculo secundario"
-                      value={
-                        selectedExercise.secondary_muscle_group || "No definido"
-                      }
-                    />
-                    <InfoTile
-                      label="Estado"
-                      value={
-                        selectedExercise.is_official === false
-                          ? "Ejercicio propio"
-                          : "Ejercicio oficial"
-                      }
-                    />
-                  </div>
-
-                  <div
-                    data-ui="selected-exercise-description-card"
-                    className="rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-[#fff8ea] p-5"
-                  >
-                    <p
-                      data-ui="selected-exercise-description-label"
-                      className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
-                    >
-                      Descripcion
-                    </p>
-
-                    <p
-                      data-ui="selected-exercise-description-text"
-                      className="mt-3 break-words text-sm leading-7 text-[#5d5348]"
-                    >
-                      {selectedExercise.description ||
-                        "Todavia no hay una descripcion para este ejercicio. Puedes completarla cuando edites o crees uno nuevo."}
-                    </p>
-                  </div>
-
-                  <div
-                    data-ui="selected-exercise-workout-sessions-card"
-                    className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5"
-                  >
-                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
-                      <div className="min-w-0">
-                        <p
-                          data-ui="selected-exercise-workout-sessions-label"
-                          className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
-                        >
-                          Entrenos
-                        </p>
-
-                        <h3
-                          data-ui="selected-exercise-workout-sessions-title"
-                          className="mt-2 text-xl font-black tracking-[-0.04em] text-[#1f1b16]"
-                        >
-                          Sesiones donde aparece
-                        </h3>
-                      </div>
-
-                      <span className="rounded-full bg-[#265c52]/10 pl-3 pr-3 py-1 text-xs font-black text-[#265c52]">
-                        {exerciseWorkoutSessions.length}
-                      </span>
-                    </div>
-
-                    {exerciseWorkoutSessionsStatus === "loading" && (
-                      <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold text-[#5d5348]">
-                        Cargando sesiones...
-                      </p>
-                    )}
-
-                    {exerciseWorkoutSessionsStatus === "error" && (
-                      <p className="mt-4 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] p-4 text-sm font-semibold text-[#9f2f22]">
-                        {exerciseWorkoutSessionsMessage}
-                      </p>
-                    )}
-
-                    {exerciseWorkoutSessionsStatus === "success" &&
-                      exerciseWorkoutSessions.length === 0 && (
-                        <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold leading-6 text-[#5d5348]">
-                          Este ejercicio todavia no aparece en ninguna sesion
-                          registrada.
-                        </p>
-                      )}
-
-                    {exerciseWorkoutSessions.length > 0 && (
-                      <ul className="mt-4 grid gap-3">
-                        {exerciseWorkoutSessions.map((session) => (
-                          <li
-                            data-ui="selected-exercise-workout-session-item"
-                            className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4"
-                            key={session.id}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="break-words text-sm font-black text-[#1f1b16]">
-                                  {session.name ||
-                                    session.routine_name ||
-                                    "Sesion"}
-                                </p>
-
-                                <p className="mt-1 break-words text-xs font-semibold uppercase tracking-[0.14em] text-[#5d5348]">
-                                  {session.routine_name || "Entreno libre"}
-                                </p>
-                              </div>
-
-                              <p className="shrink-0 text-right text-xs font-black text-[#265c52]">
-                                {workoutSessionDateFormatter.format(
-                                  new Date(session.started_at),
-                                )}
-                              </p>
-                            </div>
-
-                            <p className="mt-3 text-sm font-semibold text-[#5d5348]">
-                              Orden {session.exercise_order} ·{" "}
-                              {session.set_count} series ·{" "}
-                              {session.duration_minutes} min
+                      <div
+                        data-ui="selected-exercise-workout-sessions-card"
+                        className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5"
+                      >
+                        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+                          <div className="min-w-0">
+                            <p
+                              data-ui="selected-exercise-workout-sessions-label"
+                              className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
+                            >
+                              Entrenos
                             </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+
+                            <h3
+                              data-ui="selected-exercise-workout-sessions-title"
+                              className="mt-2 text-xl font-black tracking-[-0.04em] text-[#1f1b16]"
+                            >
+                              Sesiones donde aparece
+                            </h3>
+                          </div>
+
+                          <span className="rounded-full bg-[#265c52]/10 pl-3 pr-3 py-1 text-xs font-black text-[#265c52]">
+                            {exerciseWorkoutSessions.length}
+                          </span>
+                        </div>
+
+                        {exerciseWorkoutSessionsStatus === "loading" && (
+                          <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold text-[#5d5348]">
+                            Cargando sesiones...
+                          </p>
+                        )}
+
+                        {exerciseWorkoutSessionsStatus === "error" && (
+                          <p className="mt-4 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] p-4 text-sm font-semibold text-[#9f2f22]">
+                            {exerciseWorkoutSessionsMessage}
+                          </p>
+                        )}
+
+                        {exerciseWorkoutSessionsStatus === "success" &&
+                          exerciseWorkoutSessions.length === 0 && (
+                            <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold leading-6 text-[#5d5348]">
+                              Este ejercicio todavia no aparece en ninguna
+                              sesion registrada.
+                            </p>
+                          )}
+
+                        {exerciseWorkoutSessions.length > 0 && (
+                          <ul className="mt-4 grid gap-3">
+                            {exerciseWorkoutSessions.map((session) => (
+                              <li
+                                data-ui="selected-exercise-workout-session-item"
+                                className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4"
+                                key={session.id}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="break-words text-sm font-black text-[#1f1b16]">
+                                      {session.name ||
+                                        session.routine_name ||
+                                        "Sesion"}
+                                    </p>
+
+                                    <p className="mt-1 break-words text-xs font-semibold uppercase tracking-[0.14em] text-[#5d5348]">
+                                      {session.routine_name || "Entreno libre"}
+                                    </p>
+                                  </div>
+
+                                  <p className="shrink-0 text-right text-xs font-black text-[#265c52]">
+                                    {workoutSessionDateFormatter.format(
+                                      new Date(session.started_at),
+                                    )}
+                                  </p>
+                                </div>
+
+                                <p className="mt-3 text-sm font-semibold text-[#5d5348]">
+                                  Orden {session.exercise_order} ·{" "}
+                                  {session.set_count} series ·{" "}
+                                  {session.duration_minutes} min
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {exerciseDetailTab === "insights" && (
+                    <ExerciseInsightPanel
+                      insights={exerciseInsights}
+                      status={exerciseInsightsStatus}
+                      message={exerciseInsightsMessage}
+                    />
+                  )}
                 </div>
               ) : (
                 <div

@@ -90,6 +90,7 @@ func SetupRouter(
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
+	protected.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
 	protected.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)

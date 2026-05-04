@@ -14,6 +14,7 @@ type MockExerciseRepository struct {
 	getByIDFunc                       func(ctx context.Context, id string) (*model.Exercise, error)
 	listFunc                          func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
 	listWorkoutSessionsByExerciseFunc func(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
+	getInsightsFunc                   func(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error)
 	updateExerciseFunc                func(ctx context.Context, exercise *model.Exercise) error
 	deleteExerciseFunc                func(ctx context.Context, id string) error
 }
@@ -44,6 +45,13 @@ func (m *MockExerciseRepository) ListWorkoutSessionsByExercise(ctx context.Conte
 		return m.listWorkoutSessionsByExerciseFunc(ctx, exerciseID, userID, limit)
 	}
 	return []model.ExerciseWorkoutSessionSummary{}, nil
+}
+
+func (m *MockExerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	if m.getInsightsFunc != nil {
+		return m.getInsightsFunc(ctx, exerciseID, userID)
+	}
+	return model.ExerciseInsights{}, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {

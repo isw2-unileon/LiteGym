@@ -104,6 +104,29 @@ func (s *ExerciseService) ListWorkoutSessionsByExercise(ctx context.Context, exe
 	return s.repo.ListWorkoutSessionsByExercise(ctx, exerciseID, userID, limit)
 }
 
+func (s *ExerciseService) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	exerciseID = strings.TrimSpace(exerciseID)
+	userID = strings.TrimSpace(userID)
+
+	if exerciseID == "" {
+		return model.ExerciseInsights{}, ErrInvalidExerciseInput
+	}
+
+	if userID == "" {
+		return model.ExerciseInsights{}, ErrInvalidUserInput
+	}
+
+	if _, err := uuid.Parse(exerciseID); err != nil {
+		return model.ExerciseInsights{}, ErrInvalidExerciseInput
+	}
+
+	if _, err := uuid.Parse(userID); err != nil {
+		return model.ExerciseInsights{}, ErrInvalidUserInput
+	}
+
+	return s.repo.GetInsights(ctx, exerciseID, userID)
+}
+
 // Create creates a new exercise after validating the input data.
 func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) error {
 	if exercise == nil {
