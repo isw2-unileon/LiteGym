@@ -107,7 +107,8 @@ describe("ExercisePage", () => {
           },
           { status: 201 },
         ),
-      );
+      )
+      .mockResolvedValueOnce(jsonResponse([], { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     renderExercisePage();
@@ -127,7 +128,7 @@ describe("ExercisePage", () => {
     await user.click(screen.getByRole("button", { name: "Crear ejercicio" }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenLastCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/exercises"),
         expect.objectContaining({
           method: "POST",
@@ -203,6 +204,7 @@ describe("ExercisePage", () => {
           { status: 200 },
         ),
       )
+      .mockResolvedValueOnce(jsonResponse([], { status: 200 }))
       .mockResolvedValueOnce(
         jsonResponse(
           {
@@ -263,6 +265,61 @@ describe("ExercisePage", () => {
     expect(await screen.findAllByText("Bench Press Incline")).toHaveLength(2);
   });
 
+  it("shows workout sessions where the selected exercise appears", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { user: { id: "2", email: "user@example.com", username: "user", role: "user" } },
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse(exerciseMetadataResponse(), { status: 200 }))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            exerciseListResponse([
+              {
+                id: "550e8400-e29b-41d4-a716-446655440111",
+                name: "Bench Press",
+                description: "Flat bench press",
+                muscle_group: "chest",
+                secondary_muscle_group: "triceps, shoulders",
+                exercise_type: "strength",
+                is_official: false,
+                created_at: "2026-04-24T10:00:00Z",
+              },
+            ]),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            [
+              {
+                id: "660e8400-e29b-41d4-a716-446655440111",
+                name: "Push Day",
+                routine_name: "Push Pull Legs",
+                started_at: "2026-04-25T10:00:00Z",
+                duration_minutes: 45,
+                exercise_order: 2,
+                set_count: 3,
+              },
+            ],
+            { status: 200 },
+          ),
+        ),
+    );
+
+    renderExercisePage();
+
+    expect(await screen.findByText("Sesiones donde aparece")).toBeInTheDocument();
+    expect(await screen.findByText("Push Day")).toBeInTheDocument();
+    expect(screen.getByText("Push Pull Legs")).toBeInTheDocument();
+    expect(screen.getByText(/Orden 2/)).toHaveTextContent("3 series");
+  });
+
   it("shows edit action for admins on official exercises", async () => {
     vi.stubGlobal(
       "fetch",
@@ -296,7 +353,8 @@ describe("ExercisePage", () => {
             ]),
             { status: 200 },
           ),
-        ),
+        )
+        .mockResolvedValueOnce(jsonResponse([], { status: 200 })),
     );
 
     renderExercisePage();

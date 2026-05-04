@@ -33,6 +33,17 @@ type ExerciseListResponse struct {
 	TotalPages int        `json:"total_pages"`
 }
 
+// ExerciseWorkoutSessionSummary represents a workout session where an exercise was performed.
+type ExerciseWorkoutSessionSummary struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name,omitempty"`
+	RoutineName     string    `json:"routine_name,omitempty"`
+	StartedAt       time.Time `json:"started_at"`
+	DurationMinutes int       `json:"duration_minutes"`
+	ExerciseOrder   int       `json:"exercise_order"`
+	SetCount        int       `json:"set_count"`
+}
+
 // SelectOption represents one selectable value exposed to clients.
 type SelectOption struct {
 	Value string `json:"value"`

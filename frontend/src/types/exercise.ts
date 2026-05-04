@@ -12,6 +12,16 @@ export type Exercise = {
 
 export type ExerciseStatus = "idle" | "loading" | "success" | "error";
 
+export type ExerciseWorkoutSessionSummary = {
+    id: string;
+    name?: string | null;
+    routine_name?: string | null;
+    started_at: string;
+    duration_minutes: number;
+    exercise_order: number;
+    set_count: number;
+};
+
 export type SelectOption = {
     value: string;
     label: string;

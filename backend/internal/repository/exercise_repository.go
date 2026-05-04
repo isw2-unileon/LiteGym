@@ -13,6 +13,7 @@ import (
 type ExerciseRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Exercise, error)
 	List(ctx context.Context, filter model.ExerciseFilter) ([]model.Exercise, int, error)
+	ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
 	Create(ctx context.Context, exercise *model.Exercise) error
 	UpdateExercise(ctx context.Context, exercise *model.Exercise) error
 	DeleteExercise(ctx context.Context, id string) error
@@ -212,6 +213,58 @@ func (r *exerciseRepository) countExercises(ctx context.Context, filters model.E
 	}
 
 	return total, nil
+}
+
+func (r *exerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			ws.id::text,
+			COALESCE(ws.name, ''),
+			COALESCE(rt.name, ''),
+			ws.started_at,
+			COALESCE(ws.duration_minutes, 0),
+			we.exercise_order,
+			COUNT(wset.id)::int
+		FROM workout_exercises we
+		INNER JOIN workout_sessions ws ON ws.id = we.workout_session_id
+		INNER JOIN exercises e ON e.id = we.exercise_id AND e.deleted_at IS NULL
+		LEFT JOIN routines rt ON rt.id = ws.routine_id
+		LEFT JOIN workout_sets wset ON wset.workout_exercise_id = we.id
+		WHERE we.exercise_id = $1::uuid
+			AND ws.user_id = $2::uuid
+		GROUP BY
+			ws.id,
+			ws.name,
+			rt.name,
+			ws.started_at,
+			ws.duration_minutes,
+			we.exercise_order
+		ORDER BY ws.started_at DESC, ws.id::text DESC
+		LIMIT $3
+	`, exerciseID, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sessions := make([]model.ExerciseWorkoutSessionSummary, 0)
+	for rows.Next() {
+		var session model.ExerciseWorkoutSessionSummary
+		if err := rows.Scan(
+			&session.ID,
+			&session.Name,
+			&session.RoutineName,
+			&session.StartedAt,
+			&session.DurationMinutes,
+			&session.ExerciseOrder,
+			&session.SetCount,
+		); err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, session)
+	}
+
+	return sessions, rows.Err()
 }
 
 func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {

@@ -11,6 +11,7 @@ import type {
   Exercise,
   ExerciseMetadataResponse,
   ExerciseStatus,
+  ExerciseWorkoutSessionSummary,
   SelectOption,
 } from "../types/exercise";
 
@@ -29,6 +30,12 @@ type ExerciseListResponse = {
   total_pages: number;
 };
 
+const workoutSessionDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 export default function ExercisePage() {
   const [exercises, setExercises] = React.useState<Exercise[]>([]);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(
@@ -43,6 +50,13 @@ export default function ExercisePage() {
   const [editErrorMessage, setEditErrorMessage] = React.useState("");
   const [isUpdatingExercise, setIsUpdatingExercise] = React.useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
+  const [exerciseWorkoutSessions, setExerciseWorkoutSessions] = React.useState<
+    ExerciseWorkoutSessionSummary[]
+  >([]);
+  const [exerciseWorkoutSessionsStatus, setExerciseWorkoutSessionsStatus] =
+    React.useState<ExerciseStatus>("idle");
+  const [exerciseWorkoutSessionsMessage, setExerciseWorkoutSessionsMessage] =
+    React.useState("");
 
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
@@ -239,6 +253,76 @@ export default function ExercisePage() {
     return firstExercise ?? null;
   }, [filteredExercises, selectedExerciseId]);
 
+  React.useEffect(() => {
+    if (!selectedExercise?.id) {
+      setExerciseWorkoutSessions([]);
+      setExerciseWorkoutSessionsStatus("idle");
+      setExerciseWorkoutSessionsMessage("");
+      return;
+    }
+
+    let ignore = false;
+
+    const fetchExerciseWorkoutSessions = async () => {
+      setExerciseWorkoutSessions([]);
+      setExerciseWorkoutSessionsStatus("loading");
+      setExerciseWorkoutSessionsMessage("");
+
+      try {
+        const response = await fetch(
+          apiUrl(`/api/exercises/${selectedExercise.id}/workout-sessions`),
+          {
+            credentials: "include",
+          },
+        );
+
+        if (ignore) {
+          return;
+        }
+
+        if (response.status === 401) {
+          setExerciseWorkoutSessions([]);
+          setExerciseWorkoutSessionsStatus("error");
+          setExerciseWorkoutSessionsMessage(
+            "No autorizado. Por favor, inicia sesión.",
+          );
+          return;
+        }
+
+        if (!response.ok) {
+          setExerciseWorkoutSessions([]);
+          setExerciseWorkoutSessionsStatus("error");
+          setExerciseWorkoutSessionsMessage(
+            "No se pudieron cargar los entrenos de este ejercicio.",
+          );
+          return;
+        }
+
+        const data =
+          (await response.json()) as ExerciseWorkoutSessionSummary[];
+        setExerciseWorkoutSessions(data);
+        setExerciseWorkoutSessionsStatus("success");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        console.error(error);
+        setExerciseWorkoutSessions([]);
+        setExerciseWorkoutSessionsStatus("error");
+        setExerciseWorkoutSessionsMessage(
+          "No se pudieron cargar los entrenos de este ejercicio.",
+        );
+      }
+    };
+
+    void fetchExerciseWorkoutSessions();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedExercise?.id]);
+
   const handleCreateExercise = async (payload: CreateExercisePayload) => {
     setIsCreatingExercise(true);
     setCreateErrorMessage("");
@@ -413,7 +497,7 @@ export default function ExercisePage() {
         >
           <div
             data-ui="exercise-three-column-grid"
-            className="grid w-full gap-5 xl:grid-cols-[15fr_70fr_15fr] 2xl:grid-cols-[20fr_60fr_20fr]"
+            className="grid w-full gap-5 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(250px,0.75fr)_minmax(0,1.7fr)_minmax(300px,0.9fr)]"
             data-block="exercise-shell"
           >
             <aside
@@ -656,7 +740,7 @@ export default function ExercisePage() {
 
             <aside
               data-ui="exercise-right-detail-panel"
-              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md"
+              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.14)] backdrop-blur-md xl:col-span-2 2xl:col-span-1"
               data-block="exercise-detail-panel"
             >
               <div
@@ -689,7 +773,7 @@ export default function ExercisePage() {
                   >
                     <div
                       data-ui="selected-exercise-name-card-content"
-                      className="flex items-start justify-between gap-3"
+                      className="flex flex-col items-start gap-4"
                     >
                       <div
                         data-ui="selected-exercise-name-text-group"
@@ -721,7 +805,7 @@ export default function ExercisePage() {
                         <button
                           data-ui="edit-exercise-button"
                           type="button"
-                          className="shrink-0 rounded-2xl border border-[#1f1b16]/15 pl-4 pr-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
+                          className="rounded-2xl border border-[#1f1b16]/15 pl-4 pr-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
                           onClick={() => {
                             setEditErrorMessage("");
                             setIsEditModalOpen(true);
@@ -735,7 +819,7 @@ export default function ExercisePage() {
 
                   <div
                     data-ui="selected-exercise-info-grid"
-                    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"
+                    className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1"
                   >
                     <InfoTile
                       label="Tipo"
@@ -777,6 +861,91 @@ export default function ExercisePage() {
                       {selectedExercise.description ||
                         "Todavia no hay una descripcion para este ejercicio. Puedes completarla cuando edites o crees uno nuevo."}
                     </p>
+                  </div>
+
+                  <div
+                    data-ui="selected-exercise-workout-sessions-card"
+                    className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5"
+                  >
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+                      <div className="min-w-0">
+                        <p
+                          data-ui="selected-exercise-workout-sessions-label"
+                          className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]"
+                        >
+                          Entrenos
+                        </p>
+
+                        <h3
+                          data-ui="selected-exercise-workout-sessions-title"
+                          className="mt-2 text-xl font-black tracking-[-0.04em] text-[#1f1b16]"
+                        >
+                          Sesiones donde aparece
+                        </h3>
+                      </div>
+
+                      <span className="rounded-full bg-[#265c52]/10 pl-3 pr-3 py-1 text-xs font-black text-[#265c52]">
+                        {exerciseWorkoutSessions.length}
+                      </span>
+                    </div>
+
+                    {exerciseWorkoutSessionsStatus === "loading" && (
+                      <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold text-[#5d5348]">
+                        Cargando sesiones...
+                      </p>
+                    )}
+
+                    {exerciseWorkoutSessionsStatus === "error" && (
+                      <p className="mt-4 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] p-4 text-sm font-semibold text-[#9f2f22]">
+                        {exerciseWorkoutSessionsMessage}
+                      </p>
+                    )}
+
+                    {exerciseWorkoutSessionsStatus === "success" &&
+                      exerciseWorkoutSessions.length === 0 && (
+                        <p className="mt-4 rounded-2xl border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/80 p-4 text-sm font-semibold leading-6 text-[#5d5348]">
+                          Este ejercicio todavia no aparece en ninguna sesion
+                          registrada.
+                        </p>
+                      )}
+
+                    {exerciseWorkoutSessions.length > 0 && (
+                      <ul className="mt-4 grid gap-3">
+                        {exerciseWorkoutSessions.map((session) => (
+                          <li
+                            data-ui="selected-exercise-workout-session-item"
+                            className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4"
+                            key={session.id}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="break-words text-sm font-black text-[#1f1b16]">
+                                  {session.name ||
+                                    session.routine_name ||
+                                    "Sesion"}
+                                </p>
+
+                                <p className="mt-1 break-words text-xs font-semibold uppercase tracking-[0.14em] text-[#5d5348]">
+                                  {session.routine_name || "Entreno libre"}
+                                </p>
+                              </div>
+
+                              <p className="shrink-0 text-right text-xs font-black text-[#265c52]">
+                                {workoutSessionDateFormatter.format(
+                                  new Date(session.started_at),
+                                )}
+                              </p>
+                            </div>
+
+                            <p className="mt-3 text-sm font-semibold text-[#5d5348]">
+                              Orden {session.exercise_order} ·{" "}
+                              {session.set_count} series ·{" "}
+                              {session.duration_minutes} min
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               ) : (

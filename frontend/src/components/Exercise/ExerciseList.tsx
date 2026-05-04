@@ -16,6 +16,10 @@ export default function ExerciseList({
     selectedExerciseId,
     onSelectExercise,
 }: ExerciseListProps) {
+    const hasCustomExercises = exercises.some(
+        (exercise) => exercise.is_official === false,
+    );
+
     return (
         <div
             className="max-h-[40rem] overflow-y-auto rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5"
@@ -46,19 +50,31 @@ export default function ExerciseList({
             )}
 
             {status === "success" && exercises.length > 0 && (
-                <ul
-                    className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3"
-                    data-block="exercise-list"
-                >
-                    {exercises.map((exercise) => (
-                        <ExerciseCard
-                            key={exercise.id}
-                            exercise={exercise}
-                            isSelected={exercise.id === selectedExerciseId}
-                            onSelect={onSelectExercise}
-                        />
-                    ))}
-                </ul>
+                <>
+                    {hasCustomExercises && (
+                        <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-[#5d5348]">
+                            <span
+                                className="h-2.5 w-2.5 rounded-full bg-[#265c52] ring-4 ring-[#265c52]/10"
+                                aria-hidden="true"
+                            />
+                            Ejercicio propio
+                        </div>
+                    )}
+
+                    <ul
+                        className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3"
+                        data-block="exercise-list"
+                    >
+                        {exercises.map((exercise) => (
+                            <ExerciseCard
+                                key={exercise.id}
+                                exercise={exercise}
+                                isSelected={exercise.id === selectedExerciseId}
+                                onSelect={onSelectExercise}
+                            />
+                        ))}
+                    </ul>
+                </>
             )}
         </div>
     );
