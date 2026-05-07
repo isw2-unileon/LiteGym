@@ -106,18 +106,30 @@ func (m *MockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-/* Workout Session Repository */
-type MockWorkoutSessionRepository struct{}
+func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+	return []model.OverviewRoutineSummary{}, nil
+}
 
-func (m *MockWorkoutSessionRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
+/* Workout Session Repository */
+type MockOverviewWorkoutRepository struct{}
+
+func (m *MockOverviewWorkoutRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
 	return []model.OverviewWorkoutSummary{}, nil
 }
 
-func (m *MockWorkoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
+func (m *MockOverviewWorkoutRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	return []time.Time{}, nil
 }
 
-func (m *MockWorkoutSessionRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
+func (m *MockOverviewWorkoutRepository) ListPlannedDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
+	return []time.Time{}, nil
+}
+
+func (m *MockOverviewWorkoutRepository) ListCalendarWorkoutsByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewCalendarWorkout, error) {
+	return []model.OverviewCalendarWorkout{}, nil
+}
+
+func (m *MockOverviewWorkoutRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
 	return []model.OverviewMuscleGroupShare{}, 0, nil
 }
 
@@ -221,8 +233,13 @@ func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenS
 }
 
 func newTestOverviewHandler() *handlers.OverviewHandler {
-	overviewService := service.NewOverviewService(&MockRoutineRepository{}, &MockWorkoutSessionRepository{}, &MockBodyMetricRepository{})
+	overviewService := service.NewOverviewService(&MockRoutineRepository{}, &MockOverviewWorkoutRepository{}, &MockBodyMetricRepository{})
 	return handlers.NewOverviewHandler(overviewService)
+}
+
+func newTestRoutineHandler() *handlers.RoutineHandler {
+	routineService := service.NewRoutineService(&MockRoutineRepository{})
+	return handlers.NewRoutineHandler(routineService)
 }
 
 func newTestTicketHandler(userService *service.UserService) *handlers.TicketHandler {
@@ -255,7 +272,7 @@ func TestHealthEndpoint(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -293,7 +310,7 @@ func TestCORSPreflightForLogin(t *testing.T) {
 		authHandler,
 		authMiddleware,
 		exerciseHandler,
-		newTestOverviewHandler(),
+		newTestRoutineHandler(), newTestOverviewHandler(),
 		healthHandler,
 		newTestTicketHandler(userService),
 		workoutHandler,
@@ -342,7 +359,7 @@ func TestHelloEndpoint(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/hello", nil)
@@ -379,7 +396,7 @@ func TestDBHealthEndpointSuccess(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/db/health", nil)
@@ -416,7 +433,7 @@ func TestDBHealthEndpointError(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/db/health", nil)
@@ -449,7 +466,7 @@ func TestExerciseListRoute(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
@@ -490,7 +507,7 @@ func TestExerciseGetByIDRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/exercises/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
@@ -522,7 +539,7 @@ func TestLoginRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	body := strings.NewReader(`{"email":"test@example.com","password":"password123"}`)
 	req := httptest.NewRequest("POST", "/api/auth/login", body)
@@ -556,7 +573,7 @@ func TestExerciseListRouteWithValidCookie(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
 	addAuthCookie(t, req, tokenService)
@@ -589,7 +606,7 @@ func TestAuthMeRouteRequiresAuthentication(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/auth/me", nil)
 	w := httptest.NewRecorder()
@@ -620,7 +637,7 @@ func TestAuthMeRouteWithValidCookie(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/auth/me", nil)
 	addAuthCookie(t, req, tokenService)
@@ -652,7 +669,7 @@ func TestWorkoutStartRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("POST", "/api/workout/start", nil)
 	w := httptest.NewRecorder()
@@ -684,7 +701,7 @@ func TestWorkoutFinishRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("POST", "/api/workout/550e8400-e29b-41d4-a716-446655440000/finish", nil)
 	w := httptest.NewRecorder()
@@ -716,7 +733,7 @@ func TestWorkoutGetByIDRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
@@ -748,7 +765,7 @@ func TestWorkoutRemoveRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("DELETE", "/api/workout/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()
@@ -780,7 +797,7 @@ func TestWorkoutExerciseCreateRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("POST", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercise", nil)
 	w := httptest.NewRecorder()
@@ -812,7 +829,7 @@ func TestWorkoutExerciseGetByWorkoutIDRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercises", nil)
 	w := httptest.NewRecorder()
@@ -844,7 +861,7 @@ func TestWorkoutSetCreateRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("POST", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercises/550e8400-e29b-41d4-a716-446655440000/set", nil)
 	w := httptest.NewRecorder()
@@ -876,7 +893,7 @@ func TestWorkoutSetGetByExerciseIDRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercises/550e8400-e29b-41d4-a716-446655440000/sets", nil)
 	w := httptest.NewRecorder()
@@ -908,7 +925,7 @@ func TestWorkoutSetUpdateRoute(t *testing.T) {
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
 
 	req := httptest.NewRequest("POST", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercises/550e8400-e29b-41d4-a716-446655440000/sets/550e8400-e29b-41d4-a716-446655440000", nil)
 	w := httptest.NewRecorder()

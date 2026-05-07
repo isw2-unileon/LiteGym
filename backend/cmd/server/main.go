@@ -46,7 +46,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	exerciseRepo := repository.NewExerciseRepository(db)
 	routineRepo := repository.NewRoutineRepository(db)
-	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
+	overviewWorkoutRepo := repository.NewOverviewWorkoutRepository(db)
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
 	ticketRepo := repository.NewTicketRepository(db)
 	workoutRepo := repository.NewWorkoutRepository(db)
@@ -55,7 +55,7 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
-	overviewService := service.NewOverviewService(routineRepo, workoutSessionRepo, bodyMetricRepo)
+	overviewService := service.NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
@@ -63,6 +63,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	routineHandler := handlers.NewRoutineHandler(service.NewRoutineService(routineRepo))
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
@@ -75,6 +76,7 @@ func main() {
 		authHandler,
 		authMiddleware,
 		exerciseHandler,
+		routineHandler,
 		overviewHandler,
 		healthHandler,
 		ticketHandler,

@@ -73,7 +73,7 @@ func (ws *WorkoutService) GetSessionByID(ctx context.Context, id uuid.UUID) (*mo
 
 // UpdateSessionByID updates an existing workout session by its ID.
 func (ws *WorkoutService) UpdateSessionByID(ctx context.Context, id uuid.UUID, session *model.WorkoutSession) error {
-	if id == uuid.Nil || session.Name == ""  {
+	if id == uuid.Nil || session.Name == "" {
 		return ErrInvalidWorkoutSessionInput
 	}
 	err := ws.repo.UpdateSessionByID(ctx, id, session)

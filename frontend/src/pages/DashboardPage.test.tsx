@@ -19,6 +19,18 @@ function buildDashboardResponse() {
     calendar: {
       month: "2026-04",
       trained_days: ["2026-04-21", "2026-04-25", "2026-04-28"],
+      planned_days: [],
+      calendar_workouts: [
+        {
+          id: "workout-1",
+          name: "Push Day 1",
+          routine_name: "Push Pull Legs",
+          performed_at: "2026-04-28T10:00:00Z",
+          planned_at: null,
+          duration_minutes: 70,
+          exercise_count: 3,
+        },
+      ],
       sessions_count: 3,
       current_streak: 1,
       next_objective: "Llegar a 8 sesiones este mes",
@@ -37,7 +49,7 @@ function buildDashboardResponse() {
         id: "workout-1",
         name: "Push Day 1",
         routine_name: "Push Pull Legs",
-        started_at: "2026-04-28T10:00:00Z",
+        performed_at: "2026-04-28T10:00:00Z",
         duration_minutes: 70,
         exercise_count: 3,
       },

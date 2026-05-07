@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { LayoutUser } from "../components/AppLayout";
 import { apiUrl } from "../lib/api";
@@ -19,10 +19,26 @@ type DashboardWorkoutSummary = {
   id: string;
   name?: string | null;
   routine_name?: string | null;
-  started_at: string;
+  performed_at: string;
   duration_minutes: number;
   exercise_count: number;
 };
+
+type DashboardCalendarWorkout = {
+  id: string;
+  name?: string | null;
+  routine_id?: string | null;
+  routine_name?: string | null;
+  performed_at?: string | null;
+  planned_at?: string | null;
+  duration_minutes: number;
+  exercise_count: number;
+};
+
+type CalendarDialog =
+  | { type: "plan"; dateKey: string }
+  | { type: "planned"; dateKey: string; workouts: DashboardCalendarWorkout[] }
+  | { type: "performed"; dateKey: string; workouts: DashboardCalendarWorkout[] };
 
 type DashboardProgressMetric = {
   current?: number | null;
@@ -34,6 +50,8 @@ type DashboardOverview = {
   calendar: {
     month: string;
     trained_days: string[];
+    planned_days: string[];
+    calendar_workouts: DashboardCalendarWorkout[];
     sessions_count: number;
     current_streak: number;
     next_objective: string;
@@ -59,6 +77,10 @@ const weekdayFormatter = new Intl.DateTimeFormat("es-ES", { weekday: "short" });
 const workoutDateFormatter = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "short",
+});
+const workoutTimeFormatter = new Intl.DateTimeFormat("es-ES", {
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 function buildMonthDays(referenceDate: Date) {
@@ -113,6 +135,10 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function workoutTitle(workout: DashboardCalendarWorkout) {
+  return workout.name || workout.routine_name || "Entreno";
+}
+
 function formatMetricValue(value?: number | null, suffix = "") {
   if (typeof value !== "number") {
     return "Sin datos";
@@ -133,35 +159,59 @@ function formatMetricDelta(value?: number | null, suffix = "") {
 export default function DashboardPage() {
   const { user } = useOutletContext<OutletContext>();
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
+  const [routines, setRoutines] = useState<DashboardRoutineSummary[]>([]);
+  const [calendarDialog, setCalendarDialog] = useState<CalendarDialog | null>(null);
+  const [selectedRoutineID, setSelectedRoutineID] = useState("");
+  const [planStatus, setPlanStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [calendarActionStatus, setCalendarActionStatus] = useState<"idle" | "loading" | "error">("idle");
   const [statsRange, setStatsRange] = useState<"year" | "month">("year");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const selectedPlanDate = calendarDialog?.type === "plan" ? calendarDialog.dateKey : null;
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      setStatus("loading");
+  const fetchDashboard = useCallback(async () => {
+    setStatus("loading");
 
-      try {
-        const response = await fetch(apiUrl("/api/dashboard"), {
-          credentials: "include",
-        });
+    try {
+      const response = await fetch(apiUrl("/api/dashboard"), {
+        credentials: "include",
+      });
 
-        if (!response.ok) {
-          setDashboard(null);
-          setStatus("error");
-          return;
-        }
-
-        const payload = (await response.json()) as DashboardOverview;
-        setDashboard(payload);
-        setStatus("success");
-      } catch {
+      if (!response.ok) {
         setDashboard(null);
         setStatus("error");
+        return;
       }
-    };
 
-    void fetchDashboard();
+      const payload = (await response.json()) as DashboardOverview;
+      setDashboard(payload);
+      setStatus("success");
+    } catch {
+      setDashboard(null);
+      setStatus("error");
+    }
   }, []);
+
+  const fetchRoutines = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/routines"), {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        setRoutines([]);
+        return;
+      }
+
+      const payload = (await response.json()) as DashboardRoutineSummary[];
+      setRoutines(payload);
+    } catch {
+      setRoutines([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchDashboard();
+  }, [fetchDashboard]);
 
   const currentMonth = useMemo(() => buildMonthDate(dashboard?.calendar.month), [dashboard?.calendar.month]);
   const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
@@ -178,6 +228,127 @@ export default function DashboardPage() {
     () => new Set(dashboard?.calendar.trained_days ?? []),
     [dashboard?.calendar.trained_days],
   );
+  const plannedDays = useMemo(
+    () => new Set(dashboard?.calendar.planned_days ?? []),
+    [dashboard?.calendar.planned_days],
+  );
+  const workoutsByDate = useMemo(() => {
+    const grouped = new Map<string, DashboardCalendarWorkout[]>();
+
+    for (const workout of dashboard?.calendar.calendar_workouts ?? []) {
+      const dateValue = workout.performed_at ?? workout.planned_at;
+      if (!dateValue) {
+        continue;
+      }
+
+      const dateKey = toDateKey(new Date(dateValue));
+      grouped.set(dateKey, [...(grouped.get(dateKey) ?? []), workout]);
+    }
+
+    return grouped;
+  }, [dashboard?.calendar.calendar_workouts]);
+  const todayKey = toDateKey(new Date());
+
+  const handleOpenPlanModal = (dateKey: string) => {
+    setCalendarDialog({ type: "plan", dateKey });
+    setSelectedRoutineID("");
+    setPlanStatus("idle");
+    setCalendarActionStatus("idle");
+    void fetchRoutines();
+  };
+
+  const handleCloseCalendarDialog = () => {
+    setCalendarDialog(null);
+    setSelectedRoutineID("");
+    setPlanStatus("idle");
+    setCalendarActionStatus("idle");
+  };
+
+  const handleCalendarDayClick = (
+    dateKey: string,
+    performedWorkouts: DashboardCalendarWorkout[],
+    plannedWorkouts: DashboardCalendarWorkout[],
+  ) => {
+    if (plannedWorkouts.length > 0 && dateKey >= todayKey) {
+      setCalendarDialog({ type: "planned", dateKey, workouts: plannedWorkouts });
+      setCalendarActionStatus("idle");
+      return;
+    }
+
+    if (performedWorkouts.length > 0) {
+      setCalendarDialog({ type: "performed", dateKey, workouts: performedWorkouts });
+      setCalendarActionStatus("idle");
+      return;
+    }
+
+    if (dateKey >= todayKey) {
+      handleOpenPlanModal(dateKey);
+    }
+  };
+
+  const handlePlanWorkout = async () => {
+    if (!selectedPlanDate || !selectedRoutineID) {
+      setPlanStatus("error");
+      return;
+    }
+
+    const routine = routines.find((item) => item.id === selectedRoutineID);
+    const [year, month, day] = selectedPlanDate.split("-").map(Number);
+    if (!year || !month || !day) {
+      setPlanStatus("error");
+      return;
+    }
+    const plannedAt = new Date(year, month - 1, day, 12, 0, 0).toISOString();
+
+    setPlanStatus("loading");
+    try {
+      const response = await fetch(apiUrl("/api/workouts/planned"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          routine_id: selectedRoutineID,
+          name: routine?.name ?? "Entreno planificado",
+          planned_at: plannedAt,
+        }),
+      });
+
+      if (!response.ok) {
+        setPlanStatus("error");
+        return;
+      }
+
+      setPlanStatus("success");
+      setCalendarDialog(null);
+      await fetchDashboard();
+    } catch {
+      setPlanStatus("error");
+    }
+  };
+
+  const handleCancelPlannedWorkout = async (workoutID: string) => {
+    setCalendarActionStatus("loading");
+
+    try {
+      const response = await fetch(apiUrl(`/api/workout/${workoutID}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        setCalendarActionStatus("error");
+        return;
+      }
+
+      setCalendarDialog(null);
+      setCalendarActionStatus("idle");
+      await fetchDashboard();
+    } catch {
+      setCalendarActionStatus("error");
+    }
+  };
 
   const selectedBreakdown = useMemo(
     () => (
@@ -283,29 +454,199 @@ export default function DashboardPage() {
               ))}
 
               {monthDays.map((day) => {
-                const isTrainedDay = day.isCurrentMonth && trainingDays.has(toDateKey(day.date));
+                const dateKey = toDateKey(day.date);
+                const dateWorkouts = workoutsByDate.get(dateKey) ?? [];
+                const performedWorkouts = dateWorkouts.filter((workout) => Boolean(workout.performed_at));
+                const plannedWorkouts = dateWorkouts.filter((workout) => !workout.performed_at && Boolean(workout.planned_at));
+                const isTrainedDay = day.isCurrentMonth && trainingDays.has(dateKey);
+                const isPlannedDay = day.isCurrentMonth && !isTrainedDay && plannedDays.has(dateKey);
+                const isPastDay = dateKey < todayKey;
+                const isInteractive = day.isCurrentMonth && (!isPastDay || performedWorkouts.length > 0);
 
                 return (
-                  <div
-                    className={`grid aspect-square place-items-center rounded-xl text-xs font-black transition sm:rounded-2xl sm:text-sm ${
+                  <button
+                    className={`relative grid aspect-square place-items-center rounded-xl text-xs font-black transition sm:rounded-2xl sm:text-sm ${
                       day.isCurrentMonth
                         ? isTrainedDay
                           ? "bg-[#265c52] text-[#fffaf0]"
+                          : isPlannedDay
+                            ? "border border-[#d77a2d]/40 bg-[#d77a2d]/15 text-[#1f1b16] hover:bg-[#d77a2d]/25"
                           : day.isToday
                             ? "border border-[#265c52]/30 bg-[#265c52]/10 text-[#1f1b16]"
-                            : "bg-[#fffaf0] text-[#1f1b16]"
+                            : isPastDay
+                              ? "bg-[#fffaf0]/45 text-[#9b9185]"
+                              : "bg-[#fffaf0] text-[#1f1b16] hover:bg-white"
                         : "bg-transparent text-[#b3a89b]"
+                    } ${day.isToday ? "ring-2 ring-[#1f1b16] ring-offset-2 ring-offset-white/70" : ""} ${
+                      isInteractive ? "" : "cursor-not-allowed opacity-60"
                     }`}
+                    disabled={!isInteractive}
                     key={day.key}
+                    type="button"
+                    onClick={() => handleCalendarDayClick(dateKey, performedWorkouts, plannedWorkouts)}
                   >
                     {day.dayNumber}
-                  </div>
+                    {isPlannedDay && <span className="absolute bottom-1.5 h-1.5 w-1.5 rounded-full bg-[#d77a2d]" />}
+                    {day.isToday && (
+                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[#1f1b16]" aria-hidden="true" />
+                    )}
+                  </button>
                 );
               })}
             </div>
           </div>
         </div>
       </section>
+
+      {selectedPlanDate && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
+          <section className="w-full max-w-md rounded-[1.6rem] border border-[#1f1b16]/10 bg-[#fffaf0] p-6 shadow-[0_24px_70px_rgba(31,27,22,0.24)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Planificar entreno</p>
+                <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#1f1b16]">{selectedPlanDate}</h3>
+              </div>
+              <button
+                className="grid h-10 w-10 place-items-center rounded-full border border-[#1f1b16]/10 text-lg font-black text-[#1f1b16] transition hover:bg-white"
+                type="button"
+                onClick={handleCloseCalendarDialog}
+              >
+                x
+              </button>
+            </div>
+
+            <label className="mt-6 block text-sm font-black text-[#1f1b16]" htmlFor="routine-select">
+              Rutina
+            </label>
+            <select
+              className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-semibold text-[#1f1b16] outline-none transition focus:border-[#265c52]"
+              id="routine-select"
+              value={selectedRoutineID}
+              onChange={(event) => setSelectedRoutineID(event.target.value)}
+            >
+              <option value="">Selecciona una rutina</option>
+              {routines.map((routine) => (
+                <option key={routine.id} value={routine.id}>
+                  {routine.name}
+                </option>
+              ))}
+            </select>
+
+            {planStatus === "error" && (
+              <p className="mt-3 text-sm font-bold text-[#9f2f22]">No se ha podido planificar el entreno.</p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className="rounded-2xl border border-[#1f1b16]/10 px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-white"
+                type="button"
+                onClick={handleCloseCalendarDialog}
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded-2xl bg-[#265c52] px-4 py-3 text-sm font-black text-[#fffaf0] transition hover:bg-[#1f1b16] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={planStatus === "loading" || !selectedRoutineID}
+                type="button"
+                onClick={handlePlanWorkout}
+              >
+                Guardar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {calendarDialog?.type === "planned" && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
+          <section className="w-full max-w-md rounded-[1.6rem] border border-[#1f1b16]/10 bg-[#fffaf0] p-6 shadow-[0_24px_70px_rgba(31,27,22,0.24)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#d77a2d]">Entreno planificado</p>
+                <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#1f1b16]">{calendarDialog.dateKey}</h3>
+              </div>
+              <button
+                className="grid h-10 w-10 place-items-center rounded-full border border-[#1f1b16]/10 text-lg font-black text-[#1f1b16] transition hover:bg-white"
+                type="button"
+                onClick={handleCloseCalendarDialog}
+              >
+                x
+              </button>
+            </div>
+
+            <ul className="mt-6 space-y-3">
+              {calendarDialog.workouts.map((workout) => (
+                <li className="rounded-[1.2rem] border border-[#1f1b16]/10 bg-white/70 p-4" key={workout.id}>
+                  <p className="text-sm font-black text-[#1f1b16]">{workoutTitle(workout)}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#5d5348]">
+                    {workout.routine_name || "Entreno libre"}
+                  </p>
+                  {workout.planned_at && (
+                    <p className="mt-3 text-sm font-semibold text-[#5d5348]">
+                      Planificado a las {workoutTimeFormatter.format(new Date(workout.planned_at))}
+                    </p>
+                  )}
+                  <button
+                    className="mt-4 rounded-2xl border border-[#9f2f22]/20 bg-[#9f2f22]/10 px-4 py-3 text-sm font-black text-[#9f2f22] transition hover:bg-[#9f2f22]/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={calendarActionStatus === "loading"}
+                    type="button"
+                    onClick={() => handleCancelPlannedWorkout(workout.id)}
+                  >
+                    Cancelar entreno
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {calendarActionStatus === "error" && (
+              <p className="mt-4 text-sm font-bold text-[#9f2f22]">No se ha podido cancelar el entreno.</p>
+            )}
+          </section>
+        </div>
+      )}
+
+      {calendarDialog?.type === "performed" && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
+          <section className="w-full max-w-md rounded-[1.6rem] border border-[#1f1b16]/10 bg-[#fffaf0] p-6 shadow-[0_24px_70px_rgba(31,27,22,0.24)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Entreno realizado</p>
+                <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#1f1b16]">{calendarDialog.dateKey}</h3>
+              </div>
+              <button
+                className="grid h-10 w-10 place-items-center rounded-full border border-[#1f1b16]/10 text-lg font-black text-[#1f1b16] transition hover:bg-white"
+                type="button"
+                onClick={handleCloseCalendarDialog}
+              >
+                x
+              </button>
+            </div>
+
+            <ul className="mt-6 space-y-3">
+              {calendarDialog.workouts.map((workout) => (
+                <li className="rounded-[1.2rem] border border-[#1f1b16]/10 bg-white/70 p-4" key={workout.id}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-black text-[#1f1b16]">{workoutTitle(workout)}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#5d5348]">
+                        {workout.routine_name || "Entreno libre"}
+                      </p>
+                    </div>
+                    {workout.performed_at && (
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">
+                        {workoutTimeFormatter.format(new Date(workout.performed_at))}
+                      </p>
+                    )}
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-[#5d5348]">
+                    {workout.exercise_count} ejercicios · {workout.duration_minutes} min
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      )}
 
       <section className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.95fr)]">
         <div className="space-y-6">
@@ -325,7 +666,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">
-                        {workoutDateFormatter.format(new Date(workout.started_at))}
+                        {workoutDateFormatter.format(new Date(workout.performed_at))}
                       </p>
                     </div>
                     <p className="mt-3 text-sm font-semibold text-[#5d5348]">

@@ -11,21 +11,21 @@ import (
 
 // OverviewService provides the aggregated data shown on the dashboard.
 type OverviewService struct {
-	routineRepo        repository.RoutineRepository
-	workoutSessionRepo repository.WorkoutSessionRepository
-	bodyMetricRepo     repository.BodyMetricRepository
+	routineRepo         repository.RoutineRepository
+	overviewWorkoutRepo repository.OverviewWorkoutRepository
+	bodyMetricRepo      repository.BodyMetricRepository
 }
 
 // NewOverviewService creates a new OverviewService.
 func NewOverviewService(
 	routineRepo repository.RoutineRepository,
-	workoutSessionRepo repository.WorkoutSessionRepository,
+	overviewWorkoutRepo repository.OverviewWorkoutRepository,
 	bodyMetricRepo repository.BodyMetricRepository,
 ) *OverviewService {
 	return &OverviewService{
-		routineRepo:        routineRepo,
-		workoutSessionRepo: workoutSessionRepo,
-		bodyMetricRepo:     bodyMetricRepo,
+		routineRepo:         routineRepo,
+		overviewWorkoutRepo: overviewWorkoutRepo,
+		bodyMetricRepo:      bodyMetricRepo,
 	}
 }
 
@@ -50,17 +50,32 @@ func (s *OverviewService) GetOverview(ctx context.Context, userID string, refere
 		return model.Overview{}, err
 	}
 
-	recentWorkouts, err := s.workoutSessionRepo.ListRecentByUser(ctx, userID, 3)
+	recentWorkouts, err := s.overviewWorkoutRepo.ListRecentByUser(ctx, userID, 3)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthWorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, monthStart, monthEnd)
+	monthWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, monthStart, monthEnd)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	streakWorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, referenceDate.AddDate(0, 0, 1))
+	todayStart := truncateDate(referenceDate)
+	plannedRangeStart := todayStart
+	if plannedRangeStart.Before(monthStart) {
+		plannedRangeStart = monthStart
+	}
+	plannedWorkoutDates, err := s.overviewWorkoutRepo.ListPlannedDatesInRange(ctx, userID, plannedRangeStart, monthEnd)
+	if err != nil {
+		return model.Overview{}, err
+	}
+
+	calendarWorkouts, err := s.overviewWorkoutRepo.ListCalendarWorkoutsByUser(ctx, userID, monthStart, monthEnd)
+	if err != nil {
+		return model.Overview{}, err
+	}
+
+	streakWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, referenceDate.AddDate(0, 0, 1))
 	if err != nil {
 		return model.Overview{}, err
 	}
@@ -70,23 +85,25 @@ func (s *OverviewService) GetOverview(ctx context.Context, userID string, refere
 		return model.Overview{}, err
 	}
 
-	yearDistribution, yearExerciseCount, err := s.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, yearStart, referenceDate.AddDate(0, 0, 1))
+	yearDistribution, yearExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, yearStart, referenceDate.AddDate(0, 0, 1))
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthDistribution, monthExerciseCount, err := s.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, monthStart, monthEnd)
+	monthDistribution, monthExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, monthStart, monthEnd)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
 	return model.Overview{
 		Calendar: model.OverviewCalendar{
-			Month:         monthStart.Format("2006-01"),
-			TrainedDays:   buildDateStringsAscending(monthWorkoutDates),
-			SessionsCount: len(monthWorkoutDates),
-			CurrentStreak: calculateCurrentStreak(referenceDate, streakWorkoutDates),
-			NextObjective: buildNextObjective(len(monthWorkoutDates)),
+			Month:            monthStart.Format("2006-01"),
+			TrainedDays:      buildDateStringsAscending(monthWorkoutDates),
+			PlannedDays:      buildDateStringsAscending(plannedWorkoutDates),
+			CalendarWorkouts: calendarWorkouts,
+			SessionsCount:    len(monthWorkoutDates),
+			CurrentStreak:    calculateCurrentStreak(referenceDate, streakWorkoutDates),
+			NextObjective:    buildNextObjective(len(monthWorkoutDates)),
 		},
 		RecentRoutines: recentRoutines,
 		RecentWorkouts: recentWorkouts,
