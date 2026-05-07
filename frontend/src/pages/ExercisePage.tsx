@@ -696,7 +696,7 @@ export default function ExercisePage() {
 
             <section
               data-ui="exercise-center-panel"
-              className="min-w-0 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
+              className="flex min-w-0 flex-col rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_2rem_5rem_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
               data-block="exercises-panel"
             >
               <div
@@ -766,7 +766,10 @@ export default function ExercisePage() {
                 )}
               </div>
 
-              <div data-ui="exercise-list-wrapper" className="mt-6">
+              <div
+                data-ui="exercise-list-wrapper"
+                className="mt-6 min-h-0 flex-1"
+              >
                 <ExerciseList
                   status={status}
                   message={message}
@@ -1000,7 +1003,7 @@ export default function ExercisePage() {
                       )}
 
                     {exerciseWorkoutSessions.length > 0 && (
-                      <ul className="mt-4 grid gap-3">
+                      <ul className="mt-4 grid max-h-[24rem] gap-3 overflow-y-auto pr-1">
                         {exerciseWorkoutSessions.map((session) => (
                           <li
                             data-ui="selected-exercise-workout-session-item"

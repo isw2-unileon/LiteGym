@@ -22,7 +22,7 @@ export default function ExerciseList({
 
     return (
         <div
-            className="max-h-[40rem] overflow-y-auto rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5"
+            className="h-full min-h-[24rem] overflow-y-auto rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5"
             data-block="exercise-list-container"
         >
             {status === "loading" && (
@@ -52,7 +52,7 @@ export default function ExerciseList({
             {status === "success" && exercises.length > 0 && (
                 <>
                     {hasCustomExercises && (
-                        <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-[#5d5348]">
+                        <div className="sticky top-0 z-10 mb-4 flex items-center gap-2 rounded-xl bg-[#fffaf0]/95 px-3 py-2 text-xs font-semibold text-[#5d5348] backdrop-blur-sm">
                             <span
                                 className="h-2.5 w-2.5 rounded-full bg-[#265c52] ring-4 ring-[#265c52]/10"
                                 aria-hidden="true"
