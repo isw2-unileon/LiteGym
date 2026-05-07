@@ -54,6 +54,7 @@ type DashboardOverview = {
     calendar_workouts: DashboardCalendarWorkout[];
     sessions_count: number;
     current_streak: number;
+    weekly_goal: number;
     next_objective: string;
   };
   recent_routines: DashboardRoutineSummary[];
@@ -83,7 +84,7 @@ const workoutTimeFormatter = new Intl.DateTimeFormat("es-ES", {
   minute: "2-digit",
 });
 
-function buildMonthDays(referenceDate: Date) {
+function buildMonthDays(referenceDate: Date, todayDate: Date) {
   const year = referenceDate.getFullYear();
   const month = referenceDate.getMonth();
   const firstDay = new Date(year, month, 1);
@@ -101,7 +102,7 @@ function buildMonthDays(referenceDate: Date) {
       date,
       dayNumber: date.getDate(),
       isCurrentMonth,
-      isToday: isCurrentMonth && date.toDateString() === referenceDate.toDateString(),
+      isToday: isCurrentMonth && date.toDateString() === todayDate.toDateString(),
     };
   });
 }
@@ -126,6 +127,16 @@ function buildMonthDate(monthValue?: string) {
   }
 
   return new Date(year, month - 1, 1);
+}
+
+function toMonthParam(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function getMonthOffset(from: Date, to: Date) {
+  return (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth();
 }
 
 function toDateKey(date: Date) {
@@ -159,6 +170,10 @@ function formatMetricDelta(value?: number | null, suffix = "") {
 export default function DashboardPage() {
   const { user } = useOutletContext<OutletContext>();
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [routines, setRoutines] = useState<DashboardRoutineSummary[]>([]);
   const [calendarDialog, setCalendarDialog] = useState<CalendarDialog | null>(null);
   const [selectedRoutineID, setSelectedRoutineID] = useState("");
@@ -172,7 +187,7 @@ export default function DashboardPage() {
     setStatus("loading");
 
     try {
-      const response = await fetch(apiUrl("/api/dashboard"), {
+      const response = await fetch(apiUrl(`/api/dashboard?month=${toMonthParam(visibleMonth)}`), {
         credentials: "include",
       });
 
@@ -189,7 +204,7 @@ export default function DashboardPage() {
       setDashboard(null);
       setStatus("error");
     }
-  }, []);
+  }, [visibleMonth]);
 
   const fetchRoutines = useCallback(async () => {
     try {
@@ -213,8 +228,13 @@ export default function DashboardPage() {
     void fetchDashboard();
   }, [fetchDashboard]);
 
-  const currentMonth = useMemo(() => buildMonthDate(dashboard?.calendar.month), [dashboard?.calendar.month]);
-  const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+  const todayDate = useMemo(() => new Date(), []);
+  const todayMonth = useMemo(() => new Date(todayDate.getFullYear(), todayDate.getMonth(), 1), [todayDate]);
+  const visibleMonthOffset = getMonthOffset(todayMonth, visibleMonth);
+  const canShowPreviousMonth = visibleMonthOffset > -1;
+  const canShowNextMonth = visibleMonthOffset < 1;
+  const currentMonth = useMemo(() => buildMonthDate(dashboard?.calendar.month ?? toMonthParam(visibleMonth)), [dashboard?.calendar.month, visibleMonth]);
+  const monthDays = useMemo(() => buildMonthDays(currentMonth, todayDate), [currentMonth, todayDate]);
   const weekdayLabels = useMemo(() => {
     const baseMonday = new Date(2026, 3, 6);
     return Array.from({ length: 7 }, (_, index) => {
@@ -247,7 +267,17 @@ export default function DashboardPage() {
 
     return grouped;
   }, [dashboard?.calendar.calendar_workouts]);
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(todayDate);
+
+  const handleChangeVisibleMonth = (offset: number) => {
+    const nextOffset = visibleMonthOffset + offset;
+    if (nextOffset < -1 || nextOffset > 1) {
+      return;
+    }
+
+    setCalendarDialog(null);
+    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  };
 
   const handleOpenPlanModal = (dateKey: string) => {
     setCalendarDialog({ type: "plan", dateKey });
@@ -417,8 +447,13 @@ export default function DashboardPage() {
                 <p className="mt-2 text-2xl font-black text-[#1f1b16]">{dashboard?.calendar.sessions_count ?? 0}</p>
               </div>
               <div className="rounded-2xl border border-[#1f1b16]/10 bg-white/70 px-4 py-3">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Racha actual</p>
-                <p className="mt-2 text-2xl font-black text-[#1f1b16]">{dashboard?.calendar.current_streak ?? 0} dias</p>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Racha semanal</p>
+                <p className="mt-2 text-2xl font-black text-[#1f1b16]">{dashboard?.calendar.current_streak ?? 0} semanas</p>
+              </div>
+              <div className="rounded-2xl border border-[#1f1b16]/10 bg-white/70 px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Objetivo semanal</p>
+                <p className="mt-2 text-2xl font-black text-[#1f1b16]">{dashboard?.calendar.weekly_goal ?? 2}</p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-[#5d5348]">sesiones</p>
               </div>
               <div className="rounded-2xl border border-[#1f1b16]/10 bg-white/70 px-4 py-3">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">Proximo objetivo</p>
@@ -441,9 +476,26 @@ export default function DashboardPage() {
                   {calendarFormatter.format(currentMonth)}
                 </h3>
               </div>
-              <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#265c52]">
-                Datos reales
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  aria-label="Mes anterior"
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] text-lg font-black text-[#1f1b16] transition hover:border-[#265c52] disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!canShowPreviousMonth}
+                  type="button"
+                  onClick={() => handleChangeVisibleMonth(-1)}
+                >
+                  {"<"}
+                </button>
+                <button
+                  aria-label="Mes siguiente"
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] text-lg font-black text-[#1f1b16] transition hover:border-[#265c52] disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!canShowNextMonth}
+                  type="button"
+                  onClick={() => handleChangeVisibleMonth(1)}
+                >
+                  {">"}
+                </button>
+              </div>
             </div>
 
             <div className="mt-5 grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -459,26 +511,28 @@ export default function DashboardPage() {
                 const performedWorkouts = dateWorkouts.filter((workout) => Boolean(workout.performed_at));
                 const plannedWorkouts = dateWorkouts.filter((workout) => !workout.performed_at && Boolean(workout.planned_at));
                 const isTrainedDay = day.isCurrentMonth && trainingDays.has(dateKey);
-                const isPlannedDay = day.isCurrentMonth && !isTrainedDay && plannedDays.has(dateKey);
+                const isPlannedDay = day.isCurrentMonth && !isTrainedDay && dateKey >= todayKey && plannedDays.has(dateKey);
                 const isPastDay = dateKey < todayKey;
                 const isInteractive = day.isCurrentMonth && (!isPastDay || performedWorkouts.length > 0);
 
                 return (
                   <button
-                    className={`relative grid aspect-square place-items-center rounded-xl text-xs font-black transition sm:rounded-2xl sm:text-sm ${
+                    className={`relative grid aspect-square place-items-center rounded-xl border text-xs font-black transition sm:rounded-2xl sm:text-sm ${
                       day.isCurrentMonth
                         ? isTrainedDay
-                          ? "bg-[#265c52] text-[#fffaf0]"
+                          ? "border-transparent bg-[#265c52] text-[#fffaf0]"
                           : isPlannedDay
-                            ? "border border-[#d77a2d]/40 bg-[#d77a2d]/15 text-[#1f1b16] hover:bg-[#d77a2d]/25"
+                            ? "border-[#d77a2d]/40 bg-[#d77a2d]/15 text-[#1f1b16]"
                           : day.isToday
-                            ? "border border-[#265c52]/30 bg-[#265c52]/10 text-[#1f1b16]"
+                            ? "border-[#265c52] bg-[#265c52]/10 text-[#1f1b16] shadow-[0_0_0_2px_rgba(38,92,82,0.18)]"
                             : isPastDay
-                              ? "bg-[#fffaf0]/45 text-[#9b9185]"
-                              : "bg-[#fffaf0] text-[#1f1b16] hover:bg-white"
-                        : "bg-transparent text-[#b3a89b]"
-                    } ${day.isToday ? "ring-2 ring-[#1f1b16] ring-offset-2 ring-offset-white/70" : ""} ${
-                      isInteractive ? "" : "cursor-not-allowed opacity-60"
+                              ? "border-transparent bg-[#fffaf0]/45 text-[#9b9185]"
+                              : "border-transparent bg-[#fffaf0] text-[#1f1b16]"
+                        : "border-transparent bg-transparent text-[#b3a89b]"
+                    } ${
+                      isInteractive
+                        ? "hover:ring-2 hover:ring-[#d77a2d] hover:ring-offset-2 hover:ring-offset-white/70"
+                        : "cursor-not-allowed opacity-60"
                     }`}
                     disabled={!isInteractive}
                     key={day.key}
@@ -488,7 +542,7 @@ export default function DashboardPage() {
                     {day.dayNumber}
                     {isPlannedDay && <span className="absolute bottom-1.5 h-1.5 w-1.5 rounded-full bg-[#d77a2d]" />}
                     {day.isToday && (
-                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[#1f1b16]" aria-hidden="true" />
+                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[#265c52]" aria-hidden="true" />
                     )}
                   </button>
                 );

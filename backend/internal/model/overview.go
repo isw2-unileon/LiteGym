@@ -19,6 +19,7 @@ type OverviewCalendar struct {
 	CalendarWorkouts []OverviewCalendarWorkout `json:"calendar_workouts"`
 	SessionsCount    int                       `json:"sessions_count"`
 	CurrentStreak    int                       `json:"current_streak"`
+	WeeklyGoal       int                       `json:"weekly_goal"`
 	NextObjective    string                    `json:"next_objective"`
 }
 

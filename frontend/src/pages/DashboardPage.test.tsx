@@ -33,6 +33,7 @@ function buildDashboardResponse() {
       ],
       sessions_count: 3,
       current_streak: 1,
+      weekly_goal: 2,
       next_objective: "Llegar a 8 sesiones este mes",
     },
     recent_routines: [
@@ -146,7 +147,8 @@ describe("DashboardPage", () => {
     expect(await screen.findByRole("img", { name: "Grafico hexagonal de distribucion muscular" })).toBeInTheDocument();
     expect(screen.getByText("Grupos musculares presentes")).toBeInTheDocument();
     expect(screen.getByText("Sesiones del mes")).toBeInTheDocument();
-    expect(screen.getByText("Racha actual")).toBeInTheDocument();
+    expect(screen.getByText("Racha semanal")).toBeInTheDocument();
+    expect(screen.getByText("Objetivo semanal")).toBeInTheDocument();
     expect(screen.getAllByText("Espalda").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/10 ejercicios considerados/i)).toBeInTheDocument();
   });

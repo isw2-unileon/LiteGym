@@ -145,8 +145,8 @@ func assertOverviewPayload(t *testing.T, overview model.Overview, currentWeight 
 		t.Fatalf("expected 3 monthly sessions, got %d", overview.Calendar.SessionsCount)
 	}
 
-	if overview.Calendar.CurrentStreak != 2 {
-		t.Fatalf("expected streak 2, got %d", overview.Calendar.CurrentStreak)
+	if overview.Calendar.CurrentStreak != 1 {
+		t.Fatalf("expected weekly streak 1, got %d", overview.Calendar.CurrentStreak)
 	}
 
 	if len(overview.RecentRoutines) != 1 || overview.RecentRoutines[0].Name != "Push Pull Legs" {
@@ -192,5 +192,28 @@ func TestOverviewServiceGetOverviewRequiresUserID(t *testing.T) {
 	_, err := svc.GetOverview(context.Background(), "   ", time.Now())
 	if err == nil {
 		t.Fatal("expected error for empty user id")
+	}
+}
+
+func TestOverviewServiceKeepsRollingStatsAnchoredToReferenceDate(t *testing.T) {
+	referenceDate := time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC)
+	svc, _ := newOverviewServiceTestSubject(referenceDate)
+
+	overview, err := svc.GetOverviewForMonth(
+		context.Background(),
+		"11111111-1111-1111-1111-111111111111",
+		time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC),
+		referenceDate,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error building dashboard overview: %v", err)
+	}
+
+	if overview.Calendar.Month != "2026-05" {
+		t.Fatalf("expected calendar month 2026-05, got %s", overview.Calendar.Month)
+	}
+
+	if overview.MuscleDistribution.MonthExerciseCount != 3 {
+		t.Fatalf("expected rolling month exercise count 3, got %d", overview.MuscleDistribution.MonthExerciseCount)
 	}
 }
