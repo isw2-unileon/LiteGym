@@ -28,6 +28,7 @@ func SetupRouter(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
@@ -87,6 +88,10 @@ func SetupRouter(
 
 	protected.GET("/users/:id", userHandler.GetUserByID)
 	protected.DELETE("/users/:id", userHandler.DeleteUser)
+
+	// Profile
+	protected.GET("/profile/dashboard", profileHandler.GetDashboard)
+	protected.PUT("/profile/goals", profileHandler.UpdateGoals)
 
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)

@@ -190,3 +190,63 @@ VALUES
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeeh', 'dddddddd-dddd-dddd-dddd-ddddddddddde', 1, 12, 55, NULL, NULL, 3, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeei', 'dddddddd-dddd-dddd-dddd-dddddddddddf', 1, 5, 120, NULL, NULL, 2, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeej', 'dddddddd-dddd-dddd-dddd-dddddddddddg', 1, 10, 100, NULL, NULL, 2, true);
+
+
+
+INSERT INTO public.user_goals (user_id, short_term, long_term, target_days_per_week, updated_at)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'Levantar 100kg en Press Banca', 'Bajar al 15% de grasa corporal', 4, CURRENT_TIMESTAMP),
+  ('22222222-2222-2222-2222-222222222222', 'Hacer mi primera dominada', 'Crear el hábito de entrenar', 3, CURRENT_TIMESTAMP),
+  ('33333333-3333-3333-3333-333333333333', 'Perder 3kg este mes', 'Correr 10km sin parar', 4, CURRENT_TIMESTAMP);
+
+INSERT INTO public.body_metrics (
+  id, user_id, recorded_at, weight_kg, body_fat_percentage, chest_cm, waist_cm, arm_cm, leg_cm, notes
+)
+VALUES
+  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', now() - interval '28 days', 81.0, 19.5, 101, 86, 35, 57, 'Inicio de la racha actual'),
+  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', now() - interval '21 days', 80.2, 19.1, 101.5, 85, 35.5, 57.5, 'Bajando peso, subiendo fuerza'),
+  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111', now() - interval '14 days', 79.5, 18.8, 102, 84.5, 36, 58, 'Semana dura');
+
+
+
+
+
+  INSERT INTO public.workout_sessions (
+  id, user_id, routine_id, name, started_at, ended_at, duration_minutes, calories_burned, notes
+)
+VALUES
+  ('cccccccc-cccc-cccc-cccc-ccccccccccab', '44444444-4444-4444-4444-444444444444',
+   '88888888-8888-8888-8888-888888888882', 'Full Body intenso',
+   now() - interval '2 days', now() - interval '2 days' + interval '60 minutes', 60, 420, 'Buen ritmo'),
+
+  ('cccccccc-cccc-cccc-cccc-ccccccccccac', '44444444-4444-4444-4444-444444444444',
+   '88888888-8888-8888-8888-888888888882', 'Cardio + core',
+   now() - interval '5 days', now() - interval '5 days' + interval '50 minutes', 50, 380, 'Mucho cardio'),
+
+  ('cccccccc-cccc-cccc-cccc-ccccccccccad', '44444444-4444-4444-4444-444444444444',
+   '88888888-8888-8888-8888-888888888882', 'Pierna + glúteo',
+   now() - interval '9 days', now() - interval '9 days' + interval '70 minutes', 70, 500, 'Intenso en piernas');
+
+   INSERT INTO public.workout_exercises (
+  id, workout_session_id, exercise_id, exercise_order, notes
+)
+VALUES
+  ('dddddddd-dddd-dddd-dddd-dddddddddeaa', 'cccccccc-cccc-cccc-cccc-ccccccccccab', '66666666-6666-6666-6666-666666666661', 1, 'Press banca controlado'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddeab', 'cccccccc-cccc-cccc-cccc-ccccccccccab', '66666666-6666-6666-6666-666666666667', 2, 'Core estable'),
+
+  ('dddddddd-dddd-dddd-dddd-dddddddddeac', 'cccccccc-cccc-cccc-cccc-ccccccccccac', '66666666-6666-6666-6666-666666666667', 1, 'Abdomen'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddead', 'cccccccc-cccc-cccc-cccc-ccccccccccac', '66666666-6666-6666-6666-666666666664', 2, 'Dominadas asistidas'),
+
+  ('dddddddd-dddd-dddd-dddd-dddddddddeae', 'cccccccc-cccc-cccc-cccc-ccccccccccad', '66666666-6666-6666-6666-666666666668', 1, 'Hip thrust fuerte'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddeaf', 'cccccccc-cccc-cccc-cccc-ccccccccccad', '66666666-6666-6666-6666-666666666662', 2, 'Sentadilla técnica');
+
+  INSERT INTO public.workout_sets (
+  id, workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_km, rir, completed
+)
+VALUES
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee12', 'dddddddd-dddd-dddd-dddd-dddddddddeaa', 1, 10, 55, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee13', 'dddddddd-dddd-dddd-dddd-dddddddddeaa', 2, 9, 55, NULL, NULL, 1, true),
+
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee14', 'dddddddd-dddd-dddd-dddd-dddddddddeae', 1, 12, 90, NULL, NULL, 2, true),
+
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee15', 'dddddddd-dddd-dddd-dddd-dddddddddeaf', 1, 10, 70, NULL, NULL, 2, true);

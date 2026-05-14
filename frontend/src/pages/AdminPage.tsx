@@ -4,7 +4,6 @@ import type { LayoutUser } from "../components/AppLayout";
 
 // Import sub-components
 import AdminUsers from "../components/admin/AdminUsers";
-import AdminExercises from "../components/admin/AdminExercises";
 import AdminTickets from "../components/admin/AdminTickets";
 
 type OutletContext = { user?: LayoutUser | null };
@@ -63,18 +62,11 @@ export default function AdminPage() {
               >
                 Gestión de Usuarios
               </button>
-              <button
-                className={`px-6 py-3 font-bold transition-colors ${activeTab === "exercises" ? "border-b-2 border-[#ea7130] text-[#ea7130]" : "text-[#5d5348] hover:text-[#1f1b16]"}`}
-                onClick={() => setActiveTab("exercises")}
-              >
-                Ejercicios Globales
-              </button>
             </div>
 
             {/* Render the active component */}
             {activeTab === "tickets" && <AdminTickets />}
             {activeTab === "users" && <AdminUsers />}
-            {activeTab === "exercises" && <AdminExercises />}
 
           </div>
         </div>

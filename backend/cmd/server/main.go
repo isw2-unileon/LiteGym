@@ -68,6 +68,7 @@ func main() {
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db)))
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
 	r := transport.SetupRouter(
@@ -81,6 +82,7 @@ func main() {
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		cfg.CORSAllowOrigin,
 	)
 

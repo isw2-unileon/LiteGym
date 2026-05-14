@@ -197,3 +197,20 @@ WHERE is_official = true AND deleted_at IS NULL;
 CREATE UNIQUE INDEX exercises_private_owner_name_unique
 ON public.exercises (owner_user_id, LOWER(name))
 WHERE is_official = false AND deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS body_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    weight_kg DECIMAL(5,2) NOT NULL,
+    height_cm DECIMAL(5,2),
+    body_fat_percentage DECIMAL(4,2),
+    recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_goals (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    short_term TEXT,
+    long_term TEXT,
+    target_days_per_week INT DEFAULT 3,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
