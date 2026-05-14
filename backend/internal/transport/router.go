@@ -23,6 +23,7 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	exerciseHandler *handlers.ExerciseHandler,
+	routineHandler *handlers.RoutineHandler,
 	overviewHandler *handlers.OverviewHandler,
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
@@ -95,6 +96,9 @@ func SetupRouter(
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
 
+	// Routines
+	protected.GET("/routines", routineHandler.ListRoutines)
+
 	// Dashboard
 	protected.GET("/dashboard", overviewHandler.GetOverview)
 
@@ -104,6 +108,7 @@ func SetupRouter(
 	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
 
 	// Workout
+	protected.POST("/workouts/planned", workoutHandler.CreatePlannedWorkout)
 	protected.POST("/workout/start", workoutHandler.CreateWorkout)
 	protected.GET("/workout/:id", workoutHandler.GetWorkoutByID)
 	protected.POST("/workout/:id/finish", workoutHandler.FinishWorkout)

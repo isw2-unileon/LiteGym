@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -37,8 +36,8 @@ func NewWorkoutRepository(db *pgxpool.Pool) WorkoutRepository {
 // CreateSession creates a new workout session in the database.
 func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.WorkoutSession) error {
 	query := `
-		INSERT INTO workout_sessions (user_id, routine_id, name, started_at, notes)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO workout_sessions (user_id, routine_id, name, performed_at, planned_at, notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at
 		`
 
@@ -48,7 +47,8 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 		workout.UserID,
 		workout.RoutineID,
 		workout.Name,
-		time.Now(),
+		workout.PerformedAt,
+		workout.PlannedAt,
 		workout.Notes,
 	).Scan(&workout.ID, &workout.CreatedAt)
 
@@ -62,7 +62,7 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 // GetSessionByID retrieves a workout session by its ID.
 func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error) {
 	query := `
-		SELECT id, user_id, routine_id, name, started_at, ended_at, 
+		SELECT id, user_id, routine_id, name, performed_at, planned_at,
 		duration_minutes, calories_burned, notes, created_at
 		FROM workout_sessions
 		WHERE id = $1
@@ -75,8 +75,8 @@ func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (
 		&workout.UserID,
 		&workout.RoutineID,
 		&workout.Name,
-		&workout.StartedAt,
-		&workout.EndedAt,
+		&workout.PerformedAt,
+		&workout.PlannedAt,
 		&workout.Duration,
 		&workout.CaloriesBurned,
 		&workout.Notes,
@@ -94,15 +94,16 @@ func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (
 func (wr *workoutRepository) UpdateSessionByID(ctx context.Context, id uuid.UUID, workout *model.WorkoutSession) error {
 	query := `
 	UPDATE workout_sessions
-	SET name = $1, ended_at = $2, duration_minutes = $3, calories_burned = $4, notes = $5
-	WHERE id = $6
+	SET name = $1, performed_at = $2, planned_at = $3, duration_minutes = $4, calories_burned = $5, notes = $6
+	WHERE id = $7
 	`
 
 	commandTag, err := wr.db.Exec(
 		ctx,
 		query,
 		workout.Name,
-		time.Now(),
+		workout.PerformedAt,
+		workout.PlannedAt,
 		workout.Duration,
 		workout.CaloriesBurned,
 		workout.Notes,

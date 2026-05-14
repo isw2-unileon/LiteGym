@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 // WorkoutHandler handles workout-related HTTP requests.
@@ -25,9 +26,18 @@ func NewWorkoutHandler(svc *service.WorkoutService) *WorkoutHandler {
 }
 
 type createWorkoutRequest struct {
-	UserID    uuid.UUID  `json:"user_id"`
+	UserID      uuid.UUID  `json:"user_id"`
+	RoutineID   *uuid.UUID `json:"routine_id"`
+	Name        string     `json:"name"`
+	PerformedAt *time.Time `json:"performed_at"`
+	PlannedAt   *time.Time `json:"planned_at"`
+	Notes       *string    `json:"notes"`
+}
+
+type createPlannedWorkoutRequest struct {
 	RoutineID *uuid.UUID `json:"routine_id"`
 	Name      string     `json:"name"`
+	PlannedAt *time.Time `json:"planned_at"`
 	Notes     *string    `json:"notes"`
 }
 
@@ -69,10 +79,12 @@ func (h *WorkoutHandler) CreateWorkout(c *gin.Context) {
 	}
 
 	workout := &model.WorkoutSession{
-		UserID:    req.UserID,
-		RoutineID: req.RoutineID,
-		Name:      req.Name,
-		Notes:     req.Notes,
+		UserID:      req.UserID,
+		RoutineID:   req.RoutineID,
+		Name:        req.Name,
+		PerformedAt: req.PerformedAt,
+		PlannedAt:   req.PlannedAt,
+		Notes:       req.Notes,
 	}
 
 	if err := h.service.CreateSession(c.Request.Context(), workout); err != nil {
@@ -87,6 +99,58 @@ func (h *WorkoutHandler) CreateWorkout(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create workout session",
 		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, workout)
+}
+
+// CreatePlannedWorkout handles the HTTP request for planning a workout session.
+func (h *WorkoutHandler) CreatePlannedWorkout(c *gin.Context) {
+	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	userID, ok := userIDValue.(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req createPlannedWorkoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if req.PlannedAt == nil || req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "planned_at and name are required"})
+		return
+	}
+
+	workout := &model.WorkoutSession{
+		UserID:    parsedUserID,
+		RoutineID: req.RoutineID,
+		Name:      req.Name,
+		PlannedAt: req.PlannedAt,
+		Notes:     req.Notes,
+	}
+
+	if err := h.service.CreateSession(c.Request.Context(), workout); err != nil {
+		if errors.Is(err, service.ErrInvalidWorkoutSessionInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "planned_at and name are required"})
+			return
+		}
+
+		slog.Error("failed to create planned workout session", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create planned workout session"})
 		return
 	}
 
@@ -116,7 +180,7 @@ func (h *WorkoutHandler) FinishWorkout(c *gin.Context) {
 
 	updatedSession := &model.WorkoutSession{
 		Name:           req.Name,
-		EndedAt:        TimePointer(time.Now()),
+		PerformedAt:    TimePointer(time.Now()),
 		Duration:       req.Duration,
 		CaloriesBurned: req.CaloriesBurned,
 		Notes:          req.Notes,

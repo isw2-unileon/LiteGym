@@ -244,8 +244,8 @@ func TestWorkoutServiceUpdateSessionByIDSuccess(t *testing.T) {
 	service := NewWorkoutService(mockRepo)
 
 	updatedData := model.WorkoutSession{
-		Name:    "Evening Workout",
-		EndedAt: timePointer(time.Now()),
+		Name:        "Evening Workout",
+		PerformedAt: timePointer(time.Now()),
 	}
 	err := service.UpdateSessionByID(context.Background(), uuid.New(), &updatedData)
 
@@ -257,8 +257,8 @@ func TestWorkoutServiceUpdateSessionByIDSuccess(t *testing.T) {
 		t.Errorf("expected name '%s', got '%s'", updatedData.Name, mockRepo.OriginalSessionData.Name)
 	}
 
-	if mockRepo.OriginalSessionData.EndedAt == nil || !mockRepo.OriginalSessionData.EndedAt.Equal(*updatedData.EndedAt) {
-		t.Errorf("expected ended_at %v, got %v", updatedData.EndedAt, mockRepo.OriginalSessionData.EndedAt)
+	if mockRepo.OriginalSessionData.PerformedAt == nil || !mockRepo.OriginalSessionData.PerformedAt.Equal(*updatedData.PerformedAt) {
+		t.Errorf("expected performed_at %v, got %v", updatedData.PerformedAt, mockRepo.OriginalSessionData.PerformedAt)
 	}
 }
 

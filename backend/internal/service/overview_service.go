@@ -9,58 +9,84 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
 )
 
+const defaultWeeklyWorkoutGoal = 2
+
 // OverviewService provides the aggregated data shown on the dashboard.
 type OverviewService struct {
-	routineRepo        repository.RoutineRepository
-	workoutSessionRepo repository.WorkoutSessionRepository
-	bodyMetricRepo     repository.BodyMetricRepository
+	routineRepo         repository.RoutineRepository
+	overviewWorkoutRepo repository.OverviewWorkoutRepository
+	bodyMetricRepo      repository.BodyMetricRepository
 }
 
 // NewOverviewService creates a new OverviewService.
 func NewOverviewService(
 	routineRepo repository.RoutineRepository,
-	workoutSessionRepo repository.WorkoutSessionRepository,
+	overviewWorkoutRepo repository.OverviewWorkoutRepository,
 	bodyMetricRepo repository.BodyMetricRepository,
 ) *OverviewService {
 	return &OverviewService{
-		routineRepo:        routineRepo,
-		workoutSessionRepo: workoutSessionRepo,
-		bodyMetricRepo:     bodyMetricRepo,
+		routineRepo:         routineRepo,
+		overviewWorkoutRepo: overviewWorkoutRepo,
+		bodyMetricRepo:      bodyMetricRepo,
 	}
 }
 
 // GetOverview returns the data required to render the authenticated dashboard.
 func (s *OverviewService) GetOverview(ctx context.Context, userID string, referenceDate time.Time) (model.Overview, error) {
+	return s.GetOverviewForMonth(ctx, userID, referenceDate, referenceDate)
+}
+
+// GetOverviewForMonth returns dashboard data for one calendar month while keeping rolling stats anchored to today.
+func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string, calendarDate, statsReferenceDate time.Time) (model.Overview, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return model.Overview{}, ErrInvalidUserInput
 	}
 
-	if referenceDate.IsZero() {
-		referenceDate = time.Now()
+	if calendarDate.IsZero() {
+		calendarDate = time.Now()
+	}
+	if statsReferenceDate.IsZero() {
+		statsReferenceDate = time.Now()
 	}
 
-	monthStart := time.Date(referenceDate.Year(), referenceDate.Month(), 1, 0, 0, 0, 0, referenceDate.Location())
+	monthStart := time.Date(calendarDate.Year(), calendarDate.Month(), 1, 0, 0, 0, 0, calendarDate.Location())
 	monthEnd := monthStart.AddDate(0, 1, 0)
-	yearStart := referenceDate.AddDate(-1, 0, 0)
-	streakRangeStart := referenceDate.AddDate(0, 0, -45)
+	statsMonthStart := time.Date(statsReferenceDate.Year(), statsReferenceDate.Month(), 1, 0, 0, 0, 0, statsReferenceDate.Location())
+	statsYearStart := statsReferenceDate.AddDate(-1, 0, 0)
+	streakRangeStart := statsReferenceDate.AddDate(0, 0, -90)
 
 	recentRoutines, err := s.routineRepo.ListRecentByUser(ctx, userID, 3)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	recentWorkouts, err := s.workoutSessionRepo.ListRecentByUser(ctx, userID, 3)
+	recentWorkouts, err := s.overviewWorkoutRepo.ListRecentByUser(ctx, userID, 3)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthWorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, monthStart, monthEnd)
+	monthWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, monthStart, monthEnd)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	streakWorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, referenceDate.AddDate(0, 0, 1))
+	todayStart := truncateDate(statsReferenceDate)
+	plannedRangeStart := todayStart
+	if plannedRangeStart.Before(monthStart) {
+		plannedRangeStart = monthStart
+	}
+	plannedWorkoutDates, err := s.overviewWorkoutRepo.ListPlannedDatesInRange(ctx, userID, plannedRangeStart, monthEnd)
+	if err != nil {
+		return model.Overview{}, err
+	}
+
+	calendarWorkouts, err := s.overviewWorkoutRepo.ListCalendarWorkoutsByUser(ctx, userID, monthStart, monthEnd)
+	if err != nil {
+		return model.Overview{}, err
+	}
+
+	streakWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, statsReferenceDate.AddDate(0, 0, 1))
 	if err != nil {
 		return model.Overview{}, err
 	}
@@ -70,23 +96,26 @@ func (s *OverviewService) GetOverview(ctx context.Context, userID string, refere
 		return model.Overview{}, err
 	}
 
-	yearDistribution, yearExerciseCount, err := s.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, yearStart, referenceDate.AddDate(0, 0, 1))
+	yearDistribution, yearExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsYearStart, statsReferenceDate.AddDate(0, 0, 1))
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthDistribution, monthExerciseCount, err := s.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, monthStart, monthEnd)
+	monthDistribution, monthExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsMonthStart, statsMonthStart.AddDate(0, 1, 0))
 	if err != nil {
 		return model.Overview{}, err
 	}
 
 	return model.Overview{
 		Calendar: model.OverviewCalendar{
-			Month:         monthStart.Format("2006-01"),
-			TrainedDays:   buildDateStringsAscending(monthWorkoutDates),
-			SessionsCount: len(monthWorkoutDates),
-			CurrentStreak: calculateCurrentStreak(referenceDate, streakWorkoutDates),
-			NextObjective: buildNextObjective(len(monthWorkoutDates)),
+			Month:            monthStart.Format("2006-01"),
+			TrainedDays:      buildDateStringsAscending(monthWorkoutDates),
+			PlannedDays:      buildDateStringsAscending(plannedWorkoutDates),
+			CalendarWorkouts: calendarWorkouts,
+			SessionsCount:    len(monthWorkoutDates),
+			CurrentStreak:    calculateWeeklyGoalStreak(statsReferenceDate, streakWorkoutDates, defaultWeeklyWorkoutGoal),
+			WeeklyGoal:       defaultWeeklyWorkoutGoal,
+			NextObjective:    buildNextObjective(len(monthWorkoutDates)),
 		},
 		RecentRoutines: recentRoutines,
 		RecentWorkouts: recentWorkouts,
@@ -154,27 +183,25 @@ func buildDateStringsAscending(dates []time.Time) []string {
 	return values
 }
 
-func calculateCurrentStreak(referenceDate time.Time, dates []time.Time) int {
-	if len(dates) == 0 {
+func calculateWeeklyGoalStreak(referenceDate time.Time, dates []time.Time, weeklyGoal int) int {
+	if len(dates) == 0 || weeklyGoal <= 0 {
 		return 0
 	}
 
-	trainingDays := make(map[string]struct{}, len(dates))
+	trainingWeeks := make(map[string]int)
 	for _, trainedDate := range dates {
-		trainingDays[trainedDate.Format("2006-01-02")] = struct{}{}
+		weekStart := startOfWeek(trainedDate)
+		trainingWeeks[weekStart.Format("2006-01-02")]++
 	}
 
-	startDate := truncateDate(referenceDate)
-	if _, ok := trainingDays[startDate.Format("2006-01-02")]; !ok {
-		startDate = startDate.AddDate(0, 0, -1)
-		if _, ok := trainingDays[startDate.Format("2006-01-02")]; !ok {
-			return 0
-		}
+	currentWeekStart := startOfWeek(referenceDate)
+	if trainingWeeks[currentWeekStart.Format("2006-01-02")] < weeklyGoal {
+		currentWeekStart = currentWeekStart.AddDate(0, 0, -7)
 	}
 
 	streak := 0
-	for current := startDate; ; current = current.AddDate(0, 0, -1) {
-		if _, ok := trainingDays[current.Format("2006-01-02")]; !ok {
+	for weekStart := currentWeekStart; ; weekStart = weekStart.AddDate(0, 0, -7) {
+		if trainingWeeks[weekStart.Format("2006-01-02")] < weeklyGoal {
 			break
 		}
 		streak++
@@ -198,4 +225,10 @@ func buildNextObjective(monthSessions int) string {
 
 func truncateDate(value time.Time) time.Time {
 	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, value.Location())
+}
+
+func startOfWeek(value time.Time) time.Time {
+	date := truncateDate(value)
+	offset := (int(date.Weekday()) + 6) % 7
+	return date.AddDate(0, 0, -offset)
 }
