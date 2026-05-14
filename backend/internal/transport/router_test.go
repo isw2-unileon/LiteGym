@@ -122,6 +122,23 @@ func (m *MockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
+func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	return 0, nil
+}
+
+func (m *MockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	return nil
+}
+
+func (m *MockRoutineRepository) ListAvailableExercisesForAI(
+	ctx context.Context,
+	userID string,
+	targetMuscleGroups []string,
+	limit int,
+) ([]model.Exercise, error) {
+	return []model.Exercise{}, nil
+}
+
 /* Workout Session Repository */
 type MockWorkoutSessionRepository struct{}
 
@@ -239,6 +256,11 @@ func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenS
 func newTestOverviewHandler() *handlers.OverviewHandler {
 	overviewService := service.NewOverviewService(&MockRoutineRepository{}, &MockWorkoutSessionRepository{}, &MockBodyMetricRepository{})
 	return handlers.NewOverviewHandler(overviewService)
+}
+
+func newTestRoutineHandler() *handlers.RoutineHandler {
+	routineAIService := service.NewRoutineAIService(&MockRoutineRepository{}, "test-key", "gemini-1.5-flash")
+	return handlers.NewRoutineHandler(routineAIService)
 }
 
 func newTestTicketHandler(userService *service.UserService) *handlers.TicketHandler {

@@ -56,6 +56,7 @@ func main() {
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, workoutSessionRepo, bodyMetricRepo)
+	routineAIService := service.NewRoutineAIService(routineRepo, cfg.GeminiAPIKey, cfg.GeminiModel)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
@@ -63,18 +64,20 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	routineHandler := handlers.NewRoutineHandler(routineAIService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
-	r := transport.SetupRouter(
+	r := transport.SetupRouterWithRoutine(
 		db,
 		userHandler,
 		authHandler,
 		authMiddleware,
 		exerciseHandler,
+		routineHandler,
 		overviewHandler,
 		healthHandler,
 		ticketHandler,

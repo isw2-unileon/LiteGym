@@ -197,3 +197,14 @@ WHERE is_official = true AND deleted_at IS NULL;
 CREATE UNIQUE INDEX exercises_private_owner_name_unique
 ON public.exercises (owner_user_id, LOWER(name))
 WHERE is_official = false AND deleted_at IS NULL;
+
+CREATE TABLE public.ai_routine_generation_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  CONSTRAINT ai_routine_generation_logs_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX ai_routine_generation_logs_user_created_at_idx
+ON public.ai_routine_generation_logs (user_id, created_at DESC);

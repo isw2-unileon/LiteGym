@@ -29,6 +29,62 @@ func SetupRouter(
 	workoutHandler *handlers.WorkoutHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
+	return setupRouterInternal(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		nil,
+		overviewHandler,
+		healthHandler,
+		ticketHandler,
+		workoutHandler,
+		corsAllowOrigin...,
+	)
+}
+
+func SetupRouterWithRoutine(
+	db DBPinger,
+	userHandler *handlers.UserHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	exerciseHandler *handlers.ExerciseHandler,
+	routineHandler *handlers.RoutineHandler,
+	overviewHandler *handlers.OverviewHandler,
+	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
+	workoutHandler *handlers.WorkoutHandler,
+	corsAllowOrigin ...string,
+) *gin.Engine {
+	return setupRouterInternal(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		routineHandler,
+		overviewHandler,
+		healthHandler,
+		ticketHandler,
+		workoutHandler,
+		corsAllowOrigin...,
+	)
+}
+
+func setupRouterInternal(
+	db DBPinger,
+	userHandler *handlers.UserHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	exerciseHandler *handlers.ExerciseHandler,
+	routineHandler *handlers.RoutineHandler,
+	overviewHandler *handlers.OverviewHandler,
+	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
+	workoutHandler *handlers.WorkoutHandler,
+	corsAllowOrigin ...string,
+) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(corsMiddleware(resolveCORSAllowOrigin(corsAllowOrigin)))
@@ -96,6 +152,11 @@ func SetupRouter(
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+
+	// Routines
+	if routineHandler != nil {
+		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+	}
 
 	// Dashboard
 	protected.GET("/dashboard", overviewHandler.GetOverview)

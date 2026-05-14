@@ -20,6 +20,8 @@ type Config struct {
 	AuthCookieName   string
 	AuthCookieSecure bool
 	AuthTokenTTL     time.Duration
+	GeminiAPIKey     string
+	GeminiModel      string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -43,6 +45,8 @@ func Load() *Config {
 		AuthCookieName:   getEnv("AUTH_COOKIE_NAME", "auth_token"),
 		AuthCookieSecure: getEnvBool("AUTH_COOKIE_SECURE", false),
 		AuthTokenTTL:     getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),
+		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-1.5-flash"),
 	}
 }
 

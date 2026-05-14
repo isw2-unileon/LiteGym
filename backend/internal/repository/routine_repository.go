@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +12,14 @@ import (
 // RoutineRepository defines the persistence operations for routines.
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
+	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
+	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
+	ListAvailableExercisesForAI(
+		ctx context.Context,
+		userID string,
+		targetMuscleGroups []string,
+		limit int,
+	) ([]model.Exercise, error)
 }
 
 type routineRepository struct {
@@ -57,4 +67,103 @@ func (r *routineRepository) ListRecentByUser(ctx context.Context, userID string,
 	}
 
 	return routines, rows.Err()
+}
+
+func (r *routineRepository) CountAIGenerationsInWindow(
+	ctx context.Context,
+	userID string,
+	since time.Time,
+) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(1)::int
+		FROM public.ai_routine_generation_logs
+		WHERE user_id = $1::uuid
+			AND created_at >= $2
+	`, userID, since).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *routineRepository) LogAIGeneration(
+	ctx context.Context,
+	userID string,
+	createdAt time.Time,
+) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO public.ai_routine_generation_logs (user_id, created_at)
+		VALUES ($1::uuid, $2)
+	`, userID, createdAt)
+	return err
+}
+
+func (r *routineRepository) ListAvailableExercisesForAI(
+	ctx context.Context,
+	userID string,
+	targetMuscleGroups []string,
+	limit int,
+) ([]model.Exercise, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			e.id::text,
+			e.name,
+			COALESCE(e.description, ''),
+			e.muscle_group,
+			COALESCE(e.exercise_type, ''),
+			e.is_official
+		FROM public.exercises e
+		WHERE e.deleted_at IS NULL
+			AND (e.is_official = true OR e.owner_user_id = $1::uuid)
+			AND (
+				$2::text[] IS NULL
+				OR cardinality($2::text[]) = 0
+				OR e.muscle_group = ANY($2::text[])
+			)
+		ORDER BY e.is_official DESC, LOWER(e.name) ASC
+		LIMIT $3
+	`, userID, normalizeStringList(targetMuscleGroups), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	exercises := make([]model.Exercise, 0)
+	for rows.Next() {
+		var exercise model.Exercise
+		var exerciseType string
+		if err := rows.Scan(
+			&exercise.ID,
+			&exercise.Name,
+			&exercise.Description,
+			&exercise.MuscleGroup,
+			&exerciseType,
+			&exercise.IsOfficial,
+		); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(exerciseType) != "" {
+			exercise.ExerciseType = exerciseType
+		}
+		exercises = append(exercises, exercise)
+	}
+
+	return exercises, rows.Err()
+}
+
+func normalizeStringList(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
 }
