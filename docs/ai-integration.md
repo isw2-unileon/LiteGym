@@ -11,7 +11,7 @@ Routine generation follows this path:
 1. An authenticated user calls `POST /api/routines/ai/generate`.
 2. The handler validates the session and request body.
 3. The service checks the per-user usage limit.
-4. The service gathers a compact summary of the user and a filtered exercise catalog.
+4. The service gathers a compact summary of the user, the latest workout history at session/exercise/set level, and a filtered exercise catalog.
 5. It builds a structured JSON prompt.
 6. It calls Gemini over HTTP.
 7. Gemini returns JSON.
@@ -42,7 +42,7 @@ routineAIService := service.NewRoutineAIService(
 )
 ```
 
-That means the AI service is not standalone. It depends on the database to build useful context before contacting the model.
+That means the AI service is not standalone. It depends on the database to build useful context before contacting the model, including the latest workout sessions and their set-level detail.
 
 ## Configuration
 
@@ -146,6 +146,7 @@ The prompt includes a `user_context` object with:
 - `training_days_30d`
 - `current_streak_days`
 - `recent_workouts`
+- `recent_training_history`
 - `recent_routines`
 - `top_muscle_groups`
 - `body_metrics`
@@ -155,6 +156,7 @@ The prompt includes a `user_context` object with:
 - `training_days_30d`: number of days trained in the last 30 days.
 - `current_streak_days`: current training streak.
 - `recent_workouts`: recent sessions with name, associated routine, duration, and number of exercises.
+- `recent_training_history`: the latest sessions expanded into exercises and sets, including `reps` and `weight_kg`.
 - `recent_routines`: recent routines with name and exercise count.
 - `top_muscle_groups`: most trained muscle groups, with count and percentage.
 - `body_metrics`: the latest body metrics and deltas when available.
@@ -164,7 +166,7 @@ The prompt includes a `user_context` object with:
 Because Gemini does not need:
 
 - every historical session
-- every set
+- every set from the whole account history
 - every exercise the user has ever done
 - the full user profile from the database
 
@@ -208,7 +210,7 @@ The prompt has two parts:
 This is a short instruction that tells the model to:
 
 - act as a workout planner
-- use `user_context` as the main history signal
+- use `user_context`, especially `recent_training_history`, as the main history signal
 - return only valid JSON
 - avoid Markdown
 
@@ -254,6 +256,45 @@ And each exercise must include:
 - `recommended_reps`
 
 This is not a hard schema validator by itself, but it makes the model much more likely to return parseable structured output.
+
+## Recent Workout History
+
+This is the new part of the prompt that was added after the initial AI integration.
+
+The backend now sends a compact representation of the latest workouts, not just a high-level summary. Each session includes:
+
+- session identity and display name
+- routine name
+- start time
+- duration
+- exercises performed in that session
+- the order of each exercise
+- sets per exercise
+- repetitions per set
+- weight per set
+
+This data is produced by the workout session repository and folded into `user_context.recent_training_history`.
+
+### Why This Matters
+
+The model can now see not only that the user trained chest or legs recently, but also:
+
+- which movements they already used
+- the set and rep ranges they actually handled
+- the weight progression between recent sessions
+
+That gives Gemini more signal for:
+
+- progressive overload
+- exercise selection
+- balancing repeated movements
+- avoiding overly repetitive routines
+
+### Token Tradeoff
+
+This extra context does increase prompt size. In local real requests, the prompt token count moved from roughly `1117` tokens for the lighter summary to roughly `1640` tokens once the training history block was added.
+
+That is still a controlled prompt size for the amount of signal being sent, but it is materially larger than the earlier version.
 
 ## Gemini Request
 
@@ -353,6 +394,7 @@ Authenticated user
   -> service validates input
   -> service checks rate limit
   -> service loads compact user summary
+  -> service loads recent workout history with exercises and sets
   -> service loads exercise catalog
   -> service builds JSON prompt
   -> service calls Gemini
@@ -367,7 +409,7 @@ Authenticated user
 This design balances four goals:
 
 1. Enough context for Gemini to produce a useful routine.
-2. Few tokens so the call stays cheap.
+2. Enough token efficiency so the call stays practical.
 3. Structured output so post-processing stays simple.
 4. Abuse control so provider usage does not grow without limits.
 
@@ -380,6 +422,7 @@ There are a few clear limitations today:
 - the frontend does not yet expose a dedicated UI for this feature
 - the generated routine is not persisted as a reusable entity
 - the user context is summarized, not exhaustive
+- the recent training history increases prompt size, so the context needs to stay intentionally compact
 
 ## Possible Improvements
 
@@ -391,6 +434,7 @@ If this needs to be hardened later, reasonable next steps would be:
 - enrich the context with a compact per-exercise performance summary
 - persist generation metadata and output if auditing or reuse is needed
 - add a frontend UI for launching generation and displaying the routine
+- tune the workout history window and session count if prompt size grows too much
 
 ## Conclusion
 
