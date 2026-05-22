@@ -30,23 +30,32 @@ const (
 
 // RoutineAIService generates AI routine JSON and enforces per-user rate limits.
 type RoutineAIService struct {
-	repo      repository.RoutineRepository
-	apiKey    string
-	model     string
-	httpClient *http.Client
+	repo               repository.RoutineRepository
+	workoutSessionRepo repository.WorkoutSessionRepository
+	bodyMetricRepo     repository.BodyMetricRepository
+	apiKey             string
+	model              string
+	httpClient         *http.Client
 }
 
-func NewRoutineAIService(repo repository.RoutineRepository, apiKey, model string) *RoutineAIService {
+func NewRoutineAIService(
+	repo repository.RoutineRepository,
+	workoutSessionRepo repository.WorkoutSessionRepository,
+	bodyMetricRepo repository.BodyMetricRepository,
+	apiKey, model string,
+) *RoutineAIService {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		model = "gemini-1.5-flash"
 	}
 
 	return &RoutineAIService{
-		repo:      repo,
-		apiKey:    strings.TrimSpace(apiKey),
-		model:     model,
-		httpClient: &http.Client{Timeout: 25 * time.Second},
+		repo:               repo,
+		workoutSessionRepo: workoutSessionRepo,
+		bodyMetricRepo:     bodyMetricRepo,
+		apiKey:             strings.TrimSpace(apiKey),
+		model:              model,
+		httpClient:         &http.Client{Timeout: 25 * time.Second},
 	}
 }
 
@@ -73,10 +82,6 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 	}
 
 	resetAt := now.Add(aiRoutineRateWindow)
-	remaining := aiRoutineRateLimit - used
-	if remaining < 0 {
-		remaining = 0
-	}
 
 	if used >= aiRoutineRateLimit {
 		return model.AIRoutineGenerateResponse{
@@ -95,7 +100,12 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 		return model.AIRoutineGenerateResponse{}, err
 	}
 
-	generated, err := s.generateWithGemini(ctx, req, exercises, now)
+	userContext, err := s.buildUserContext(ctx, userID, now)
+	if err != nil {
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	generated, err := s.generateWithGemini(ctx, req, exercises, userContext, now)
 	if err != nil {
 		return model.AIRoutineGenerateResponse{}, err
 	}
@@ -120,6 +130,7 @@ func (s *RoutineAIService) generateWithGemini(
 	ctx context.Context,
 	req model.AIRoutineGenerationRequest,
 	exercises []model.Exercise,
+	userContext routineAIUserContext,
 	now time.Time,
 ) (model.AIRoutineJSON, error) {
 	if s.apiKey == "" {
@@ -129,34 +140,35 @@ func (s *RoutineAIService) generateWithGemini(
 	exerciseCatalog := make([]map[string]string, 0, len(exercises))
 	for _, exercise := range exercises {
 		exerciseCatalog = append(exerciseCatalog, map[string]string{
-			"id":           exercise.ID,
-			"name":         exercise.Name,
-			"muscle_group": exercise.MuscleGroup,
+			"id":            exercise.ID,
+			"name":          exercise.Name,
+			"muscle_group":  exercise.MuscleGroup,
 			"exercise_type": exercise.ExerciseType,
 		})
 	}
 
 	inputPayload := map[string]any{
-		"objective": req.Objective,
-		"duration_minutes": req.DurationMinutes,
-		"target_muscle_groups": normalizeTextList(req.TargetMuscleGroups),
+		"objective":              req.Objective,
+		"duration_minutes":       req.DurationMinutes,
+		"target_muscle_groups":   normalizeTextList(req.TargetMuscleGroups),
 		"mandatory_exercise_ids": normalizeTextList(req.MandatoryExerciseIDs),
-		"exercise_catalog": exerciseCatalog,
+		"user_context":           userContext,
+		"exercise_catalog":       exerciseCatalog,
 		"output_contract": map[string]any{
-			"name": "string",
-			"objective": "string",
-			"duration_minutes": "number",
-			"target_muscles": []string{},
-			"mandatory_count": "number",
-			"generated_at": "RFC3339 datetime string",
+			"name":              "string",
+			"objective":         "string",
+			"duration_minutes":  "number",
+			"target_muscles":    []string{},
+			"mandatory_count":   "number",
+			"generated_at":      "RFC3339 datetime string",
 			"generation_source": "string",
 			"exercises": []map[string]string{
 				{
-					"exercise_id": "string",
-					"name": "string",
-					"muscle_group": "string",
-					"exercise_type": "string",
-					"is_mandatory": "boolean",
+					"exercise_id":      "string",
+					"name":             "string",
+					"muscle_group":     "string",
+					"exercise_type":    "string",
+					"is_mandatory":     "boolean",
 					"recommended_sets": "number",
 					"recommended_reps": "string",
 				},
@@ -164,7 +176,7 @@ func (s *RoutineAIService) generateWithGemini(
 		},
 	}
 
-	systemInstruction := "You are a workout planner. Return only valid JSON matching output_contract. Do not include markdown."
+	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Return only valid JSON matching output_contract. Do not include markdown."
 	userPromptBytes, _ := json.Marshal(inputPayload)
 
 	requestBody := map[string]any{
@@ -248,6 +260,85 @@ func (s *RoutineAIService) generateWithGemini(
 	return generated, nil
 }
 
+func (s *RoutineAIService) buildUserContext(
+	ctx context.Context,
+	userID string,
+	now time.Time,
+) (routineAIUserContext, error) {
+	userContext := routineAIUserContext{}
+
+	recentWorkouts, err := s.workoutSessionRepo.ListRecentByUser(ctx, userID, 2)
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.RecentWorkouts = make([]routineAIRecentWorkout, 0, len(recentWorkouts))
+	for _, workout := range recentWorkouts {
+		userContext.RecentWorkouts = append(userContext.RecentWorkouts, routineAIRecentWorkout{
+			Name:            workout.Name,
+			RoutineName:     workout.RoutineName,
+			DurationMinutes: workout.DurationMinutes,
+			ExerciseCount:   workout.ExerciseCount,
+		})
+	}
+
+	recentWorkoutHistory, err := s.workoutSessionRepo.ListRecentWorkoutHistoryByUser(ctx, userID, 2)
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.RecentTrainingHistory = recentWorkoutHistory
+
+	recentRoutines, err := s.repo.ListRecentByUser(ctx, userID, 2)
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.RecentRoutines = make([]routineAIRecentRoutine, 0, len(recentRoutines))
+	for _, routine := range recentRoutines {
+		userContext.RecentRoutines = append(userContext.RecentRoutines, routineAIRecentRoutine{
+			Name:          routine.Name,
+			ExerciseCount: routine.ExerciseCount,
+		})
+	}
+
+	last30Start := now.AddDate(0, 0, -30)
+	last30WorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, last30Start, now.AddDate(0, 0, 1))
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.TrainingDays30d = len(last30WorkoutDates)
+
+	streakRangeStart := now.AddDate(0, 0, -45)
+	streakWorkoutDates, err := s.workoutSessionRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, now.AddDate(0, 0, 1))
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.CurrentStreakDays = calculateCurrentStreak(now, streakWorkoutDates)
+
+	yearStart := now.AddDate(0, 0, -90)
+	muscleShares, _, err := s.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, yearStart, now.AddDate(0, 0, 1))
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.TopMuscleGroups = make([]routineAIMuscleGroupShare, 0, minInt(3, len(muscleShares)))
+	for index, share := range muscleShares {
+		if index >= 3 {
+			break
+		}
+		userContext.TopMuscleGroups = append(userContext.TopMuscleGroups, routineAIMuscleGroupShare{
+			Name:       share.Name,
+			Count:      share.Count,
+			Percentage: share.Percentage,
+		})
+	}
+
+	bodyMetrics, err := s.bodyMetricRepo.ListRecentByUser(ctx, userID, 2)
+	if err != nil {
+		return routineAIUserContext{}, err
+	}
+	userContext.BodyMetrics = buildRoutineAIBodyMetrics(bodyMetrics)
+
+	return userContext, nil
+}
+
 func normalizeTextList(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -270,6 +361,44 @@ func normalizeTextList(values []string) []string {
 	return normalized
 }
 
+type routineAIUserContext struct {
+	TrainingDays30d       int                                   `json:"training_days_30d"`
+	CurrentStreakDays     int                                   `json:"current_streak_days"`
+	RecentWorkouts        []routineAIRecentWorkout              `json:"recent_workouts,omitempty"`
+	RecentTrainingHistory []model.AIRoutineRecentWorkoutSession `json:"recent_training_history,omitempty"`
+	RecentRoutines        []routineAIRecentRoutine              `json:"recent_routines,omitempty"`
+	TopMuscleGroups       []routineAIMuscleGroupShare           `json:"top_muscle_groups,omitempty"`
+	BodyMetrics           *routineAIBodyMetrics                 `json:"body_metrics,omitempty"`
+}
+
+type routineAIRecentWorkout struct {
+	Name            string `json:"name"`
+	RoutineName     string `json:"routine_name,omitempty"`
+	DurationMinutes int    `json:"duration_minutes"`
+	ExerciseCount   int    `json:"exercise_count"`
+}
+
+type routineAIRecentRoutine struct {
+	Name          string `json:"name"`
+	ExerciseCount int    `json:"exercise_count"`
+}
+
+type routineAIMuscleGroupShare struct {
+	Name       string `json:"name"`
+	Count      int    `json:"count"`
+	Percentage int    `json:"percentage"`
+}
+
+type routineAIBodyMetrics struct {
+	LastRecordedAt         *time.Time `json:"last_recorded_at,omitempty"`
+	WeightKg               *float64   `json:"weight_kg,omitempty"`
+	WeightKgDelta          *float64   `json:"weight_kg_delta,omitempty"`
+	BodyFatPercentage      *float64   `json:"body_fat_percentage,omitempty"`
+	BodyFatPercentageDelta *float64   `json:"body_fat_percentage_delta,omitempty"`
+	MuscleMassKg           *float64   `json:"muscle_mass_kg,omitempty"`
+	MuscleMassKgDelta      *float64   `json:"muscle_mass_kg_delta,omitempty"`
+}
+
 type geminiGenerateContentResponse struct {
 	Candidates []struct {
 		Content struct {
@@ -289,4 +418,45 @@ func extractGeminiText(response geminiGenerateContentResponse) string {
 		return ""
 	}
 	return parts[0].Text
+}
+
+func buildRoutineAIBodyMetrics(entries []model.OverviewBodyMetricEntry) *routineAIBodyMetrics {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	current := entries[0]
+	var previous *model.OverviewBodyMetricEntry
+	if len(entries) > 1 {
+		previous = &entries[1]
+	}
+
+	metrics := &routineAIBodyMetrics{
+		LastRecordedAt:    &current.RecordedAt,
+		WeightKg:          current.WeightKg,
+		BodyFatPercentage: current.BodyFatPercentage,
+		MuscleMassKg:      current.MuscleMassKg,
+	}
+
+	if current.WeightKg != nil && previous != nil && previous.WeightKg != nil {
+		delta := *current.WeightKg - *previous.WeightKg
+		metrics.WeightKgDelta = &delta
+	}
+	if current.BodyFatPercentage != nil && previous != nil && previous.BodyFatPercentage != nil {
+		delta := *current.BodyFatPercentage - *previous.BodyFatPercentage
+		metrics.BodyFatPercentageDelta = &delta
+	}
+	if current.MuscleMassKg != nil && previous != nil && previous.MuscleMassKg != nil {
+		delta := *current.MuscleMassKg - *previous.MuscleMassKg
+		metrics.MuscleMassKgDelta = &delta
+	}
+
+	return metrics
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -49,6 +49,10 @@ func (m *mockWorkoutSessionRepository) ListRecentByUser(ctx context.Context, use
 	return []model.OverviewWorkoutSummary{}, nil
 }
 
+func (m *mockWorkoutSessionRepository) ListRecentWorkoutHistoryByUser(ctx context.Context, userID string, limit int) ([]model.AIRoutineRecentWorkoutSession, error) {
+	return []model.AIRoutineRecentWorkoutSession{}, nil
+}
+
 func (m *mockWorkoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	if m.listTrainingDatesInRangeFunc != nil {
 		return m.listTrainingDatesInRangeFunc(ctx, userID, from, to)

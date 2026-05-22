@@ -146,6 +146,10 @@ func (m *MockWorkoutSessionRepository) ListRecentByUser(ctx context.Context, use
 	return []model.OverviewWorkoutSummary{}, nil
 }
 
+func (m *MockWorkoutSessionRepository) ListRecentWorkoutHistoryByUser(ctx context.Context, userID string, limit int) ([]model.AIRoutineRecentWorkoutSession, error) {
+	return []model.AIRoutineRecentWorkoutSession{}, nil
+}
+
 func (m *MockWorkoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	return []time.Time{}, nil
 }
@@ -259,7 +263,13 @@ func newTestOverviewHandler() *handlers.OverviewHandler {
 }
 
 func newTestRoutineHandler() *handlers.RoutineHandler {
-	routineAIService := service.NewRoutineAIService(&MockRoutineRepository{}, "test-key", "gemini-1.5-flash")
+	routineAIService := service.NewRoutineAIService(
+		&MockRoutineRepository{},
+		&MockWorkoutSessionRepository{},
+		&MockBodyMetricRepository{},
+		"test-key",
+		"gemini-1.5-flash",
+	)
 	return handlers.NewRoutineHandler(routineAIService)
 }
 

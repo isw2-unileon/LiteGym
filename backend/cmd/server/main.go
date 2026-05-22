@@ -56,7 +56,13 @@ func main() {
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, workoutSessionRepo, bodyMetricRepo)
-	routineAIService := service.NewRoutineAIService(routineRepo, cfg.GeminiAPIKey, cfg.GeminiModel)
+	routineAIService := service.NewRoutineAIService(
+		routineRepo,
+		workoutSessionRepo,
+		bodyMetricRepo,
+		cfg.GeminiAPIKey,
+		cfg.GeminiModel,
+	)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 

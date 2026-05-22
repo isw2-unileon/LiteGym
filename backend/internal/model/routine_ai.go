@@ -10,6 +10,33 @@ type AIRoutineGenerationRequest struct {
 	DurationMinutes      int      `json:"duration_minutes"`
 }
 
+// AIRoutineRecentWorkoutSet represents one set from a recent workout session.
+type AIRoutineRecentWorkoutSet struct {
+	SetNumber int      `json:"set_number"`
+	Reps      *int     `json:"reps,omitempty"`
+	WeightKg  *float64 `json:"weight_kg,omitempty"`
+}
+
+// AIRoutineRecentWorkoutExercise represents one exercise inside a recent workout session.
+type AIRoutineRecentWorkoutExercise struct {
+	ExerciseID    string                      `json:"exercise_id"`
+	ExerciseName  string                      `json:"exercise_name"`
+	MuscleGroup   string                      `json:"muscle_group"`
+	ExerciseType  string                      `json:"exercise_type,omitempty"`
+	ExerciseOrder int                         `json:"exercise_order"`
+	Sets          []AIRoutineRecentWorkoutSet `json:"sets"`
+}
+
+// AIRoutineRecentWorkoutSession represents one recent workout session with sets.
+type AIRoutineRecentWorkoutSession struct {
+	SessionID       string                           `json:"session_id"`
+	SessionName     string                           `json:"session_name,omitempty"`
+	RoutineName     string                           `json:"routine_name,omitempty"`
+	StartedAt       time.Time                        `json:"started_at"`
+	DurationMinutes int                              `json:"duration_minutes"`
+	Exercises       []AIRoutineRecentWorkoutExercise `json:"exercises"`
+}
+
 // AIRoutineExercise defines one exercise entry in generated routine JSON.
 type AIRoutineExercise struct {
 	ExerciseID      string `json:"exercise_id"`
@@ -44,7 +71,6 @@ type AIRoutineRateLimitStatus struct {
 
 // AIRoutineGenerateResponse wraps generated JSON plus rate-limit metadata.
 type AIRoutineGenerateResponse struct {
-	RoutineJSON AIRoutineJSON         `json:"routine_json"`
+	RoutineJSON AIRoutineJSON            `json:"routine_json"`
 	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
 }
-
