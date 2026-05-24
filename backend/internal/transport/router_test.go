@@ -283,7 +283,7 @@ func newTestOverviewHandler() *handlers.OverviewHandler {
 
 func newTestRoutineHandler() *handlers.RoutineHandler {
 	routineService := service.NewRoutineService(&MockRoutineRepository{})
-	return handlers.NewRoutineHandler(routineService)
+	return handlers.NewRoutineHandler(routineService, nil)
 }
 
 func newTestTicketHandler(userService *service.UserService) *handlers.TicketHandler {

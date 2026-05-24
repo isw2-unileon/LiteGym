@@ -30,6 +30,10 @@ func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, u
 	}, nil
 }
 
+func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+	return []model.OverviewRoutineSummary{}, nil
+}
+
 func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
 	return 0, nil
 }
