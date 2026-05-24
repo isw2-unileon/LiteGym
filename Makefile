@@ -7,7 +7,7 @@ ifeq ($(shell command -v docker >/dev/null 2>&1; echo $$?),1)
 COMPOSE := podman compose
 endif
 
-TEST_DB_URL ?= postgres://test_user:test_password@postgres:5432/test_db?sslmode=disable
+TEST_DB_URL ?= postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
 POSTGRES_COMPOSE_FILE := postgress-local/docker-compose.yml
 
 ## Install all dependencies
