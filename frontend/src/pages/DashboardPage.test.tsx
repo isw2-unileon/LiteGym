@@ -113,6 +113,7 @@ describe("DashboardPage", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("shows the dashboard inside the shared sidebar layout", async () => {
@@ -222,5 +223,49 @@ describe("DashboardPage", () => {
     await user.click(screen.getByRole("button", { name: "Ocultar menu" }));
 
     expect(sidebar).toHaveClass("-translate-x-full");
+  });
+
+  it("shows a google calendar link for planned workouts in the calendar dialog", async () => {
+    const user = userEvent.setup();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, "0");
+    const day = String(tomorrow.getDate()).padStart(2, "0");
+    const dateKey = `${year}-${month}-${day}`;
+    const plannedAt = `${dateKey}T18:00:00Z`;
+
+    renderDashboardPage(
+      "user",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...buildDashboardResponse(),
+          calendar: {
+            ...buildDashboardResponse().calendar,
+            month: `${year}-${month}`,
+            trained_days: [],
+            planned_days: [dateKey],
+            calendar_workouts: [
+              {
+                id: "planned-1",
+                name: "Push Day 2",
+                routine_name: "Push Pull Legs",
+                performed_at: null,
+                planned_at: plannedAt,
+                duration_minutes: 70,
+                exercise_count: 4,
+              },
+            ],
+          },
+        }),
+      ),
+    );
+
+    await screen.findByText("Panel principal");
+    await user.click(screen.getByRole("button", { name: tomorrow.getDate().toString() }));
+
+    const calendarLink = await screen.findByRole("link", { name: "Añadir a Calendar" });
+    expect(calendarLink).toHaveAttribute("href", expect.stringContaining("calendar.google.com/calendar/render"));
+    expect(calendarLink).toHaveAttribute("href", expect.stringContaining("action=TEMPLATE"));
   });
 });
