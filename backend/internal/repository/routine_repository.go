@@ -13,6 +13,7 @@ import (
 // RoutineRepository defines the persistence operations for routines.
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
+	ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error)
 	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
 	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
 	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
@@ -53,22 +54,29 @@ func (r *routineRepository) ListRecentByUser(ctx context.Context, userID string,
 	}
 	defer rows.Close()
 
-	routines := make([]model.OverviewRoutineSummary, 0)
-	for rows.Next() {
-		var routine model.OverviewRoutineSummary
-		if err := rows.Scan(
-			&routine.ID,
-			&routine.Name,
-			&routine.Description,
-			&routine.ExerciseCount,
-			&routine.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		routines = append(routines, routine)
-	}
+	return scanRoutineSummaries(rows)
+}
 
-	return routines, rows.Err()
+func (r *routineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			r.id::text,
+			r.name,
+			COALESCE(r.description, ''),
+			COUNT(re.id)::int,
+			r.updated_at
+		FROM public.routines r
+		LEFT JOIN public.routine_exercises re ON re.routine_id = r.id
+		WHERE r.user_id = $1::uuid
+		GROUP BY r.id, r.name, r.description, r.updated_at, r.created_at
+		ORDER BY r.name ASC, r.updated_at DESC, r.id::text DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanRoutineSummaries(rows)
 }
 
 func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
@@ -235,6 +243,25 @@ func (r *routineRepository) ListAvailableExercisesForAI(
 	}
 
 	return exercises, rows.Err()
+}
+
+func scanRoutineSummaries(rows pgx.Rows) ([]model.OverviewRoutineSummary, error) {
+	routines := make([]model.OverviewRoutineSummary, 0)
+	for rows.Next() {
+		var routine model.OverviewRoutineSummary
+		if err := rows.Scan(
+			&routine.ID,
+			&routine.Name,
+			&routine.Description,
+			&routine.ExerciseCount,
+			&routine.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		routines = append(routines, routine)
+	}
+
+	return routines, rows.Err()
 }
 
 func normalizeStringList(items []string) []string {

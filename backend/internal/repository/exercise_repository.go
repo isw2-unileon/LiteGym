@@ -224,7 +224,7 @@ func (r *exerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, 
 			ws.id::text,
 			COALESCE(ws.name, ''),
 			COALESCE(rt.name, ''),
-			ws.started_at,
+			ws.performed_at,
 			COALESCE(ws.duration_minutes, 0),
 			we.exercise_order,
 			COUNT(wset.id)::int
@@ -235,14 +235,15 @@ func (r *exerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, 
 		LEFT JOIN workout_sets wset ON wset.workout_exercise_id = we.id
 		WHERE we.exercise_id = $1::uuid
 			AND ws.user_id = $2::uuid
+			AND ws.performed_at IS NOT NULL
 		GROUP BY
 			ws.id,
 			ws.name,
 			rt.name,
-			ws.started_at,
+			ws.performed_at,
 			ws.duration_minutes,
 			we.exercise_order
-		ORDER BY ws.started_at DESC, ws.id::text DESC
+		ORDER BY ws.performed_at DESC, ws.id::text DESC
 		LIMIT $3
 	`, exerciseID, userID, limit)
 	if err != nil {
@@ -276,7 +277,7 @@ func (r *exerciseRepository) GetInsights(ctx context.Context, exerciseID, userID
 			ws.id::text,
 			COALESCE(ws.name, ''),
 			COALESCE(rt.name, ''),
-			ws.started_at,
+			ws.performed_at,
 			COALESCE(ws.duration_minutes, 0),
 			wset.set_number,
 			wset.reps,
@@ -290,7 +291,8 @@ func (r *exerciseRepository) GetInsights(ctx context.Context, exerciseID, userID
 		INNER JOIN workout_sets wset ON wset.workout_exercise_id = we.id
 		WHERE we.exercise_id = $1::uuid
 			AND ws.user_id = $2::uuid
-		ORDER BY ws.started_at ASC, ws.id::text ASC, wset.set_number ASC
+			AND ws.performed_at IS NOT NULL
+		ORDER BY ws.performed_at ASC, ws.id::text ASC, wset.set_number ASC
 	`, exerciseID, userID)
 	if err != nil {
 		return model.ExerciseInsights{}, err

@@ -13,11 +13,14 @@ type Overview struct {
 
 // OverviewCalendar summarizes the current month's training activity.
 type OverviewCalendar struct {
-	Month         string   `json:"month"`
-	TrainedDays   []string `json:"trained_days"`
-	SessionsCount int      `json:"sessions_count"`
-	CurrentStreak int      `json:"current_streak"`
-	NextObjective string   `json:"next_objective"`
+	Month            string                    `json:"month"`
+	TrainedDays      []string                  `json:"trained_days"`
+	PlannedDays      []string                  `json:"planned_days"`
+	CalendarWorkouts []OverviewCalendarWorkout `json:"calendar_workouts"`
+	SessionsCount    int                       `json:"sessions_count"`
+	CurrentStreak    int                       `json:"current_streak"`
+	WeeklyGoal       int                       `json:"weekly_goal"`
+	NextObjective    string                    `json:"next_objective"`
 }
 
 // OverviewRoutineSummary represents a lightweight routine card in the overview.
@@ -34,9 +37,21 @@ type OverviewWorkoutSummary struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name,omitempty"`
 	RoutineName     string    `json:"routine_name,omitempty"`
-	StartedAt       time.Time `json:"started_at"`
+	PerformedAt     time.Time `json:"performed_at"`
 	DurationMinutes int       `json:"duration_minutes"`
 	ExerciseCount   int       `json:"exercise_count"`
+}
+
+// OverviewCalendarWorkout represents a workout displayed in the monthly calendar.
+type OverviewCalendarWorkout struct {
+	ID              string     `json:"id"`
+	Name            string     `json:"name,omitempty"`
+	RoutineID       string     `json:"routine_id,omitempty"`
+	RoutineName     string     `json:"routine_name,omitempty"`
+	PerformedAt     *time.Time `json:"performed_at,omitempty"`
+	PlannedAt       *time.Time `json:"planned_at,omitempty"`
+	DurationMinutes int        `json:"duration_minutes"`
+	ExerciseCount   int        `json:"exercise_count"`
 }
 
 // OverviewProgressMetric stores the current and previous values for one body metric.

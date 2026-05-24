@@ -109,11 +109,11 @@ VALUES
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', '33333333-3333-3333-3333-333333333333', 'Rutina no aparece compartida', 'Mi amigo dice que me la ha compartido pero no la veo.', 'in_progress'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', '44444444-4444-4444-4444-444444444444', 'Error al guardar medidas', 'Se queda cargando al guardar body metrics.', 'closed');
 
-INSERT INTO public.workout_sessions (id, user_id, routine_id, name, started_at, ended_at, duration_minutes, calories_burned, notes)
+INSERT INTO public.workout_sessions (id, user_id, routine_id, name, performed_at, planned_at, duration_minutes, calories_burned, notes)
 VALUES
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc1', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push Day 1', now() - interval '2 days', now() - interval '2 days' + interval '70 minutes', 70, 540, 'Buen rendimiento'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc2', '22222222-2222-2222-2222-222222222222', '88888888-8888-8888-8888-888888888882', 'Full Body lunes', now() - interval '1 day', now() - interval '1 day' + interval '55 minutes', 55, 320, 'Primer entreno completado'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc3', '33333333-3333-3333-3333-333333333333', '88888888-8888-8888-8888-888888888884', 'Definición circuito', now() - interval '3 days', now() - interval '3 days' + interval '60 minutes', 60, 470, 'Mucho cardio final');
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc1', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push Day 1', now() - interval '2 days', NULL, 70, 540, 'Buen rendimiento'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc2', '22222222-2222-2222-2222-222222222222', '88888888-8888-8888-8888-888888888882', 'Full Body lunes', now() - interval '1 day', NULL, 55, 320, 'Primer entreno completado'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc3', '33333333-3333-3333-3333-333333333333', '88888888-8888-8888-8888-888888888884', 'Definición circuito', now() - interval '3 days', NULL, 60, 470, 'Mucho cardio final');
 
 INSERT INTO public.workout_exercises (id, workout_session_id, exercise_id, exercise_order, notes)
 VALUES
@@ -159,15 +159,15 @@ VALUES
   ('55555555-5555-5555-5555-555555555556', '11111111-1111-1111-1111-111111111111', now() - interval '90 days', 80.4, 20.1, 35.1, 100.8, 86, 35.2, 57.2, 'Vuelta tras vacaciones'),
   ('55555555-5555-5555-5555-555555555557', '11111111-1111-1111-1111-111111111111', now() - interval '180 days', 77.9, 18.9, 34.8, 99.9, 84.5, 35.0, 56.9, 'Inicio del bloque anterior');
 
-INSERT INTO public.workout_sessions (id, user_id, routine_id, name, started_at, ended_at, duration_minutes, calories_burned, notes)
+INSERT INTO public.workout_sessions (id, user_id, routine_id, name, performed_at, planned_at, duration_minutes, calories_burned, notes)
 VALUES
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc4', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Pull Day 1', now() - interval '6 days', now() - interval '6 days' + interval '68 minutes', 68, 510, 'Buena progresión en espalda'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc5', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso pesado', now() - interval '10 days', now() - interval '10 days' + interval '75 minutes', 75, 560, 'Sesión intensa'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc6', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Pierna técnica', now() - interval '15 days', now() - interval '15 days' + interval '72 minutes', 72, 590, 'Mejor control de tempo'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc7', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push Day 2', now() - interval '24 days', now() - interval '24 days' + interval '66 minutes', 66, 500, 'Volumen moderado'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc8', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso de control', now() - interval '40 days', now() - interval '40 days' + interval '64 minutes', 64, 485, 'Semana de descarga'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccc9', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Pull Day 2', now() - interval '95 days', now() - interval '95 days' + interval '69 minutes', 69, 515, 'Retomando volumen'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccca', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Pierna base', now() - interval '170 days', now() - interval '170 days' + interval '71 minutes', 71, 605, 'Buen trabajo de base');
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc4', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Pull Day 1', now() - interval '6 days', NULL, 68, 510, 'Buena progresión en espalda'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc5', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso pesado', now() - interval '10 days', NULL, 75, 560, 'Sesión intensa'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc6', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Pierna técnica', now() - interval '15 days', NULL, 72, 590, 'Mejor control de tempo'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc7', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push Day 2', now() - interval '24 days', NULL, 66, 500, 'Volumen moderado'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc8', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso de control', now() - interval '40 days', NULL, 64, 485, 'Semana de descarga'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccc9', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Pull Day 2', now() - interval '95 days', NULL, 69, 515, 'Retomando volumen'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccca', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Pierna base', now() - interval '170 days', NULL, 71, 605, 'Buen trabajo de base');
 
 INSERT INTO public.workout_exercises (id, workout_session_id, exercise_id, exercise_order, notes)
 VALUES

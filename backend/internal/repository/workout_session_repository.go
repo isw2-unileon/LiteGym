@@ -33,15 +33,16 @@ func (r *workoutSessionRepository) ListRecentByUser(ctx context.Context, userID 
 			ws.id::text,
 			COALESCE(ws.name, ''),
 			COALESCE(rt.name, ''),
-			ws.started_at,
+			ws.performed_at,
 			COALESCE(ws.duration_minutes, 0),
 			COUNT(we.id)::int
 		FROM public.workout_sessions ws
 		LEFT JOIN public.routines rt ON rt.id = ws.routine_id
 		LEFT JOIN public.workout_exercises we ON we.workout_session_id = ws.id
 		WHERE ws.user_id = $1::uuid
-		GROUP BY ws.id, ws.name, rt.name, ws.started_at, ws.duration_minutes
-		ORDER BY ws.started_at DESC, ws.id::text DESC
+			AND ws.performed_at IS NOT NULL
+		GROUP BY ws.id, ws.name, rt.name, ws.performed_at, ws.duration_minutes
+		ORDER BY ws.performed_at DESC, ws.id::text DESC
 		LIMIT $2
 	`, userID, limit)
 	if err != nil {
@@ -56,7 +57,7 @@ func (r *workoutSessionRepository) ListRecentByUser(ctx context.Context, userID 
 			&workout.ID,
 			&workout.Name,
 			&workout.RoutineName,
-			&workout.StartedAt,
+			&workout.PerformedAt,
 			&workout.DurationMinutes,
 			&workout.ExerciseCount,
 		); err != nil {
@@ -79,19 +80,20 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 				ws.id,
 				COALESCE(ws.name, '') AS session_name,
 				COALESCE(rt.name, '') AS routine_name,
-				ws.started_at,
+				ws.performed_at,
 				COALESCE(ws.duration_minutes, 0) AS duration_minutes
 			FROM public.workout_sessions ws
 			LEFT JOIN public.routines rt ON rt.id = ws.routine_id
 			WHERE ws.user_id = $1::uuid
-			ORDER BY ws.started_at DESC, ws.id::text DESC
+				AND ws.performed_at IS NOT NULL
+			ORDER BY ws.performed_at DESC, ws.id::text DESC
 			LIMIT $2
 		)
 		SELECT
 			rs.id::text,
 			rs.session_name,
 			rs.routine_name,
-			rs.started_at,
+			rs.performed_at,
 			rs.duration_minutes,
 			we.id::text,
 			we.exercise_order,
@@ -106,7 +108,7 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 		LEFT JOIN public.workout_exercises we ON we.workout_session_id = rs.id
 		LEFT JOIN public.exercises e ON e.id = we.exercise_id AND e.deleted_at IS NULL
 		LEFT JOIN public.workout_sets wset ON wset.workout_exercise_id = we.id
-		ORDER BY rs.started_at DESC, rs.id::text DESC, we.exercise_order ASC, we.id::text ASC, wset.set_number ASC, wset.id::text ASC
+		ORDER BY rs.performed_at DESC, rs.id::text DESC, we.exercise_order ASC, we.id::text ASC, wset.set_number ASC, wset.id::text ASC
 	`, userID, limit)
 	if err != nil {
 		return nil, err
@@ -131,7 +133,7 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 			sessionID         string
 			sessionName       string
 			routineName       string
-			startedAt         time.Time
+			performedAt       time.Time
 			durationMinutes   int
 			workoutExerciseID sql.NullString
 			exerciseOrder     sql.NullInt64
@@ -148,7 +150,7 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 			&sessionID,
 			&sessionName,
 			&routineName,
-			&startedAt,
+			&performedAt,
 			&durationMinutes,
 			&workoutExerciseID,
 			&exerciseOrder,
@@ -170,7 +172,7 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 					SessionID:       sessionID,
 					SessionName:     sessionName,
 					RoutineName:     routineName,
-					StartedAt:       startedAt,
+					StartedAt:       performedAt,
 					DurationMinutes: durationMinutes,
 					Exercises:       []model.AIRoutineRecentWorkoutExercise{},
 				},
@@ -230,12 +232,12 @@ func (r *workoutSessionRepository) ListRecentWorkoutHistoryByUser(
 
 func (r *workoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT DISTINCT DATE(ws.started_at)
+		SELECT DISTINCT DATE(ws.performed_at)
 		FROM public.workout_sessions ws
 		WHERE ws.user_id = $1::uuid
-			AND ws.started_at >= $2
-			AND ws.started_at < $3
-		ORDER BY DATE(ws.started_at) DESC
+			AND ws.performed_at >= $2
+			AND ws.performed_at < $3
+		ORDER BY DATE(ws.performed_at) DESC
 	`, userID, from, to)
 	if err != nil {
 		return nil, err
@@ -263,8 +265,8 @@ func (r *workoutSessionRepository) ListMuscleDistributionByUser(ctx context.Cont
 		INNER JOIN public.workout_exercises we ON we.workout_session_id = ws.id
 		INNER JOIN public.exercises e ON e.id = we.exercise_id
 		WHERE ws.user_id = $1::uuid
-			AND ws.started_at >= $2
-			AND ws.started_at < $3
+			AND ws.performed_at >= $2
+			AND ws.performed_at < $3
 		GROUP BY e.muscle_group
 		ORDER BY COUNT(*) DESC, e.muscle_group ASC
 	`, userID, from, to)

@@ -69,7 +69,7 @@ func TestRoutineRepositoryListRecentByUserIntegration(t *testing.T) {
 	}
 }
 
-func TestWorkoutSessionRepositoryIntegration(t *testing.T) {
+func TestOverviewWorkoutRepositoryIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
 	cleanupExercisesRepository(t, db)
 
@@ -96,7 +96,7 @@ func TestWorkoutSessionRepositoryIntegration(t *testing.T) {
 	var recentSessionID string
 	startedRecent := now.Add(-24 * time.Hour)
 	err := db.QueryRow(context.Background(), `
-		INSERT INTO public.workout_sessions (user_id, routine_id, name, started_at, duration_minutes)
+		INSERT INTO public.workout_sessions (user_id, routine_id, name, performed_at, duration_minutes)
 		VALUES ($1::uuid, $2::uuid, $3, $4, $5)
 		RETURNING id::text
 	`, userID, routineID, "Sesion reciente", startedRecent, 70).Scan(&recentSessionID)
@@ -107,7 +107,7 @@ func TestWorkoutSessionRepositoryIntegration(t *testing.T) {
 	var oldSessionID string
 	startedOld := monthStart.AddDate(0, 0, -2)
 	err = db.QueryRow(context.Background(), `
-		INSERT INTO public.workout_sessions (user_id, routine_id, name, started_at, duration_minutes)
+		INSERT INTO public.workout_sessions (user_id, routine_id, name, performed_at, duration_minutes)
 		VALUES ($1::uuid, $2::uuid, $3, $4, $5)
 		RETURNING id::text
 	`, userID, routineID, "Sesion antigua", startedOld, 60).Scan(&oldSessionID)
@@ -124,7 +124,7 @@ func TestWorkoutSessionRepositoryIntegration(t *testing.T) {
 		t.Fatalf("error insertando workout_exercises: %v", err)
 	}
 
-	repo := NewWorkoutSessionRepository(db)
+	repo := NewOverviewWorkoutRepository(db)
 
 	workouts, err := repo.ListRecentByUser(context.Background(), userID, 2)
 	if err != nil {

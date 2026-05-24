@@ -19,6 +19,10 @@ func (m *mockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
+func (m *mockRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+	return []model.OverviewRoutineSummary{}, nil
+}
+
 func (m *mockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
 	return 0, nil
 }
@@ -40,31 +44,35 @@ func (m *mockRoutineRepository) ListAvailableExercisesForAI(
 	return []model.Exercise{}, nil
 }
 
-type mockWorkoutSessionRepository struct {
+type mockOverviewWorkoutRepository struct {
 	listRecentByUserFunc             func(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error)
 	listTrainingDatesInRangeFunc     func(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error)
 	listMuscleDistributionByUserFunc func(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error)
 }
 
-func (m *mockWorkoutSessionRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
+func (m *mockOverviewWorkoutRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
 	if m.listRecentByUserFunc != nil {
 		return m.listRecentByUserFunc(ctx, userID, limit)
 	}
 	return []model.OverviewWorkoutSummary{}, nil
 }
 
-func (m *mockWorkoutSessionRepository) ListRecentWorkoutHistoryByUser(ctx context.Context, userID string, limit int) ([]model.AIRoutineRecentWorkoutSession, error) {
-	return []model.AIRoutineRecentWorkoutSession{}, nil
-}
-
-func (m *mockWorkoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
+func (m *mockOverviewWorkoutRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	if m.listTrainingDatesInRangeFunc != nil {
 		return m.listTrainingDatesInRangeFunc(ctx, userID, from, to)
 	}
 	return []time.Time{}, nil
 }
 
-func (m *mockWorkoutSessionRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
+func (m *mockOverviewWorkoutRepository) ListPlannedDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
+	return []time.Time{}, nil
+}
+
+func (m *mockOverviewWorkoutRepository) ListCalendarWorkoutsByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewCalendarWorkout, error) {
+	return []model.OverviewCalendarWorkout{}, nil
+}
+
+func (m *mockOverviewWorkoutRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
 	if m.listMuscleDistributionByUserFunc != nil {
 		return m.listMuscleDistributionByUserFunc(ctx, userID, from, to)
 	}
@@ -88,7 +96,7 @@ func newOverviewServiceTestSubject(referenceDate time.Time) (*OverviewService, f
 			return []model.OverviewRoutineSummary{{ID: "routine-1", Name: "Push Pull Legs", ExerciseCount: 3}}, nil
 		},
 	}
-	workoutRepo := &mockWorkoutSessionRepository{
+	overviewWorkoutRepo := &mockOverviewWorkoutRepository{
 		listRecentByUserFunc: func(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
 			return []model.OverviewWorkoutSummary{{ID: "workout-1", Name: "Push Day", DurationMinutes: 70, ExerciseCount: 3}}, nil
 		},
@@ -129,7 +137,7 @@ func newOverviewServiceTestSubject(referenceDate time.Time) (*OverviewService, f
 		},
 	}
 
-	return NewOverviewService(routineRepo, workoutRepo, bodyMetricRepo), currentWeight
+	return NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo), currentWeight
 }
 
 func overviewMuscleDistributionFixture(from time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
@@ -158,8 +166,8 @@ func assertOverviewPayload(t *testing.T, overview model.Overview, currentWeight 
 		t.Fatalf("expected 3 monthly sessions, got %d", overview.Calendar.SessionsCount)
 	}
 
-	if overview.Calendar.CurrentStreak != 2 {
-		t.Fatalf("expected streak 2, got %d", overview.Calendar.CurrentStreak)
+	if overview.Calendar.CurrentStreak != 1 {
+		t.Fatalf("expected weekly streak 1, got %d", overview.Calendar.CurrentStreak)
 	}
 
 	if len(overview.RecentRoutines) != 1 || overview.RecentRoutines[0].Name != "Push Pull Legs" {
@@ -200,10 +208,33 @@ func TestOverviewServiceGetOverview(t *testing.T) {
 }
 
 func TestOverviewServiceGetOverviewRequiresUserID(t *testing.T) {
-	svc := NewOverviewService(&mockRoutineRepository{}, &mockWorkoutSessionRepository{}, &mockBodyMetricRepository{})
+	svc := NewOverviewService(&mockRoutineRepository{}, &mockOverviewWorkoutRepository{}, &mockBodyMetricRepository{})
 
 	_, err := svc.GetOverview(context.Background(), "   ", time.Now())
 	if err == nil {
 		t.Fatal("expected error for empty user id")
+	}
+}
+
+func TestOverviewServiceKeepsRollingStatsAnchoredToReferenceDate(t *testing.T) {
+	referenceDate := time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC)
+	svc, _ := newOverviewServiceTestSubject(referenceDate)
+
+	overview, err := svc.GetOverviewForMonth(
+		context.Background(),
+		"11111111-1111-1111-1111-111111111111",
+		time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC),
+		referenceDate,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error building dashboard overview: %v", err)
+	}
+
+	if overview.Calendar.Month != "2026-05" {
+		t.Fatalf("expected calendar month 2026-05, got %s", overview.Calendar.Month)
+	}
+
+	if overview.MuscleDistribution.MonthExerciseCount != 3 {
+		t.Fatalf("expected rolling month exercise count 3, got %d", overview.MuscleDistribution.MonthExerciseCount)
 	}
 }

@@ -34,7 +34,18 @@ func (h *OverviewHandler) GetOverview(c *gin.Context) {
 	}
 
 	userID, _ := userIDValue.(string)
-	overview, err := h.service.GetOverview(c.Request.Context(), userID, h.nowFunc())
+	statsReferenceDate := h.nowFunc()
+	calendarDate := statsReferenceDate
+	if month := c.Query("month"); month != "" {
+		parsedMonth, parseErr := time.ParseInLocation("2006-01", month, statsReferenceDate.Location())
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
+			return
+		}
+		calendarDate = parsedMonth
+	}
+
+	overview, err := h.service.GetOverviewForMonth(c.Request.Context(), userID, calendarDate, statsReferenceDate)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidUserInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -61,8 +60,8 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 	}()
 
 	query := `
-		INSERT INTO workout_sessions (user_id, routine_id, name, started_at, notes)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO workout_sessions (user_id, routine_id, name, performed_at, planned_at, notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at
 		`
 
@@ -72,7 +71,8 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 		workout.UserID,
 		workout.RoutineID,
 		workout.Name,
-		time.Now(),
+		workout.PerformedAt,
+		workout.PlannedAt,
 		workout.Notes,
 	).Scan(&workout.ID, &workout.CreatedAt)
 
@@ -92,7 +92,7 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 // GetSessionByID retrieves a workout session by its ID.
 func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error) {
 	query := `
-		SELECT id, user_id, routine_id, name, started_at, ended_at, 
+		SELECT id, user_id, routine_id, name, performed_at, planned_at,
 		duration_minutes, calories_burned, notes, created_at
 		FROM workout_sessions
 		WHERE id = $1
@@ -105,8 +105,8 @@ func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (
 		&workout.UserID,
 		&workout.RoutineID,
 		&workout.Name,
-		&workout.StartedAt,
-		&workout.EndedAt,
+		&workout.PerformedAt,
+		&workout.PlannedAt,
 		&workout.Duration,
 		&workout.CaloriesBurned,
 		&workout.Notes,
@@ -124,15 +124,16 @@ func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (
 func (wr *workoutRepository) UpdateSessionByID(ctx context.Context, id uuid.UUID, workout *model.WorkoutSession) error {
 	query := `
 	UPDATE workout_sessions
-	SET name = $1, ended_at = $2, duration_minutes = $3, calories_burned = $4, notes = $5
-	WHERE id = $6
+	SET name = $1, performed_at = $2, planned_at = $3, duration_minutes = $4, calories_burned = $5, notes = $6
+	WHERE id = $7
 	`
 
 	commandTag, err := wr.db.Exec(
 		ctx,
 		query,
 		workout.Name,
-		time.Now(),
+		workout.PerformedAt,
+		workout.PlannedAt,
 		workout.Duration,
 		workout.CaloriesBurned,
 		workout.Notes,
@@ -608,6 +609,7 @@ func (wr *workoutRepository) listLatestExercisePerformance(
 			WHERE ws.user_id = $1
 				AND we.exercise_id = $2
 				AND ws.id <> $3
+				AND ws.performed_at IS NOT NULL
 				AND EXISTS (
 					SELECT 1
 					FROM public.workout_sets completed_sets
@@ -615,7 +617,7 @@ func (wr *workoutRepository) listLatestExercisePerformance(
 						AND completed_sets.completed = true
 						AND completed_sets.weight_kg IS NOT NULL
 				)
-			ORDER BY ws.started_at DESC, ws.id::text DESC, we.exercise_order ASC
+			ORDER BY ws.performed_at DESC, ws.id::text DESC, we.exercise_order ASC
 			LIMIT 1
 		)
 		SELECT wset.set_number, wset.reps, wset.weight_kg, wset.rir
