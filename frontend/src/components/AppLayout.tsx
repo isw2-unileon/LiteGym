@@ -42,9 +42,22 @@ export default function AppLayout({ user }: AppLayoutProps) {
   return (
     <main className="min-h-screen bg-[#f4efe2] text-[#1f1b16]">
       <div className="min-h-screen">
+        <button
+          aria-hidden={!isSidebarOpen}
+          aria-label="Cerrar menu"
+          className={`fixed inset-0 z-40 bg-[#1f1b16]/25 backdrop-blur-sm transition-opacity duration-300 ${
+            isSidebarOpen
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+          tabIndex={isSidebarOpen ? 0 : -1}
+          type="button"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+
         <aside
           aria-hidden={!isSidebarOpen}
-          className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#1f1b16]/10 bg-[#1f1b16] px-5 py-6 text-[#fffaf0] shadow-[20px_0_60px_rgba(31,27,22,0.18)] transition-transform duration-300 ${
+          className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-[#1f1b16]/10 bg-[#1f1b16] px-5 py-6 text-[#fffaf0] shadow-[20px_0_60px_rgba(31,27,22,0.18)] transition-transform duration-300 ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -128,9 +141,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
         </aside>
 
         <section
-          className={`relative isolate min-h-screen px-6 py-8 transition-[padding] duration-300 sm:px-10 lg:px-12 xl:px-16 ${
-            isSidebarOpen ? "lg:pl-72" : "lg:pl-0"
-          }`}
+          className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-12 xl:px-16"
         >
           <div className={pageBackground} />
 
@@ -148,13 +159,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
             &gt;
           </button>
 
-          <div
-            className={`mx-auto pt-3 transition-[max-width,padding] duration-300 ${
-              isSidebarOpen
-                ? "max-w-6xl lg:max-w-[min(1100px,calc(100vw-9rem))] xl:max-w-[min(1180px,calc(100vw-10rem))]"
-                : "max-w-7xl lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]"
-            }`}
-          >
+          <div className="mx-auto max-w-7xl pt-3 lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]">
             <Outlet context={{ user }} />
           </div>
         </section>
