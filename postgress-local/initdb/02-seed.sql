@@ -178,7 +178,7 @@ VALUES
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'cccccccc-cccc-cccc-cccc-ccccccccccc7', '66666666-6666-6666-6666-666666666665', 1, 'Sube carga'),
   ('dddddddd-dddd-dddd-dddd-ddddddddddde', 'cccccccc-cccc-cccc-cccc-ccccccccccc8', '66666666-6666-6666-6666-666666666669', 1, 'Semana ligera'),
   ('dddddddd-dddd-dddd-dddd-dddddddddddf', 'cccccccc-cccc-cccc-cccc-ccccccccccc9', '66666666-6666-6666-6666-666666666663', 1, 'Recuperando fuerza'),
-  ('dddddddd-dddd-dddd-dddd-dddddddddddg', 'cccccccc-cccc-cccc-cccc-ccccccccccca', '66666666-6666-6666-6666-666666666668', 1, 'Trabajo de glúteo');
+  ('dddddddd-dddd-dddd-dddd-dddddddddde0', 'cccccccc-cccc-cccc-cccc-ccccccccccca', '66666666-6666-6666-6666-666666666668', 1, 'Trabajo de glúteo');
 
 INSERT INTO public.workout_sets (id, workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_km, rir, completed)
 VALUES
@@ -186,7 +186,60 @@ VALUES
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeed', 'dddddddd-dddd-dddd-dddd-ddddddddddda', 1, 7, NULL, NULL, NULL, 2, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'dddddddd-dddd-dddd-dddd-dddddddddddb', 1, 6, 85, NULL, NULL, 1, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeef', 'dddddddd-dddd-dddd-dddd-dddddddddddc', 1, 8, 95, NULL, NULL, 2, true),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeeg', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 1, 8, 45, NULL, NULL, 1, true),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeeh', 'dddddddd-dddd-dddd-dddd-ddddddddddde', 1, 12, 55, NULL, NULL, 3, true),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeei', 'dddddddd-dddd-dddd-dddd-dddddddddddf', 1, 5, 120, NULL, NULL, 2, true),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeej', 'dddddddd-dddd-dddd-dddd-dddddddddddg', 1, 10, 100, NULL, NULL, 2, true);
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeef0', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 1, 8, 45, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeef1', 'dddddddd-dddd-dddd-dddd-ddddddddddde', 1, 12, 55, NULL, NULL, 3, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeef2', 'dddddddd-dddd-dddd-dddd-dddddddddddf', 1, 5, 120, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeef3', 'dddddddd-dddd-dddd-dddd-dddddddddde0', 1, 10, 100, NULL, NULL, 2, true);
+
+-- Richer workout history for exercise insight examples.
+-- These sessions give Press banca and Curl bíceps mancuerna enough data
+-- to show max weight, best set, volume, frequency, trend and progression.
+INSERT INTO public.workout_sessions (id, user_id, routine_id, name, started_at, ended_at, duration_minutes, calories_burned, notes)
+VALUES
+  ('cccccccc-cccc-cccc-cccc-cccccccccccb', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push volumen base', now() - interval '55 days', now() - interval '55 days' + interval '67 minutes', 67, 505, 'Inicio del bloque de press'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso hipertrofia', now() - interval '46 days', now() - interval '46 days' + interval '72 minutes', 72, 535, 'Mas volumen de empuje y brazos'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccd', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push progresion', now() - interval '32 days', now() - interval '32 days' + interval '69 minutes', 69, 525, 'Buenas repeticiones en banca'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccce', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso fuerza', now() - interval '18 days', now() - interval '18 days' + interval '78 minutes', 78, 585, 'Top set pesado en banca'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccf', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push PR', now() - interval '4 days', now() - interval '4 days' + interval '74 minutes', 74, 565, 'Mejor marca reciente');
+
+INSERT INTO public.workout_exercises (id, workout_session_id, exercise_id, exercise_order, notes)
+VALUES
+  ('dddddddd-dddd-dddd-dddd-dddddddddde1', 'cccccccc-cccc-cccc-cccc-cccccccccccb', '66666666-6666-6666-6666-666666666661', 1, 'Press banca controlado'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde2', 'cccccccc-cccc-cccc-cccc-cccccccccccb', '66666666-6666-6666-6666-666666666666', 4, 'Curl ligero al final'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde3', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '66666666-6666-6666-6666-666666666661', 1, 'Mas volumen que la semana anterior'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde4', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '66666666-6666-6666-6666-666666666666', 3, 'Biceps con mancuerna alterna'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde5', 'cccccccc-cccc-cccc-cccc-cccccccccccd', '66666666-6666-6666-6666-666666666661', 1, 'Mejor velocidad de barra'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde6', 'cccccccc-cccc-cccc-cccc-cccccccccccd', '66666666-6666-6666-6666-666666666666', 3, 'Curl estricto'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde7', 'cccccccc-cccc-cccc-cccc-ccccccccccce', '66666666-6666-6666-6666-666666666661', 1, 'Top set fuerte'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde8', 'cccccccc-cccc-cccc-cccc-ccccccccccce', '66666666-6666-6666-6666-666666666666', 4, 'Biceps pesado'),
+  ('dddddddd-dddd-dddd-dddd-dddddddddde9', 'cccccccc-cccc-cccc-cccc-cccccccccccf', '66666666-6666-6666-6666-666666666661', 1, 'Nuevo PR técnico'),
+  ('dddddddd-dddd-dddd-dddd-ddddddddddea', 'cccccccc-cccc-cccc-cccc-cccccccccccf', '66666666-6666-6666-6666-666666666666', 4, 'Mejor sesion de curl');
+
+INSERT INTO public.workout_sets (id, workout_exercise_id, set_number, reps, weight_kg, duration_seconds, distance_km, rir, completed)
+VALUES
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee100', 'dddddddd-dddd-dddd-dddd-dddddddddde1', 1, 8, 75, NULL, NULL, 3, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee101', 'dddddddd-dddd-dddd-dddd-dddddddddde1', 2, 8, 77.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee102', 'dddddddd-dddd-dddd-dddd-dddddddddde1', 3, 7, 80, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee103', 'dddddddd-dddd-dddd-dddd-dddddddddde2', 1, 12, 12.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee104', 'dddddddd-dddd-dddd-dddd-dddddddddde2', 2, 11, 12.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee105', 'dddddddd-dddd-dddd-dddd-dddddddddde3', 1, 8, 80, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee106', 'dddddddd-dddd-dddd-dddd-dddddddddde3', 2, 8, 82.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee107', 'dddddddd-dddd-dddd-dddd-dddddddddde3', 3, 6, 85, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee108', 'dddddddd-dddd-dddd-dddd-dddddddddde4', 1, 12, 14, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee109', 'dddddddd-dddd-dddd-dddd-dddddddddde4', 2, 10, 14, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10a', 'dddddddd-dddd-dddd-dddd-dddddddddde5', 1, 7, 85, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10b', 'dddddddd-dddd-dddd-dddd-dddddddddde5', 2, 6, 87.5, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10c', 'dddddddd-dddd-dddd-dddd-dddddddddde5', 3, 8, 82.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10d', 'dddddddd-dddd-dddd-dddd-dddddddddde6', 1, 10, 15, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10e', 'dddddddd-dddd-dddd-dddd-dddddddddde6', 2, 10, 15, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee10f', 'dddddddd-dddd-dddd-dddd-dddddddddde7', 1, 5, 90, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee110', 'dddddddd-dddd-dddd-dddd-dddddddddde7', 2, 5, 92.5, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee111', 'dddddddd-dddd-dddd-dddd-dddddddddde7', 3, 7, 85, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee112', 'dddddddd-dddd-dddd-dddd-dddddddddde8', 1, 10, 16, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee113', 'dddddddd-dddd-dddd-dddd-dddddddddde8', 2, 8, 17.5, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee114', 'dddddddd-dddd-dddd-dddd-dddddddddde9', 1, 5, 92.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee115', 'dddddddd-dddd-dddd-dddd-dddddddddde9', 2, 4, 95, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee116', 'dddddddd-dddd-dddd-dddd-dddddddddde9', 3, 8, 87.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee117', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 1, 9, 17.5, NULL, NULL, 2, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee118', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 2, 8, 18, NULL, NULL, 1, true),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee119', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 3, 12, 15, NULL, NULL, 2, true);

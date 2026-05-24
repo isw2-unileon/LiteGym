@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,58 @@ func (s *ExerciseService) List(ctx context.Context, filters model.ExerciseFilter
 		Total:      total,
 		TotalPages: totalPages,
 	}, nil
+}
+
+// ListWorkoutSessionsByExercise returns recent workout sessions that include the selected exercise.
+func (s *ExerciseService) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	exerciseID = strings.TrimSpace(exerciseID)
+	userID = strings.TrimSpace(userID)
+
+	if exerciseID == "" || userID == "" {
+		return nil, ErrInvalidExerciseInput
+	}
+
+	if _, err := uuid.Parse(exerciseID); err != nil {
+		return nil, ErrInvalidExerciseInput
+	}
+
+	if _, err := uuid.Parse(userID); err != nil {
+		return nil, ErrInvalidUserInput
+	}
+
+	if limit <= 0 {
+		limit = 5
+	}
+
+	if limit > 20 {
+		limit = 20
+	}
+
+	return s.repo.ListWorkoutSessionsByExercise(ctx, exerciseID, userID, limit)
+}
+
+// GetInsights returns historical performance analytics for a user's exercise.
+func (s *ExerciseService) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	exerciseID = strings.TrimSpace(exerciseID)
+	userID = strings.TrimSpace(userID)
+
+	if exerciseID == "" {
+		return model.ExerciseInsights{}, ErrInvalidExerciseInput
+	}
+
+	if userID == "" {
+		return model.ExerciseInsights{}, ErrInvalidUserInput
+	}
+
+	if _, err := uuid.Parse(exerciseID); err != nil {
+		return model.ExerciseInsights{}, ErrInvalidExerciseInput
+	}
+
+	if _, err := uuid.Parse(userID); err != nil {
+		return model.ExerciseInsights{}, ErrInvalidUserInput
+	}
+
+	return s.repo.GetInsights(ctx, exerciseID, userID)
 }
 
 // Create creates a new exercise after validating the input data.

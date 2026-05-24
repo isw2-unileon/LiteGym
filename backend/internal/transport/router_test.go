@@ -57,11 +57,13 @@ func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 
 /* Exercise Repository with Functions */
 type MockExerciseRepository struct {
-	createFunc         func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc           func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
-	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
-	deleteExerciseFunc func(ctx context.Context, id string) error
+	createFunc                        func(ctx context.Context, exercise *model.Exercise) error
+	getByIDFunc                       func(ctx context.Context, id string) (*model.Exercise, error)
+	listFunc                          func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
+	listWorkoutSessionsByExerciseFunc func(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
+	getInsightsFunc                   func(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error)
+	updateExerciseFunc                func(ctx context.Context, exercise *model.Exercise) error
+	deleteExerciseFunc                func(ctx context.Context, id string) error
 }
 
 func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
@@ -83,6 +85,20 @@ func (m *MockExerciseRepository) List(ctx context.Context, filters model.Exercis
 		return m.listFunc(ctx, filters)
 	}
 	return []model.Exercise{}, 0, nil
+}
+
+func (m *MockExerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	if m.listWorkoutSessionsByExerciseFunc != nil {
+		return m.listWorkoutSessionsByExerciseFunc(ctx, exerciseID, userID, limit)
+	}
+	return []model.ExerciseWorkoutSessionSummary{}, nil
+}
+
+func (m *MockExerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	if m.getInsightsFunc != nil {
+		return m.getInsightsFunc(ctx, exerciseID, userID)
+	}
+	return model.ExerciseInsights{}, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
@@ -110,11 +126,39 @@ func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID string) (
 	return []model.OverviewRoutineSummary{}, nil
 }
 
+func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	return 0, nil
+}
+
+func (m *MockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
+func (m *MockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	return nil
+}
+
+func (m *MockRoutineRepository) ListAvailableExercisesForAI(
+	ctx context.Context,
+	userID string,
+	targetMuscleGroups []string,
+	limit int,
+) ([]model.Exercise, error) {
+	return []model.Exercise{}, nil
+}
+
+/* Workout Session Repository */
+type MockWorkoutSessionRepository struct{}
+
 /* Workout Session Repository */
 type MockOverviewWorkoutRepository struct{}
 
 func (m *MockOverviewWorkoutRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
 	return []model.OverviewWorkoutSummary{}, nil
+}
+
+func (m *MockWorkoutSessionRepository) ListRecentWorkoutHistoryByUser(ctx context.Context, userID string, limit int) ([]model.AIRoutineRecentWorkoutSession, error) {
+	return []model.AIRoutineRecentWorkoutSession{}, nil
 }
 
 func (m *MockOverviewWorkoutRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
@@ -239,7 +283,7 @@ func newTestOverviewHandler() *handlers.OverviewHandler {
 
 func newTestRoutineHandler() *handlers.RoutineHandler {
 	routineService := service.NewRoutineService(&MockRoutineRepository{})
-	return handlers.NewRoutineHandler(routineService)
+	return handlers.NewRoutineHandler(routineService, nil)
 }
 
 func newTestTicketHandler(userService *service.UserService) *handlers.TicketHandler {

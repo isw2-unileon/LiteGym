@@ -21,7 +21,7 @@ import (
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-func main() {
+func main() { //nolint:funlen // Server bootstrap wires all repositories, services, handlers, and graceful shutdown in one place.
 	ctx := context.Background()
 
 	cfg := config.Load()
@@ -56,6 +56,15 @@ func main() {
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo)
+	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
+	routineAIService := service.NewRoutineAIService(
+		routineRepo,
+		workoutSessionRepo,
+		bodyMetricRepo,
+		cfg.GeminiAPIKey,
+		cfg.GeminiModel,
+	)
+	routineService := service.NewRoutineService(routineRepo)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
@@ -63,14 +72,14 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-	routineHandler := handlers.NewRoutineHandler(service.NewRoutineService(routineRepo))
+	routineHandler := handlers.NewRoutineHandler(routineService, routineAIService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
 
-	r := transport.SetupRouter(
+	r := transport.SetupRouterWithRoutine(
 		db,
 		userHandler,
 		authHandler,

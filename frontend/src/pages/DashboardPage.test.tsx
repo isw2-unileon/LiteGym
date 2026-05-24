@@ -219,6 +219,8 @@ describe("DashboardPage", () => {
     await user.click(screen.getByRole("button", { name: "Mostrar menu" }));
 
     expect(sidebar).toHaveClass("translate-x-0");
+    expect(screen.getByRole("button", { name: "Cerrar menu" })).toHaveClass("backdrop-blur-sm");
+    expect(document.querySelector("section")).not.toHaveClass("lg:pl-72");
 
     await user.click(screen.getByRole("button", { name: "Ocultar menu" }));
 

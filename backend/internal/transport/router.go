@@ -30,6 +30,63 @@ func SetupRouter(
 	workoutHandler *handlers.WorkoutHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
+	return setupRouterInternal(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		nil,
+		overviewHandler,
+		healthHandler,
+		ticketHandler,
+		workoutHandler,
+		corsAllowOrigin...,
+	)
+}
+
+// SetupRouterWithRoutine configures the HTTP router including routine endpoints.
+func SetupRouterWithRoutine(
+	db DBPinger,
+	userHandler *handlers.UserHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	exerciseHandler *handlers.ExerciseHandler,
+	routineHandler *handlers.RoutineHandler,
+	overviewHandler *handlers.OverviewHandler,
+	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
+	workoutHandler *handlers.WorkoutHandler,
+	corsAllowOrigin ...string,
+) *gin.Engine {
+	return setupRouterInternal(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		routineHandler,
+		overviewHandler,
+		healthHandler,
+		ticketHandler,
+		workoutHandler,
+		corsAllowOrigin...,
+	)
+}
+
+func setupRouterInternal(
+	db DBPinger,
+	userHandler *handlers.UserHandler,
+	authHandler *handlers.AuthHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	exerciseHandler *handlers.ExerciseHandler,
+	routineHandler *handlers.RoutineHandler,
+	overviewHandler *handlers.OverviewHandler,
+	healthHandler *handlers.HealthHandler,
+	ticketHandler *handlers.TicketHandler,
+	workoutHandler *handlers.WorkoutHandler,
+	corsAllowOrigin ...string,
+) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(corsMiddleware(resolveCORSAllowOrigin(corsAllowOrigin)))
@@ -91,13 +148,18 @@ func SetupRouter(
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
+	protected.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
+	protected.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
 	protected.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
 
 	// Routines
-	protected.GET("/routines", routineHandler.ListRoutines)
+	if routineHandler != nil {
+		protected.GET("/routines", routineHandler.ListRoutines)
+		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+	}
 
 	// Dashboard
 	protected.GET("/dashboard", overviewHandler.GetOverview)
