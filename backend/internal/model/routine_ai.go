@@ -37,15 +37,30 @@ type AIRoutineRecentWorkoutSession struct {
 	Exercises       []AIRoutineRecentWorkoutExercise `json:"exercises"`
 }
 
+// AIRoutineExerciseSet defines one planned set in a generated routine exercise.
+type AIRoutineExerciseSet struct {
+	SetNumber             int      `json:"set_number"`
+	TargetRepsMin         *int     `json:"target_reps_min,omitempty"`
+	TargetRepsMax         *int     `json:"target_reps_max,omitempty"`
+	TargetRepsText        string   `json:"target_reps_text,omitempty"`
+	TargetWeightKg        *float64 `json:"target_weight_kg,omitempty"`
+	TargetDurationSeconds *int     `json:"target_duration_seconds,omitempty"`
+	TargetDistanceKm      *float64 `json:"target_distance_km,omitempty"`
+	TargetRir             *int     `json:"target_rir,omitempty"`
+	RestSeconds           *int     `json:"rest_seconds,omitempty"`
+	Notes                 string   `json:"notes,omitempty"`
+}
+
 // AIRoutineExercise defines one exercise entry in generated routine JSON.
 type AIRoutineExercise struct {
-	ExerciseID      string `json:"exercise_id"`
-	Name            string `json:"name"`
-	MuscleGroup     string `json:"muscle_group"`
-	ExerciseType    string `json:"exercise_type,omitempty"`
-	IsMandatory     bool   `json:"is_mandatory"`
-	RecommendedSets int    `json:"recommended_sets"`
-	RecommendedReps string `json:"recommended_reps"`
+	ExerciseID      string                 `json:"exercise_id"`
+	Name            string                 `json:"name"`
+	MuscleGroup     string                 `json:"muscle_group"`
+	ExerciseType    string                 `json:"exercise_type,omitempty"`
+	IsMandatory     bool                   `json:"is_mandatory"`
+	RecommendedSets int                    `json:"recommended_sets,omitempty"`
+	RecommendedReps string                 `json:"recommended_reps,omitempty"`
+	Sets            []AIRoutineExerciseSet `json:"sets,omitempty"`
 }
 
 // AIRoutineJSON is the AI output format returned to client.
@@ -65,6 +80,21 @@ type AIRoutineExerciseToSave struct {
 	ExerciseID string
 	Order      int
 	Notes      string
+	Sets       []AIRoutineExerciseSetToSave
+}
+
+// AIRoutineExerciseSetToSave contains a planned routine set persisted from an AI generation.
+type AIRoutineExerciseSetToSave struct {
+	SetNumber             int
+	TargetRepsMin         *int
+	TargetRepsMax         *int
+	TargetRepsText        string
+	TargetWeightKg        *float64
+	TargetDurationSeconds *int
+	TargetDistanceKm      *float64
+	TargetRir             *int
+	RestSeconds           *int
+	Notes                 string
 }
 
 // AIRoutineToSave contains the routine data persisted from an AI generation.

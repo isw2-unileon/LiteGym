@@ -176,19 +176,18 @@ func (s *RoutineAIService) generateWithGemini(
 			"generation_source": "string",
 			"exercises": []map[string]string{
 				{
-					"exercise_id":      "string",
-					"name":             "string",
-					"muscle_group":     "string",
-					"exercise_type":    "string",
-					"is_mandatory":     "boolean",
-					"recommended_sets": "number",
-					"recommended_reps": "string",
+					"exercise_id":   "string",
+					"name":          "string",
+					"muscle_group":  "string",
+					"exercise_type": "string",
+					"is_mandatory":  "boolean",
+					"sets":          "array of planned sets with set_number, target_reps_min, target_reps_max, target_reps_text, target_weight_kg, target_rir, rest_seconds, notes",
 				},
 			},
 		},
 	}
 
-	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Return only valid JSON matching output_contract. Do not include markdown."
+	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Return only valid JSON matching output_contract. Put planned sets in exercises[].sets. Use target_weight_kg only when recent history supports it; otherwise use null or omit it. Do not include markdown."
 	userPromptBytes, _ := json.Marshal(inputPayload)
 
 	requestBody := map[string]any{
@@ -298,6 +297,7 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 			ExerciseID: exerciseID,
 			Order:      len(exercisesToSave) + 1,
 			Notes:      buildAIRoutineExerciseNotes(exercise),
+			Sets:       buildAIRoutineExerciseSetsToSave(exercise),
 		})
 		seenExerciseIDs[exerciseID] = struct{}{}
 	}
@@ -441,7 +441,9 @@ func buildAIRoutineDescription(req model.AIRoutineGenerationRequest, generated m
 
 func buildAIRoutineExerciseNotes(exercise model.AIRoutineExercise) string {
 	parts := make([]string, 0, 3)
-	if exercise.RecommendedSets > 0 {
+	if len(exercise.Sets) > 0 {
+		parts = append(parts, fmt.Sprintf("%d planned sets", len(exercise.Sets)))
+	} else if exercise.RecommendedSets > 0 {
 		parts = append(parts, fmt.Sprintf("%d sets", exercise.RecommendedSets))
 	}
 	if strings.TrimSpace(exercise.RecommendedReps) != "" {
@@ -451,6 +453,75 @@ func buildAIRoutineExerciseNotes(exercise model.AIRoutineExercise) string {
 		parts = append(parts, "mandatory")
 	}
 	return strings.Join(parts, " | ")
+}
+
+func buildAIRoutineExerciseSetsToSave(exercise model.AIRoutineExercise) []model.AIRoutineExerciseSetToSave {
+	if len(exercise.Sets) > 0 {
+		sets := make([]model.AIRoutineExerciseSetToSave, 0, len(exercise.Sets))
+		for index, set := range exercise.Sets {
+			setNumber := set.SetNumber
+			if setNumber <= 0 {
+				setNumber = index + 1
+			}
+			repsMin, repsMax := normalizedRepsRange(set.TargetRepsMin, set.TargetRepsMax)
+			sets = append(sets, model.AIRoutineExerciseSetToSave{
+				SetNumber:             setNumber,
+				TargetRepsMin:         repsMin,
+				TargetRepsMax:         repsMax,
+				TargetRepsText:        strings.TrimSpace(set.TargetRepsText),
+				TargetWeightKg:        nonNegativeFloatPointer(set.TargetWeightKg),
+				TargetDurationSeconds: nonNegativeIntPointer(set.TargetDurationSeconds),
+				TargetDistanceKm:      nonNegativeFloatPointer(set.TargetDistanceKm),
+				TargetRir:             rirPointer(set.TargetRir),
+				RestSeconds:           nonNegativeIntPointer(set.RestSeconds),
+				Notes:                 strings.TrimSpace(set.Notes),
+			})
+		}
+		return sets
+	}
+
+	if exercise.RecommendedSets <= 0 {
+		return nil
+	}
+
+	sets := make([]model.AIRoutineExerciseSetToSave, 0, exercise.RecommendedSets)
+	for setNumber := 1; setNumber <= exercise.RecommendedSets; setNumber++ {
+		sets = append(sets, model.AIRoutineExerciseSetToSave{
+			SetNumber:      setNumber,
+			TargetRepsText: strings.TrimSpace(exercise.RecommendedReps),
+		})
+	}
+	return sets
+}
+
+func normalizedRepsRange(minValue, maxValue *int) (*int, *int) {
+	minValue = nonNegativeIntPointer(minValue)
+	maxValue = nonNegativeIntPointer(maxValue)
+	if minValue != nil && maxValue != nil && *minValue > *maxValue {
+		minValue, maxValue = maxValue, minValue
+	}
+	return minValue, maxValue
+}
+
+func nonNegativeIntPointer(value *int) *int {
+	if value == nil || *value < 0 {
+		return nil
+	}
+	return value
+}
+
+func nonNegativeFloatPointer(value *float64) *float64 {
+	if value == nil || *value < 0 {
+		return nil
+	}
+	return value
+}
+
+func rirPointer(value *int) *int {
+	if value == nil || *value < 0 || *value > 10 {
+		return nil
+	}
+	return value
 }
 
 type routineAIUserContext struct {

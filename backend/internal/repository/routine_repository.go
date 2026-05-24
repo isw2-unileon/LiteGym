@@ -82,30 +82,69 @@ func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine 
 
 	var routineID string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO public.routines (user_id, name, description, is_predefined, is_public, created_at, updated_at)
-		VALUES ($1::uuid, $2, $3, false, false, now(), now())
+		INSERT INTO public.routines (user_id, name, description, source, is_predefined, is_public, created_at, updated_at)
+		VALUES ($1::uuid, $2, $3, 'ai', false, false, now(), now())
 		RETURNING id::text
 	`, routine.UserID, routine.Name, routine.Description).Scan(&routineID); err != nil {
 		return "", err
 	}
 
 	batch := &pgx.Batch{}
+	plannedSetCount := 0
 	for _, exercise := range routine.Exercises {
-		batch.Queue(`
+		var routineExerciseID string
+		if err := tx.QueryRow(ctx, `
 			INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
 			VALUES ($1::uuid, $2::uuid, $3, $4)
-		`, routineID, exercise.ExerciseID, exercise.Order, exercise.Notes)
-	}
-
-	results := tx.SendBatch(ctx, batch)
-	for range routine.Exercises {
-		if _, err := results.Exec(); err != nil {
-			_ = results.Close()
+			RETURNING id::text
+		`, routineID, exercise.ExerciseID, exercise.Order, exercise.Notes).Scan(&routineExerciseID); err != nil {
 			return "", err
 		}
+
+		for _, set := range exercise.Sets {
+			batch.Queue(`
+				INSERT INTO public.routine_exercise_sets (
+					routine_exercise_id,
+					set_number,
+					target_reps_min,
+					target_reps_max,
+					target_reps_text,
+					target_weight_kg,
+					target_duration_seconds,
+					target_distance_km,
+					target_rir,
+					rest_seconds,
+					notes
+				)
+				VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			`,
+				routineExerciseID,
+				set.SetNumber,
+				set.TargetRepsMin,
+				set.TargetRepsMax,
+				set.TargetRepsText,
+				set.TargetWeightKg,
+				set.TargetDurationSeconds,
+				set.TargetDistanceKm,
+				set.TargetRir,
+				set.RestSeconds,
+				set.Notes,
+			)
+			plannedSetCount++
+		}
 	}
-	if err := results.Close(); err != nil {
-		return "", err
+
+	if plannedSetCount > 0 {
+		results := tx.SendBatch(ctx, batch)
+		for range plannedSetCount {
+			if _, err := results.Exec(); err != nil {
+				_ = results.Close()
+				return "", err
+			}
+		}
+		if err := results.Close(); err != nil {
+			return "", err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {

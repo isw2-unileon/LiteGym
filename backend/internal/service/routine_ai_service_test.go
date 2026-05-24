@@ -193,7 +193,7 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 						"content": {
 							"parts": [
 								{
-									"text": "{\"name\":\"Rutina de empuje\",\"exercises\":[{\"exercise_id\":\"exercise-1\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"recommended_sets\":4,\"recommended_reps\":\"6-8\"}]}"
+									"text": "{\"name\":\"Rutina de empuje\",\"exercises\":[{\"exercise_id\":\"exercise-1\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"sets\":[{\"set_number\":1,\"target_reps_min\":6,\"target_reps_max\":8,\"target_weight_kg\":75,\"target_rir\":2,\"rest_seconds\":120}]}]}"
 								}
 							]
 						}
@@ -219,6 +219,20 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 		t.Fatalf("unexpected error generating routine: %v", err)
 	}
 
+	assertGeneratedRoutineResponse(t, response, routineRepo.savedRoutine)
+
+	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
+	userContext := mapField(t, promptPayload, "user_context")
+	assertCompactUserContext(t, userContext)
+}
+
+func assertGeneratedRoutineResponse(
+	t *testing.T,
+	response model.AIRoutineGenerateResponse,
+	savedRoutine *model.AIRoutineToSave,
+) {
+	t.Helper()
+
 	if response.RoutineJSON.Objective != "Ganar fuerza" {
 		t.Fatalf("expected objective to be preserved, got %q", response.RoutineJSON.Objective)
 	}
@@ -237,19 +251,22 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	if response.RoutineID != "saved-routine-1" {
 		t.Fatalf("expected saved routine id, got %q", response.RoutineID)
 	}
-	if routineRepo.savedRoutine == nil {
+	if savedRoutine == nil {
 		t.Fatal("expected generated routine to be saved")
 	}
-	if routineRepo.savedRoutine.Name != "Rutina de empuje" {
-		t.Fatalf("expected saved routine name, got %q", routineRepo.savedRoutine.Name)
+	if savedRoutine.Name != "Rutina de empuje" {
+		t.Fatalf("expected saved routine name, got %q", savedRoutine.Name)
 	}
-	if len(routineRepo.savedRoutine.Exercises) != 1 || routineRepo.savedRoutine.Exercises[0].ExerciseID != "exercise-1" {
-		t.Fatalf("unexpected saved routine exercises: %#v", routineRepo.savedRoutine.Exercises)
+	if len(savedRoutine.Exercises) != 1 || savedRoutine.Exercises[0].ExerciseID != "exercise-1" {
+		t.Fatalf("unexpected saved routine exercises: %#v", savedRoutine.Exercises)
 	}
-
-	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
-	userContext := mapField(t, promptPayload, "user_context")
-	assertCompactUserContext(t, userContext)
+	if len(savedRoutine.Exercises[0].Sets) != 1 {
+		t.Fatalf("expected one planned set, got %#v", savedRoutine.Exercises[0].Sets)
+	}
+	savedSet := savedRoutine.Exercises[0].Sets[0]
+	if savedSet.TargetWeightKg == nil || *savedSet.TargetWeightKg != 75 {
+		t.Fatalf("expected saved target weight, got %#v", savedSet.TargetWeightKg)
+	}
 }
 
 func decodeCapturedPromptPayload(t *testing.T, capturedPrompt map[string]any) map[string]any {

@@ -36,13 +36,21 @@ func NewWorkoutRepository(db *pgxpool.Pool) WorkoutRepository {
 
 // CreateSession creates a new workout session in the database.
 func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.WorkoutSession) error {
+	tx, err := wr.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
 	query := `
 		INSERT INTO workout_sessions (user_id, routine_id, name, started_at, notes)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at
 		`
 
-	err := wr.db.QueryRow(
+	err = tx.QueryRow(
 		ctx,
 		query,
 		workout.UserID,
@@ -56,7 +64,13 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 		return err
 	}
 
-	return nil
+	if workout.RoutineID != nil {
+		if err := wr.copyRoutineToWorkout(ctx, tx, *workout.RoutineID, workout.ID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 // GetSessionByID retrieves a workout session by its ID.
@@ -142,8 +156,8 @@ func (wr *workoutRepository) RemoveSessionByID(ctx context.Context, id uuid.UUID
 // CreateWorkoutExercise creates a new workout exercise associated with a workout session in the database.
 func (wr *workoutRepository) CreateWorkoutExercise(ctx context.Context, workoutExercise *model.WorkoutExercise) error {
 	query := `
-	INSERT INTO workout_exercises (workout_session_id, exercise_id, exercise_order, notes)
-	VALUES ($1, $2, $3, $4)
+	INSERT INTO workout_exercises (workout_session_id, exercise_id, routine_exercise_id, exercise_order, notes)
+	VALUES ($1, $2, $3, $4, $5)
 	RETURNING id, created_at
 	`
 
@@ -152,6 +166,7 @@ func (wr *workoutRepository) CreateWorkoutExercise(ctx context.Context, workoutE
 		query,
 		workoutExercise.WorkoutSessionID,
 		workoutExercise.ExerciseID,
+		workoutExercise.RoutineExerciseID,
 		workoutExercise.ExerciseOrder,
 		workoutExercise.Notes,
 	).Scan(&workoutExercise.ID, &workoutExercise.CreatedAt)
@@ -166,7 +181,7 @@ func (wr *workoutRepository) CreateWorkoutExercise(ctx context.Context, workoutE
 // GetWorkoutExercisesBySessionID retrieves all workout exercises associated with a specific workout session ID, ordered by their exercise order.
 func (wr *workoutRepository) GetWorkoutExercisesBySessionID(ctx context.Context, sessionID uuid.UUID) ([]*model.WorkoutExercise, error) {
 	query := `
-	SELECT id::text, workout_session_id, exercise_id, exercise_order, notes, created_at
+	SELECT id::text, workout_session_id, exercise_id, routine_exercise_id, exercise_order, notes, created_at
 	FROM workout_exercises
 	WHERE workout_session_id = $1
 	ORDER BY exercise_order
@@ -187,6 +202,7 @@ func (wr *workoutRepository) GetWorkoutExercisesBySessionID(ctx context.Context,
 			&we.ID,
 			&we.WorkoutSessionID,
 			&we.ExerciseID,
+			&we.RoutineExerciseID,
 			&we.ExerciseOrder,
 			&we.Notes,
 			&we.CreatedAt,
@@ -209,9 +225,26 @@ func (wr *workoutRepository) GetWorkoutExercisesBySessionID(ctx context.Context,
 // CreateWorkoutSet creates a new workout set associated with a workout exercise in the database.
 func (wr *workoutRepository) CreateWorkoutSet(ctx context.Context, workoutSet *model.WorkoutSet) error {
 	query := `
-	INSERT INTO workout_sets (workout_exercise_id, set_number, reps, weight_kg, duration_seconds,
-	                          distance_km, rir, completed)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	INSERT INTO workout_sets (
+		workout_exercise_id,
+		routine_exercise_set_id,
+		set_number,
+		target_reps_min,
+		target_reps_max,
+		target_reps_text,
+		target_weight_kg,
+		target_duration_seconds,
+		target_distance_km,
+		target_rir,
+		rest_seconds,
+		reps,
+		weight_kg,
+		duration_seconds,
+		distance_km,
+		rir,
+		completed
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 	RETURNING id, created_at
 	`
 
@@ -219,7 +252,16 @@ func (wr *workoutRepository) CreateWorkoutSet(ctx context.Context, workoutSet *m
 		ctx,
 		query,
 		workoutSet.WorkoutExerciseID,
+		workoutSet.RoutineExerciseSetID,
 		workoutSet.SetNumber,
+		workoutSet.TargetRepsMin,
+		workoutSet.TargetRepsMax,
+		workoutSet.TargetRepsText,
+		workoutSet.TargetWeightKg,
+		workoutSet.TargetDurationSeconds,
+		workoutSet.TargetDistanceKm,
+		workoutSet.TargetRir,
+		workoutSet.RestSeconds,
 		workoutSet.Repetitions,
 		workoutSet.WeightKg,
 		workoutSet.Duration,
@@ -238,8 +280,26 @@ func (wr *workoutRepository) CreateWorkoutSet(ctx context.Context, workoutSet *m
 // GetWorkoutSetsByWorkoutExerciseID retrieves all workout sets associated with a specific workout exercise ID, ordered by their set number.
 func (wr *workoutRepository) GetWorkoutSetsByWorkoutExerciseID(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error) {
 	query := `
-	SELECT id::text, workout_exercise_id, set_number, reps, weight_kg, duration_seconds,
-	       distance_km, rir, completed, created_at
+	SELECT
+		id::text,
+		workout_exercise_id,
+		routine_exercise_set_id,
+		set_number,
+		target_reps_min,
+		target_reps_max,
+		COALESCE(target_reps_text, ''),
+		target_weight_kg,
+		target_duration_seconds,
+		target_distance_km,
+		target_rir,
+		rest_seconds,
+		reps,
+		weight_kg,
+		duration_seconds,
+		distance_km,
+		rir,
+		completed,
+		created_at
 	FROM workout_sets
 	WHERE workout_exercise_id = $1
 	ORDER BY set_number
@@ -259,7 +319,16 @@ func (wr *workoutRepository) GetWorkoutSetsByWorkoutExerciseID(ctx context.Conte
 		err := rows.Scan(
 			&ws.ID,
 			&ws.WorkoutExerciseID,
+			&ws.RoutineExerciseSetID,
 			&ws.SetNumber,
+			&ws.TargetRepsMin,
+			&ws.TargetRepsMax,
+			&ws.TargetRepsText,
+			&ws.TargetWeightKg,
+			&ws.TargetDurationSeconds,
+			&ws.TargetDistanceKm,
+			&ws.TargetRir,
+			&ws.RestSeconds,
 			&ws.Repetitions,
 			&ws.WeightKg,
 			&ws.Duration,
@@ -313,4 +382,170 @@ func (wr *workoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid.UU
 	}
 
 	return nil
+}
+
+type routineExercisePrescription struct {
+	RoutineExerciseID string
+	ExerciseID        uuid.UUID
+	ExerciseOrder     int
+	Notes             string
+}
+
+type routineSetPrescription struct {
+	RoutineExerciseSetID  uuid.UUID
+	SetNumber             int
+	TargetRepsMin         *int
+	TargetRepsMax         *int
+	TargetRepsText        string
+	TargetWeightKg        *float64
+	TargetDurationSeconds *int
+	TargetDistanceKm      *float64
+	TargetRir             *int
+	RestSeconds           *int
+}
+
+type workoutTx interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (wr *workoutRepository) copyRoutineToWorkout(
+	ctx context.Context,
+	tx workoutTx,
+	routineID uuid.UUID,
+	workoutSessionID uuid.UUID,
+) error {
+	rows, err := tx.Query(ctx, `
+		SELECT id::text, exercise_id, exercise_order, COALESCE(notes, '')
+		FROM public.routine_exercises
+		WHERE routine_id = $1
+		ORDER BY exercise_order, id::text
+	`, routineID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var prescription routineExercisePrescription
+		if err := rows.Scan(
+			&prescription.RoutineExerciseID,
+			&prescription.ExerciseID,
+			&prescription.ExerciseOrder,
+			&prescription.Notes,
+		); err != nil {
+			return err
+		}
+
+		var workoutExerciseID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO public.workout_exercises (
+				workout_session_id,
+				exercise_id,
+				routine_exercise_id,
+				exercise_order,
+				notes
+			)
+			VALUES ($1, $2, $3::uuid, $4, $5)
+			RETURNING id
+		`,
+			workoutSessionID,
+			prescription.ExerciseID,
+			prescription.RoutineExerciseID,
+			prescription.ExerciseOrder,
+			prescription.Notes,
+		).Scan(&workoutExerciseID); err != nil {
+			return err
+		}
+
+		if err := wr.copyRoutineSetsToWorkout(ctx, tx, prescription.RoutineExerciseID, workoutExerciseID); err != nil {
+			return err
+		}
+	}
+
+	return rows.Err()
+}
+
+func (wr *workoutRepository) copyRoutineSetsToWorkout(
+	ctx context.Context,
+	tx workoutTx,
+	routineExerciseID string,
+	workoutExerciseID uuid.UUID,
+) error {
+	rows, err := tx.Query(ctx, `
+		SELECT
+			id,
+			set_number,
+			target_reps_min,
+			target_reps_max,
+			COALESCE(target_reps_text, ''),
+			target_weight_kg,
+			target_duration_seconds,
+			target_distance_km,
+			target_rir,
+			rest_seconds
+		FROM public.routine_exercise_sets
+		WHERE routine_exercise_id = $1::uuid
+		ORDER BY set_number, id::text
+	`, routineExerciseID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var prescription routineSetPrescription
+		if err := rows.Scan(
+			&prescription.RoutineExerciseSetID,
+			&prescription.SetNumber,
+			&prescription.TargetRepsMin,
+			&prescription.TargetRepsMax,
+			&prescription.TargetRepsText,
+			&prescription.TargetWeightKg,
+			&prescription.TargetDurationSeconds,
+			&prescription.TargetDistanceKm,
+			&prescription.TargetRir,
+			&prescription.RestSeconds,
+		); err != nil {
+			return err
+		}
+
+		completed := false
+		var workoutSetID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO public.workout_sets (
+				workout_exercise_id,
+				routine_exercise_set_id,
+				set_number,
+				target_reps_min,
+				target_reps_max,
+				target_reps_text,
+				target_weight_kg,
+				target_duration_seconds,
+				target_distance_km,
+				target_rir,
+				rest_seconds,
+				completed
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			RETURNING id
+		`,
+			workoutExerciseID,
+			prescription.RoutineExerciseSetID,
+			prescription.SetNumber,
+			prescription.TargetRepsMin,
+			prescription.TargetRepsMax,
+			prescription.TargetRepsText,
+			prescription.TargetWeightKg,
+			prescription.TargetDurationSeconds,
+			prescription.TargetDistanceKm,
+			prescription.TargetRir,
+			prescription.RestSeconds,
+			completed,
+		).Scan(&workoutSetID); err != nil {
+			return err
+		}
+	}
+
+	return rows.Err()
 }
