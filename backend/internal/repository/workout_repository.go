@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +28,20 @@ type WorkoutRepository interface {
 type workoutRepository struct {
 	db *pgxpool.Pool
 }
+
+const (
+	// ACSM progression guidance recommends 2-10% load increases when the
+	// current workload can be performed above the desired repetition target.
+	// These conservative tiers keep increases smaller for small muscle-mass
+	// exercises and larger for lower-body compound movements.
+	acsmSmallExerciseProgressionRate = 0.02
+	acsmUpperCompoundProgressionRate = 0.03
+	acsmLowerCompoundProgressionRate = 0.05
+	acsmNoExternalLoadProgression    = 0.00
+
+	minimumProgressionAdjustmentKg = 0.5
+	weightRoundingIncrementKg      = 0.5
+)
 
 // NewWorkoutRepository creates a new WorkoutRepository backed by PostgreSQL.
 func NewWorkoutRepository(db *pgxpool.Pool) WorkoutRepository {
@@ -65,7 +81,7 @@ func (wr *workoutRepository) CreateSession(ctx context.Context, workout *model.W
 	}
 
 	if workout.RoutineID != nil {
-		if err := wr.copyRoutineToWorkout(ctx, tx, *workout.RoutineID, workout.ID); err != nil {
+		if err := wr.copyRoutineToWorkout(ctx, tx, workout.UserID, *workout.RoutineID, workout.ID); err != nil {
 			return err
 		}
 	}
@@ -387,6 +403,8 @@ func (wr *workoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid.UU
 type routineExercisePrescription struct {
 	RoutineExerciseID string
 	ExerciseID        uuid.UUID
+	MuscleGroup       string
+	ExerciseType      string
 	ExerciseOrder     int
 	Notes             string
 }
@@ -404,6 +422,13 @@ type routineSetPrescription struct {
 	RestSeconds           *int
 }
 
+type recentWorkoutSetPerformance struct {
+	SetNumber int
+	Reps      *int
+	WeightKg  *float64
+	Rir       *int
+}
+
 type workoutTx interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
@@ -412,14 +437,22 @@ type workoutTx interface {
 func (wr *workoutRepository) copyRoutineToWorkout(
 	ctx context.Context,
 	tx workoutTx,
+	userID uuid.UUID,
 	routineID uuid.UUID,
 	workoutSessionID uuid.UUID,
 ) error {
 	rows, err := tx.Query(ctx, `
-		SELECT id::text, exercise_id, exercise_order, COALESCE(notes, '')
-		FROM public.routine_exercises
-		WHERE routine_id = $1
-		ORDER BY exercise_order, id::text
+		SELECT
+			re.id::text,
+			re.exercise_id,
+			e.muscle_group,
+			COALESCE(e.exercise_type, ''),
+			re.exercise_order,
+			COALESCE(re.notes, '')
+		FROM public.routine_exercises re
+		INNER JOIN public.exercises e ON e.id = re.exercise_id
+		WHERE re.routine_id = $1
+		ORDER BY re.exercise_order, re.id::text
 	`, routineID)
 	if err != nil {
 		return err
@@ -431,6 +464,8 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 		if err := rows.Scan(
 			&prescription.RoutineExerciseID,
 			&prescription.ExerciseID,
+			&prescription.MuscleGroup,
+			&prescription.ExerciseType,
 			&prescription.ExerciseOrder,
 			&prescription.Notes,
 		); err != nil {
@@ -458,7 +493,7 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 			return err
 		}
 
-		if err := wr.copyRoutineSetsToWorkout(ctx, tx, prescription.RoutineExerciseID, workoutExerciseID); err != nil {
+		if err := wr.copyRoutineSetsToWorkout(ctx, tx, userID, workoutSessionID, prescription, workoutExerciseID); err != nil {
 			return err
 		}
 	}
@@ -469,9 +504,16 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 func (wr *workoutRepository) copyRoutineSetsToWorkout(
 	ctx context.Context,
 	tx workoutTx,
-	routineExerciseID string,
+	userID uuid.UUID,
+	workoutSessionID uuid.UUID,
+	exercise routineExercisePrescription,
 	workoutExerciseID uuid.UUID,
 ) error {
+	recentSets, err := wr.listLatestExercisePerformance(ctx, tx, userID, exercise.ExerciseID, workoutSessionID)
+	if err != nil {
+		return err
+	}
+
 	rows, err := tx.Query(ctx, `
 		SELECT
 			id,
@@ -483,11 +525,11 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 			target_duration_seconds,
 			target_distance_km,
 			target_rir,
-			rest_seconds
+		rest_seconds
 		FROM public.routine_exercise_sets
 		WHERE routine_exercise_id = $1::uuid
 		ORDER BY set_number, id::text
-	`, routineExerciseID)
+	`, exercise.RoutineExerciseID)
 	if err != nil {
 		return err
 	}
@@ -511,6 +553,7 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 		}
 
 		completed := false
+		targetWeightKg := calculateDynamicTargetWeight(exercise, prescription, recentSets)
 		var workoutSetID uuid.UUID
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO public.workout_sets (
@@ -536,7 +579,7 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 			prescription.TargetRepsMin,
 			prescription.TargetRepsMax,
 			prescription.TargetRepsText,
-			prescription.TargetWeightKg,
+			targetWeightKg,
 			prescription.TargetDurationSeconds,
 			prescription.TargetDistanceKm,
 			prescription.TargetRir,
@@ -548,4 +591,191 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 	}
 
 	return rows.Err()
+}
+
+func (wr *workoutRepository) listLatestExercisePerformance(
+	ctx context.Context,
+	tx workoutTx,
+	userID uuid.UUID,
+	exerciseID uuid.UUID,
+	excludedWorkoutSessionID uuid.UUID,
+) ([]recentWorkoutSetPerformance, error) {
+	rows, err := tx.Query(ctx, `
+		WITH latest_workout_exercise AS (
+			SELECT we.id
+			FROM public.workout_exercises we
+			INNER JOIN public.workout_sessions ws ON ws.id = we.workout_session_id
+			WHERE ws.user_id = $1
+				AND we.exercise_id = $2
+				AND ws.id <> $3
+				AND EXISTS (
+					SELECT 1
+					FROM public.workout_sets completed_sets
+					WHERE completed_sets.workout_exercise_id = we.id
+						AND completed_sets.completed = true
+						AND completed_sets.weight_kg IS NOT NULL
+				)
+			ORDER BY ws.started_at DESC, ws.id::text DESC, we.exercise_order ASC
+			LIMIT 1
+		)
+		SELECT wset.set_number, wset.reps, wset.weight_kg, wset.rir
+		FROM public.workout_sets wset
+		INNER JOIN latest_workout_exercise lwe ON lwe.id = wset.workout_exercise_id
+		WHERE wset.completed = true
+		ORDER BY wset.set_number ASC
+	`, userID, exerciseID, excludedWorkoutSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sets := make([]recentWorkoutSetPerformance, 0)
+	for rows.Next() {
+		var set recentWorkoutSetPerformance
+		if err := rows.Scan(&set.SetNumber, &set.Reps, &set.WeightKg, &set.Rir); err != nil {
+			return nil, err
+		}
+		sets = append(sets, set)
+	}
+
+	return sets, rows.Err()
+}
+
+func calculateDynamicTargetWeight(
+	exercise routineExercisePrescription,
+	prescription routineSetPrescription,
+	recentSets []recentWorkoutSetPerformance,
+) *float64 {
+	baseline := historicalWeightBaseline(prescription.SetNumber, recentSets)
+	if baseline == nil {
+		baseline = prescription.TargetWeightKg
+	}
+	if baseline == nil {
+		return nil
+	}
+
+	targetWeight := *baseline
+	adjustment := progressionWeightAdjustment(exercise, targetWeight)
+	switch {
+	case shouldReduceTargetWeight(prescription, recentSets):
+		targetWeight = math.Max(0, targetWeight-adjustment)
+	case shouldIncreaseTargetWeight(prescription, recentSets):
+		targetWeight += adjustment
+	}
+
+	rounded := roundWeightToIncrement(targetWeight)
+	return &rounded
+}
+
+func progressionWeightAdjustment(exercise routineExercisePrescription, baselineWeight float64) float64 {
+	if baselineWeight <= 0 {
+		return 0
+	}
+
+	rate := progressionRate(exercise)
+	if rate <= 0 {
+		return 0
+	}
+
+	adjustment := roundWeightToIncrement(baselineWeight * rate)
+	if adjustment < minimumProgressionAdjustmentKg {
+		return minimumProgressionAdjustmentKg
+	}
+	return adjustment
+}
+
+func progressionRate(exercise routineExercisePrescription) float64 {
+	exerciseType := strings.ToLower(exercise.ExerciseType)
+	muscleGroup := strings.ToLower(exercise.MuscleGroup)
+
+	switch {
+	case exerciseType == "bodyweight" || exerciseType == "isometric":
+		return acsmNoExternalLoadProgression
+	case muscleGroup == "legs" || muscleGroup == "glutes":
+		return acsmLowerCompoundProgressionRate
+	case exerciseType == "strength":
+		return acsmUpperCompoundProgressionRate
+	case exerciseType == "hypertrophy":
+		return acsmSmallExerciseProgressionRate
+	case muscleGroup == "biceps" || muscleGroup == "triceps" || muscleGroup == "shoulders":
+		return acsmSmallExerciseProgressionRate
+	default:
+		return acsmUpperCompoundProgressionRate
+	}
+}
+
+func roundWeightToIncrement(weight float64) float64 {
+	return math.Round(weight/weightRoundingIncrementKg) * weightRoundingIncrementKg
+}
+
+func historicalWeightBaseline(setNumber int, recentSets []recentWorkoutSetPerformance) *float64 {
+	var fallback *float64
+	for _, set := range recentSets {
+		if set.WeightKg == nil {
+			continue
+		}
+		if fallback == nil || *set.WeightKg > *fallback {
+			weight := *set.WeightKg
+			fallback = &weight
+		}
+		if set.SetNumber == setNumber {
+			weight := *set.WeightKg
+			return &weight
+		}
+	}
+	return fallback
+}
+
+func shouldIncreaseTargetWeight(prescription routineSetPrescription, recentSets []recentWorkoutSetPerformance) bool {
+	targetReps := targetRepsCeiling(prescription)
+	if len(recentSets) == 0 || targetReps == 0 {
+		return false
+	}
+
+	for _, set := range recentSets {
+		if set.Reps == nil || *set.Reps < targetReps {
+			return false
+		}
+		if prescription.TargetRir != nil && set.Rir != nil && *set.Rir < *prescription.TargetRir {
+			return false
+		}
+	}
+	return true
+}
+
+func shouldReduceTargetWeight(prescription routineSetPrescription, recentSets []recentWorkoutSetPerformance) bool {
+	targetReps := targetRepsFloor(prescription)
+	if len(recentSets) == 0 {
+		return false
+	}
+
+	for _, set := range recentSets {
+		if targetReps > 0 && set.Reps != nil && *set.Reps < targetReps {
+			return true
+		}
+		if set.Rir != nil && *set.Rir <= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func targetRepsFloor(prescription routineSetPrescription) int {
+	if prescription.TargetRepsMin != nil {
+		return *prescription.TargetRepsMin
+	}
+	if prescription.TargetRepsMax != nil {
+		return *prescription.TargetRepsMax
+	}
+	return 0
+}
+
+func targetRepsCeiling(prescription routineSetPrescription) int {
+	if prescription.TargetRepsMax != nil {
+		return *prescription.TargetRepsMax
+	}
+	if prescription.TargetRepsMin != nil {
+		return *prescription.TargetRepsMin
+	}
+	return 0
 }
