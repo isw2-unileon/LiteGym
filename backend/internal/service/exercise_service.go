@@ -77,6 +77,7 @@ func (s *ExerciseService) List(ctx context.Context, filters model.ExerciseFilter
 	}, nil
 }
 
+// ListWorkoutSessionsByExercise returns recent workout sessions that include the selected exercise.
 func (s *ExerciseService) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
 	exerciseID = strings.TrimSpace(exerciseID)
 	userID = strings.TrimSpace(userID)
@@ -104,6 +105,7 @@ func (s *ExerciseService) ListWorkoutSessionsByExercise(ctx context.Context, exe
 	return s.repo.ListWorkoutSessionsByExercise(ctx, exerciseID, userID, limit)
 }
 
+// GetInsights returns historical performance analytics for a user's exercise.
 func (s *ExerciseService) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
 	exerciseID = strings.TrimSpace(exerciseID)
 	userID = strings.TrimSpace(userID)

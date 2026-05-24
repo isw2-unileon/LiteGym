@@ -270,7 +270,7 @@ func (r *exerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, 
 	return sessions, rows.Err()
 }
 
-func (r *exerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+func (r *exerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) { //nolint:gocognit,gocyclo,funlen // Aggregates exercise history into summary, records, progression, and session history from one ordered query.
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			ws.id::text,

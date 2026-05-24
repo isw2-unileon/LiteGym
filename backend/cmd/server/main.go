@@ -21,7 +21,7 @@ import (
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-func main() {
+func main() { //nolint:funlen // Server bootstrap wires all repositories, services, handlers, and graceful shutdown in one place.
 	ctx := context.Background()
 
 	cfg := config.Load()

@@ -23,6 +23,10 @@ func (m *mockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, 
 	return 0, nil
 }
 
+func (m *mockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
 func (m *mockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
 	return nil
 }

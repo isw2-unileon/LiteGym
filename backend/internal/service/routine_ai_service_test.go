@@ -19,7 +19,9 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-type routineAITestRoutineRepository struct{}
+type routineAITestRoutineRepository struct {
+	savedRoutine *model.AIRoutineToSave
+}
 
 func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{
@@ -30,6 +32,11 @@ func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, u
 
 func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
 	return 0, nil
+}
+
+func (r *routineAITestRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	r.savedRoutine = &routine
+	return "saved-routine-1", nil
 }
 
 func (r *routineAITestRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
@@ -160,8 +167,9 @@ func (r *routineAITestBodyMetricRepository) ListRecentByUser(ctx context.Context
 }
 
 func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{}
 	svc := NewRoutineAIService(
-		&routineAITestRoutineRepository{},
+		routineRepo,
 		&routineAITestWorkoutSessionRepository{},
 		&routineAITestBodyMetricRepository{},
 		"test-key",
@@ -185,7 +193,7 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 						"content": {
 							"parts": [
 								{
-									"text": "{\"name\":\"Rutina de empuje\",\"exercises\":[]}"
+									"text": "{\"name\":\"Rutina de empuje\",\"exercises\":[{\"exercise_id\":\"exercise-1\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"recommended_sets\":4,\"recommended_reps\":\"6-8\"}]}"
 								}
 							]
 						}
@@ -226,23 +234,31 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 1 {
 		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
 	}
+	if response.RoutineID != "saved-routine-1" {
+		t.Fatalf("expected saved routine id, got %q", response.RoutineID)
+	}
+	if routineRepo.savedRoutine == nil {
+		t.Fatal("expected generated routine to be saved")
+	}
+	if routineRepo.savedRoutine.Name != "Rutina de empuje" {
+		t.Fatalf("expected saved routine name, got %q", routineRepo.savedRoutine.Name)
+	}
+	if len(routineRepo.savedRoutine.Exercises) != 1 || routineRepo.savedRoutine.Exercises[0].ExerciseID != "exercise-1" {
+		t.Fatalf("unexpected saved routine exercises: %#v", routineRepo.savedRoutine.Exercises)
+	}
 
-	contents, ok := capturedPrompt["contents"].([]any)
-	if !ok || len(contents) != 1 {
-		t.Fatalf("expected one content item in prompt, got %#v", capturedPrompt["contents"])
-	}
-	content, ok := contents[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected content map, got %#v", contents[0])
-	}
-	parts, ok := content["parts"].([]any)
-	if !ok || len(parts) != 1 {
-		t.Fatalf("expected one prompt part, got %#v", content["parts"])
-	}
-	part, ok := parts[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected prompt part map, got %#v", parts[0])
-	}
+	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
+	userContext := mapField(t, promptPayload, "user_context")
+	assertCompactUserContext(t, userContext)
+}
+
+func decodeCapturedPromptPayload(t *testing.T, capturedPrompt map[string]any) map[string]any {
+	t.Helper()
+
+	contents := sliceField(t, capturedPrompt, "contents", 1)
+	content := mapItem(t, contents[0], "content")
+	parts := sliceField(t, content, "parts", 1)
+	part := mapItem(t, parts[0], "prompt part")
 	rawPrompt, ok := part["text"].(string)
 	if !ok {
 		t.Fatalf("expected prompt text string, got %#v", part["text"])
@@ -253,65 +269,81 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 		t.Fatalf("prompt text is not valid JSON: %v", err)
 	}
 
-	userContext, ok := promptPayload["user_context"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected user_context in prompt payload, got %#v", promptPayload["user_context"])
-	}
+	return promptPayload
+}
+
+func assertCompactUserContext(t *testing.T, userContext map[string]any) {
+	t.Helper()
+
 	if got := int(userContext["training_days_30d"].(float64)); got != 3 {
 		t.Fatalf("expected 3 training days in last 30d, got %d", got)
 	}
-	if got := int(userContext["current_streak_days"].(float64)); got != 2 {
-		t.Fatalf("expected streak of 2 days, got %d", got)
+	if got := int(userContext["current_streak_days"].(float64)); got != 0 {
+		t.Fatalf("expected streak of 0 days, got %d", got)
 	}
 
-	recentWorkouts, ok := userContext["recent_workouts"].([]any)
-	if !ok || len(recentWorkouts) != 2 {
-		t.Fatalf("expected two recent workouts, got %#v", userContext["recent_workouts"])
+	sliceField(t, userContext, "recent_workouts", 2)
+	assertRecentTrainingHistory(t, userContext)
+
+	topMuscles := sliceField(t, userContext, "top_muscle_groups", 3)
+	if len(topMuscles) != 3 {
+		t.Fatalf("expected three muscle groups, got %#v", userContext["top_muscle_groups"])
 	}
 
-	recentHistory, ok := userContext["recent_training_history"].([]any)
-	if !ok || len(recentHistory) != 2 {
-		t.Fatalf("expected two recent training history sessions, got %#v", userContext["recent_training_history"])
+	bodyMetrics := mapField(t, userContext, "body_metrics")
+	if got := bodyMetrics["weight_kg_delta"]; got == nil {
+		t.Fatal("expected weight_kg_delta to be present")
 	}
-	firstSession, ok := recentHistory[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected first history session map, got %#v", recentHistory[0])
-	}
-	exercises, ok := firstSession["exercises"].([]any)
-	if !ok || len(exercises) == 0 {
-		t.Fatalf("expected exercises in recent history, got %#v", firstSession["exercises"])
-	}
-	firstExercise, ok := exercises[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected first exercise map, got %#v", exercises[0])
-	}
-	sets, ok := firstExercise["sets"].([]any)
-	if !ok || len(sets) != 2 {
-		t.Fatalf("expected two sets for first exercise, got %#v", firstExercise["sets"])
-	}
-	firstSet, ok := sets[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected first set map, got %#v", sets[0])
-	}
+}
+
+func assertRecentTrainingHistory(t *testing.T, userContext map[string]any) {
+	t.Helper()
+
+	recentHistory := sliceField(t, userContext, "recent_training_history", 2)
+	firstSession := mapItem(t, recentHistory[0], "first history session")
+	exercises := sliceField(t, firstSession, "exercises", 1)
+	firstExercise := mapItem(t, exercises[0], "first exercise")
+	sets := sliceField(t, firstExercise, "sets", 2)
+	firstSet := mapItem(t, sets[0], "first set")
 	if _, ok := firstSet["reps"]; !ok {
 		t.Fatal("expected reps in workout history set")
 	}
 	if _, ok := firstSet["weight_kg"]; !ok {
 		t.Fatal("expected weight_kg in workout history set")
 	}
+}
 
-	topMuscles, ok := userContext["top_muscle_groups"].([]any)
-	if !ok || len(topMuscles) != 3 {
-		t.Fatalf("expected three muscle groups, got %#v", userContext["top_muscle_groups"])
-	}
+func mapField(t *testing.T, values map[string]any, key string) map[string]any {
+	t.Helper()
 
-	bodyMetrics, ok := userContext["body_metrics"].(map[string]any)
+	item, ok := values[key].(map[string]any)
 	if !ok {
-		t.Fatalf("expected body_metrics in prompt payload, got %#v", userContext["body_metrics"])
+		t.Fatalf("expected %s map, got %#v", key, values[key])
 	}
-	if got := bodyMetrics["weight_kg_delta"]; got == nil {
-		t.Fatal("expected weight_kg_delta to be present")
+
+	return item
+}
+
+func mapItem(t *testing.T, value any, label string) map[string]any {
+	t.Helper()
+
+	item, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("expected %s map, got %#v", label, value)
 	}
+
+	return item
+}
+
+func sliceField(t *testing.T, values map[string]any, key string, minLen int) []any {
+	t.Helper()
+
+	items, ok := values[key].([]any)
+	if !ok || len(items) < minLen {
+		t.Fatalf("expected at least %d item(s) for %s, got %#v", minLen, key, values[key])
+	}
+
+	return items
 }
 
 func TestGenerateRoutineJSONFailsWithoutAPIKey(t *testing.T) {

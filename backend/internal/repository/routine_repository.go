@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RoutineRepository defines the persistence operations for routines.
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
+	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
 	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
 	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
 	ListAvailableExercisesForAI(
@@ -67,6 +69,50 @@ func (r *routineRepository) ListRecentByUser(ctx context.Context, userID string,
 	}
 
 	return routines, rows.Err()
+}
+
+func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var routineID string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO public.routines (user_id, name, description, is_predefined, is_public, created_at, updated_at)
+		VALUES ($1::uuid, $2, $3, false, false, now(), now())
+		RETURNING id::text
+	`, routine.UserID, routine.Name, routine.Description).Scan(&routineID); err != nil {
+		return "", err
+	}
+
+	batch := &pgx.Batch{}
+	for _, exercise := range routine.Exercises {
+		batch.Queue(`
+			INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
+			VALUES ($1::uuid, $2::uuid, $3, $4)
+		`, routineID, exercise.ExerciseID, exercise.Order, exercise.Notes)
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	for range routine.Exercises {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return "", err
+		}
+	}
+	if err := results.Close(); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+
+	return routineID, nil
 }
 
 func (r *routineRepository) CountAIGenerationsInWindow(

@@ -126,6 +126,10 @@ func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, 
 	return 0, nil
 }
 
+func (m *MockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
 func (m *MockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
 	return nil
 }
@@ -260,17 +264,6 @@ func addAuthCookie(t *testing.T, req *http.Request, tokenService *service.TokenS
 func newTestOverviewHandler() *handlers.OverviewHandler {
 	overviewService := service.NewOverviewService(&MockRoutineRepository{}, &MockWorkoutSessionRepository{}, &MockBodyMetricRepository{})
 	return handlers.NewOverviewHandler(overviewService)
-}
-
-func newTestRoutineHandler() *handlers.RoutineHandler {
-	routineAIService := service.NewRoutineAIService(
-		&MockRoutineRepository{},
-		&MockWorkoutSessionRepository{},
-		&MockBodyMetricRepository{},
-		"test-key",
-		"gemini-1.5-flash",
-	)
-	return handlers.NewRoutineHandler(routineAIService)
 }
 
 func newTestTicketHandler(userService *service.UserService) *handlers.TicketHandler {

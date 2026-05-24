@@ -60,6 +60,21 @@ type AIRoutineJSON struct {
 	GenerationSource string              `json:"generation_source"`
 }
 
+// AIRoutineExerciseToSave contains the routine exercise data persisted from an AI generation.
+type AIRoutineExerciseToSave struct {
+	ExerciseID string
+	Order      int
+	Notes      string
+}
+
+// AIRoutineToSave contains the routine data persisted from an AI generation.
+type AIRoutineToSave struct {
+	UserID      string
+	Name        string
+	Description string
+	Exercises   []AIRoutineExerciseToSave
+}
+
 // AIRoutineRateLimitStatus returns usage information for frontend.
 type AIRoutineRateLimitStatus struct {
 	Limit               int       `json:"limit"`
@@ -72,5 +87,6 @@ type AIRoutineRateLimitStatus struct {
 // AIRoutineGenerateResponse wraps generated JSON plus rate-limit metadata.
 type AIRoutineGenerateResponse struct {
 	RoutineJSON AIRoutineJSON            `json:"routine_json"`
+	RoutineID   string                   `json:"routine_id,omitempty"`
 	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
 }

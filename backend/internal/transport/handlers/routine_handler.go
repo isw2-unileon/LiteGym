@@ -11,14 +11,17 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
+// RoutineHandler handles AI routine generation endpoints.
 type RoutineHandler struct {
 	aiService *service.RoutineAIService
 }
 
+// NewRoutineHandler creates a handler for AI routine generation.
 func NewRoutineHandler(aiService *service.RoutineAIService) *RoutineHandler {
 	return &RoutineHandler{aiService: aiService}
 }
 
+// GenerateRoutineJSON generates and persists a routine for the authenticated user.
 func (h *RoutineHandler) GenerateRoutineJSON(c *gin.Context) {
 	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
 	if !ok {

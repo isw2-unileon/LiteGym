@@ -44,6 +44,7 @@ func SetupRouter(
 	)
 }
 
+// SetupRouterWithRoutine configures the HTTP router including routine endpoints.
 func SetupRouterWithRoutine(
 	db DBPinger,
 	userHandler *handlers.UserHandler,

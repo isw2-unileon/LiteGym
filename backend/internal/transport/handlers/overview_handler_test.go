@@ -25,6 +25,27 @@ func (m *mockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
+func (m *mockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	return 0, nil
+}
+
+func (m *mockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
+func (m *mockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	return nil
+}
+
+func (m *mockRoutineRepository) ListAvailableExercisesForAI(
+	ctx context.Context,
+	userID string,
+	targetMuscleGroups []string,
+	limit int,
+) ([]model.Exercise, error) {
+	return []model.Exercise{}, nil
+}
+
 type mockWorkoutSessionRepository struct {
 	listRecentByUserFunc             func(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error)
 	listTrainingDatesInRangeFunc     func(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error)
