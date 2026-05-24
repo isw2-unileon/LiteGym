@@ -186,6 +186,35 @@ function formatRecentWorkoutMeta(value: string) {
   return workoutDateFormatter.format(new Date(value));
 }
 
+function toGoogleCalendarDateTime(date: Date) {
+  return date.toISOString().replaceAll("-", "").replaceAll(":", "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function buildGoogleCalendarLink(workout: DashboardCalendarWorkout) {
+  if (!workout.planned_at) {
+    return null;
+  }
+
+  const startDate = new Date(workout.planned_at);
+  const durationMinutes = workout.duration_minutes > 0 ? workout.duration_minutes : 60;
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+  const title = workoutTitle(workout);
+  const detailParts = [
+    `Rutina: ${workout.routine_name || "Entreno libre"}`,
+    `${workout.exercise_count} ejercicios`,
+    `Duracion estimada: ${durationMinutes} min`,
+  ];
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    details: detailParts.join("\n"),
+    dates: `${toGoogleCalendarDateTime(startDate)}/${toGoogleCalendarDateTime(endDate)}`,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 function formatMetricValue(value?: number | null, suffix = "") {
   if (typeof value !== "number") {
     return "Sin datos";
@@ -931,7 +960,10 @@ export default function DashboardPage() {
           onClose={handleCloseCalendarDialog}
         >
           <ul className="mt-2 flex flex-col gap-2.5">
-            {calendarDialog.workouts.map((workout) => (
+            {calendarDialog.workouts.map((workout) => {
+              const googleCalendarLink = buildGoogleCalendarLink(workout);
+
+              return (
               <li
                 key={workout.id}
                 className="rounded-[16px] border border-[#1f1b16]/12 bg-[#fffaf0]/85 p-4"
@@ -950,16 +982,29 @@ export default function DashboardPage() {
                     </strong>
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleCancelPlannedWorkout(workout.id)}
-                  disabled={calendarActionStatus === "loading"}
-                  className="mt-3 cursor-pointer rounded-[12px] border border-[#9f2f22]/25 bg-[#9f2f22]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#9f2f22] transition hover:bg-[#9f2f22]/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancelar entreno
-                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {googleCalendarLink && (
+                    <a
+                      href={googleCalendarLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex cursor-pointer rounded-[12px] border border-[#265c52]/25 bg-[#265c52]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#265c52] transition hover:bg-[#265c52]/15"
+                    >
+                      Añadir a Calendar
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleCancelPlannedWorkout(workout.id)}
+                    disabled={calendarActionStatus === "loading"}
+                    className="cursor-pointer rounded-[12px] border border-[#9f2f22]/25 bg-[#9f2f22]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#9f2f22] transition hover:bg-[#9f2f22]/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancelar entreno
+                  </button>
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
           {calendarActionStatus === "error" && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
