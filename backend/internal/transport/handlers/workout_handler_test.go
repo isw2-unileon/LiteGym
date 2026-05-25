@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 type MockWorkoutRepository struct {
@@ -201,6 +202,41 @@ func TestWorkoutHandlerCreateWorkoutInternalServerError(t *testing.T) {
 	workoutHandler.CreateWorkout(ctx)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestWorkoutHandlerCreatePlannedWorkoutSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	plannedAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	userID := uuid.New()
+	routineID := uuid.New()
+
+	mockRepo := &MockWorkoutRepository{
+		CreateSessionFunc: func(ctx context.Context, workout *model.WorkoutSession) error {
+			workout.ID = uuid.New()
+			workout.CreatedAt = time.Now()
+			return nil
+		},
+	}
+	workoutService := service.NewWorkoutService(mockRepo)
+	workoutHandler := NewWorkoutHandler(workoutService)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set(middleware.ContextUserIDKey, userID.String())
+
+	jsonPayload := fmt.Sprintf(
+		`{"routine_id":"%s","name":"Planned Push Day","planned_at":"%s","notes":"Bring straps"}`,
+		routineID.String(),
+		plannedAt.Format(time.RFC3339),
+	)
+	ctx.Request = httptest.NewRequest("POST", "/api/workouts/planned", bytes.NewBufferString(jsonPayload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	workoutHandler.CreatePlannedWorkout(ctx)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 }
 

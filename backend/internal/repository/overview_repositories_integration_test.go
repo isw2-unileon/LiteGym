@@ -74,11 +74,45 @@ func TestRoutineRepositoryGetByIDIntegration(t *testing.T) {
 	cleanupExercisesRepository(t, db)
 
 	userID := insertUserRaw(t, db, "routinedetail", "routinedetail@example.com")
-	otherUserID := insertUserRaw(t, db, "otheruser", "otheruser@example.com")
+	routineID := seedRoutineDetailRepository(t, db, userID)
 
-	routineID := insertRoutineRawRepository(t, db, userID, "Push Day", "Rutina detallada", time.Now())
+	repo := NewRoutineRepository(db)
+
+	routine, err := repo.GetByID(context.Background(), userID, routineID)
+	if err != nil {
+		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
+	}
+
+	if routine == nil {
+		t.Fatal("se esperaba rutina, pero se obtuvo nil")
+	}
+
+	assertRoutineDetailRepository(t, routine, routineID)
+}
+
+func TestRoutineRepositoryGetByIDOtherUserIntegration(t *testing.T) {
+	db := setupExerciseTestDB(t)
+	cleanupExercisesRepository(t, db)
+
+	userID := insertUserRaw(t, db, "routinedetail", "routinedetail@example.com")
+	otherUserID := insertUserRaw(t, db, "otheruser", "otheruser@example.com")
 	otherRoutineID := insertRoutineRawRepository(t, db, otherUserID, "Other Routine", "Ajena", time.Now())
 
+	repo := NewRoutineRepository(db)
+
+	otherRoutine, err := repo.GetByID(context.Background(), userID, otherRoutineID)
+	if err == nil {
+		t.Fatal("se esperaba error al intentar leer una rutina de otro usuario")
+	}
+	if otherRoutine != nil {
+		t.Fatalf("se esperaba rutina nil para usuario ajeno, pero se obtuvo %#v", otherRoutine)
+	}
+}
+
+func seedRoutineDetailRepository(t *testing.T, db *pgxpool.Pool, userID string) string {
+	t.Helper()
+
+	routineID := insertRoutineRawRepository(t, db, userID, "Push Day", "Rutina detallada", time.Now())
 	benchID := insertExerciseRawRepository(t, db, model.Exercise{
 		Name:         "Bench Press",
 		Description:  "Flat bench press",
@@ -129,16 +163,11 @@ func TestRoutineRepositoryGetByIDIntegration(t *testing.T) {
 		t.Fatalf("error insertando routine_exercise_sets: %v", err)
 	}
 
-	repo := NewRoutineRepository(db)
+	return routineID
+}
 
-	routine, err := repo.GetByID(context.Background(), userID, routineID)
-	if err != nil {
-		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
-	}
-
-	if routine == nil {
-		t.Fatal("se esperaba rutina, pero se obtuvo nil")
-	}
+func assertRoutineDetailRepository(t *testing.T, routine *model.Routine, routineID string) {
+	t.Helper()
 
 	if routine.ID != routineID {
 		t.Fatalf("se esperaba id %s, pero se obtuvo %s", routineID, routine.ID)
@@ -160,14 +189,6 @@ func TestRoutineRepositoryGetByIDIntegration(t *testing.T) {
 	}
 	if len(routine.Exercises[1].Sets) != 0 {
 		t.Fatalf("se esperaban 0 sets para el segundo ejercicio, pero se obtuvieron %d", len(routine.Exercises[1].Sets))
-	}
-
-	otherRoutine, err := repo.GetByID(context.Background(), userID, otherRoutineID)
-	if err == nil {
-		t.Fatal("se esperaba error al intentar leer una rutina de otro usuario")
-	}
-	if otherRoutine != nil {
-		t.Fatalf("se esperaba rutina nil para usuario ajeno, pero se obtuvo %#v", otherRoutine)
 	}
 }
 
