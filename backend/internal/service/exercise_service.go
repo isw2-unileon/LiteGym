@@ -135,6 +135,17 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 		return ErrInvalidExerciseInput
 	}
 
+	if !exercise.IsOfficial {
+		if exercise.OwnerUserID == nil || strings.TrimSpace(*exercise.OwnerUserID) == "" {
+			return ErrInvalidExerciseInput
+		}
+		if _, err := uuid.Parse(strings.TrimSpace(*exercise.OwnerUserID)); err != nil {
+			return ErrInvalidExerciseInput
+		}
+	} else {
+		exercise.OwnerUserID = nil
+	}
+
 	if err := s.normalizeAndValidateExercise(exercise); err != nil {
 		return err
 	}
