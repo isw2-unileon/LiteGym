@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -89,7 +90,7 @@ func setupRouterInternal(
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(corsMiddleware(resolveCORSAllowOrigin(corsAllowOrigin)))
+	r.Use(corsMiddleware(resolveCORSAllowOrigins(corsAllowOrigin)))
 
 	// Health check
 	r.GET("/health", healthHandler.Health)
@@ -158,7 +159,9 @@ func setupRouterInternal(
 	// Routines
 	if routineHandler != nil {
 		protected.GET("/routines", routineHandler.ListRoutines)
+		protected.GET("/routines/:id", routineHandler.GetRoutine)
 		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+		protected.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
 	}
 
 	// Dashboard
@@ -184,23 +187,45 @@ func setupRouterInternal(
 	return r
 }
 
-func resolveCORSAllowOrigin(corsAllowOrigin []string) string {
+func resolveCORSAllowOrigins(corsAllowOrigin []string) []string {
 	if len(corsAllowOrigin) == 0 || strings.TrimSpace(corsAllowOrigin[0]) == "" {
-		return "*"
+		return []string{"*"}
 	}
-	return strings.TrimSpace(corsAllowOrigin[0])
+
+	values := strings.Split(corsAllowOrigin[0], ",")
+	origins := make([]string, 0, len(values))
+	for _, value := range values {
+		origin := strings.TrimSpace(value)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
 }
 
-func corsMiddleware(allowOrigin string) gin.HandlerFunc {
+func corsMiddleware(allowOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestOrigin := c.GetHeader("Origin")
-		responseOrigin := allowOrigin
+		responseOrigin := ""
 
-		if allowOrigin == "*" && requestOrigin != "" {
+		for _, allowOrigin := range allowOrigins {
+			if allowOrigin == "*" && requestOrigin != "" {
+				responseOrigin = requestOrigin
+				break
+			}
+			if requestOrigin != "" && requestOrigin == allowOrigin {
+				responseOrigin = requestOrigin
+				break
+			}
+		}
+		if responseOrigin == "" && isLocalDevelopmentOrigin(requestOrigin) {
 			responseOrigin = requestOrigin
 		}
 
-		if requestOrigin != "" && (allowOrigin == "*" || requestOrigin == allowOrigin) {
+		if responseOrigin != "" {
 			c.Header("Access-Control-Allow-Origin", responseOrigin)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -215,4 +240,13 @@ func corsMiddleware(allowOrigin string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func isLocalDevelopmentOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	hostname := parsed.Hostname()
+	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
 }

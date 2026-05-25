@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,13 +29,14 @@ var (
 )
 
 const (
-	aiRoutineRateLimit  = 2
-	aiRoutineRateWindow = time.Hour
+	aiRoutineRateLimitEnabled = false
+	aiRoutineRateWindow       = time.Hour
 )
 
 // RoutineAIService generates AI routine JSON and enforces per-user rate limits.
 type RoutineAIService struct {
 	repo               repository.RoutineRepository
+	exerciseService    *ExerciseService
 	workoutSessionRepo repository.WorkoutSessionRepository
 	bodyMetricRepo     repository.BodyMetricRepository
 	apiKey             string
@@ -45,6 +47,7 @@ type RoutineAIService struct {
 // NewRoutineAIService creates a service that generates and persists AI routines.
 func NewRoutineAIService(
 	repo repository.RoutineRepository,
+	exerciseService *ExerciseService,
 	workoutSessionRepo repository.WorkoutSessionRepository,
 	bodyMetricRepo repository.BodyMetricRepository,
 	apiKey, model string,
@@ -56,6 +59,7 @@ func NewRoutineAIService(
 
 	return &RoutineAIService{
 		repo:               repo,
+		exerciseService:    exerciseService,
 		workoutSessionRepo: workoutSessionRepo,
 		bodyMetricRepo:     bodyMetricRepo,
 		apiKey:             strings.TrimSpace(apiKey),
@@ -64,7 +68,7 @@ func NewRoutineAIService(
 	}
 }
 
-// GenerateRoutineJSON builds user context, calls Gemini, persists the routine, and returns the generated JSON.
+// GenerateRoutineJSON builds user context, calls Gemini, and returns the generated JSON for preview.
 func (s *RoutineAIService) GenerateRoutineJSON(
 	ctx context.Context,
 	userID string,
@@ -81,24 +85,35 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 	}
 
 	now := time.Now().UTC()
-	since := now.Add(-aiRoutineRateWindow)
-	used, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
-	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
+	slog.Info("ai routine generation started",
+		"user_id", userID,
+		"objective", req.Objective,
+		"duration_minutes", req.DurationMinutes,
+		"target_muscle_groups", normalizeTextList(req.TargetMuscleGroups),
+		"mandatory_exercise_ids_count", len(normalizeTextList(req.MandatoryExerciseIDs)),
+	)
 
-	resetAt := now.Add(aiRoutineRateWindow)
+	var used int
+	if aiRoutineRateLimitEnabled {
+		since := now.Add(-aiRoutineRateWindow)
+		usedValue, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
+		if err != nil {
+			return model.AIRoutineGenerateResponse{}, err
+		}
+		used = usedValue
 
-	if used >= aiRoutineRateLimit {
-		return model.AIRoutineGenerateResponse{
-			RateLimit: model.AIRoutineRateLimitStatus{
-				Limit:               aiRoutineRateLimit,
-				Remaining:           0,
-				UsedInCurrentWindow: used,
-				WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
-				ResetAt:             resetAt,
-			},
-		}, ErrAIRoutineRateLimited
+		resetAt := now.Add(aiRoutineRateWindow)
+		if used >= 2 {
+			return model.AIRoutineGenerateResponse{
+				RateLimit: model.AIRoutineRateLimitStatus{
+					Limit:               2,
+					Remaining:           0,
+					UsedInCurrentWindow: used,
+					WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
+					ResetAt:             resetAt,
+				},
+			}, ErrAIRoutineRateLimited
+		}
 	}
 
 	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, req.TargetMuscleGroups, 200)
@@ -108,33 +123,51 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 
 	userContext, err := s.buildUserContext(ctx, userID, now)
 	if err != nil {
+		slog.Error("ai routine user context build failed", "user_id", userID, "error", err)
 		return model.AIRoutineGenerateResponse{}, err
 	}
 
 	generated, err := s.generateWithGemini(ctx, req, exercises, userContext, now)
 	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	routineID, err := s.saveGeneratedRoutine(ctx, userID, req, generated, exercises)
-	if err != nil {
+		slog.Error("ai routine generation failed", "user_id", userID, "error", err)
 		return model.AIRoutineGenerateResponse{}, err
 	}
 
 	if err := s.repo.LogAIGeneration(ctx, userID, now); err != nil {
+		slog.Warn("ai routine generation log skipped", "user_id", userID, "error", err)
+	}
+
+	slog.Info("ai routine generation finished",
+		"user_id", userID,
+		"exercise_count", len(generated.Exercises),
+		"source", generated.GenerationSource,
+		"objective", generated.Objective,
+	)
+
+	return model.AIRoutineGenerateResponse{
+		RoutineJSON: generated,
+	}, nil
+}
+
+// SaveGeneratedRoutineJSON resolves or creates exercises from a generated preview and persists the routine.
+func (s *RoutineAIService) SaveGeneratedRoutineJSON(
+	ctx context.Context,
+	userID string,
+	generated model.AIRoutineJSON,
+) (model.AIRoutineGenerateResponse, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || s.exerciseService == nil {
+		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
+	}
+
+	routineID, err := s.saveGeneratedRoutine(ctx, userID, generated)
+	if err != nil {
 		return model.AIRoutineGenerateResponse{}, err
 	}
 
 	return model.AIRoutineGenerateResponse{
 		RoutineJSON: generated,
 		RoutineID:   routineID,
-		RateLimit: model.AIRoutineRateLimitStatus{
-			Limit:               aiRoutineRateLimit,
-			Remaining:           aiRoutineRateLimit - (used + 1),
-			UsedInCurrentWindow: used + 1,
-			WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
-			ResetAt:             resetAt,
-		},
 	}, nil
 }
 
@@ -216,40 +249,66 @@ func (s *RoutineAIService) generateWithGemini(
 		url.QueryEscape(s.apiKey),
 	)
 
+	requestStartedAt := time.Now()
+	slog.Info("ai routine gemini request started",
+		"model", s.model,
+		"exercise_catalog_count", len(exercises),
+		"user_context_recent_workouts", len(userContext.RecentWorkouts),
+		"user_context_recent_training_sessions", len(userContext.RecentTrainingHistory),
+		"user_context_recent_routines", len(userContext.RecentRoutines),
+	)
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return model.AIRoutineJSON{}, err
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: %v", ErrAIRoutineProviderUnavailable, err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	httpResp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return model.AIRoutineJSON{}, err
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: %v", ErrAIRoutineProviderUnavailable, err)
 	}
 	defer httpResp.Body.Close()
 
 	responseBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		return model.AIRoutineJSON{}, err
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: %v", ErrAIRoutineProviderUnavailable, err)
 	}
+	slog.Info("ai routine gemini response received",
+		"model", s.model,
+		"status_code", httpResp.StatusCode,
+		"duration_ms", time.Since(requestStartedAt).Milliseconds(),
+		"response_bytes", len(responseBody),
+	)
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: gemini status %d", ErrAIRoutineProviderUnavailable, httpResp.StatusCode)
+		slog.Error("ai routine gemini response status error",
+			"model", s.model,
+			"status_code", httpResp.StatusCode,
+			"response_snippet", truncateProviderError(responseBody),
+		)
+		return model.AIRoutineJSON{}, fmt.Errorf(
+			"%w: gemini status %d: %s",
+			ErrAIRoutineProviderUnavailable,
+			httpResp.StatusCode,
+			truncateProviderError(responseBody),
+		)
 	}
 
 	var geminiResp geminiGenerateContentResponse
 	if err := json.Unmarshal(responseBody, &geminiResp); err != nil {
-		return model.AIRoutineJSON{}, err
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: %v", ErrAIRoutineProviderUnavailable, err)
 	}
 
 	jsonText := extractGeminiText(geminiResp)
 	if strings.TrimSpace(jsonText) == "" {
+		slog.Error("ai routine gemini response missing text", "model", s.model)
 		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
 	}
 
 	var generated model.AIRoutineJSON
 	if err := json.Unmarshal([]byte(jsonText), &generated); err != nil {
-		return model.AIRoutineJSON{}, err
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: %v", ErrAIRoutineProviderUnavailable, err)
 	}
 
 	if strings.TrimSpace(generated.Objective) == "" {
@@ -263,6 +322,11 @@ func (s *RoutineAIService) generateWithGemini(
 	}
 	generated.GeneratedAt = now
 	generated.GenerationSource = "gemini"
+	slog.Info("ai routine gemini response parsed",
+		"model", s.model,
+		"exercise_count", len(generated.Exercises),
+		"duration_minutes", generated.DurationMinutes,
+	)
 
 	return generated, nil
 }
@@ -270,24 +334,17 @@ func (s *RoutineAIService) generateWithGemini(
 func (s *RoutineAIService) saveGeneratedRoutine(
 	ctx context.Context,
 	userID string,
-	req model.AIRoutineGenerationRequest,
 	generated model.AIRoutineJSON,
-	availableExercises []model.Exercise,
 ) (string, error) {
-	availableExerciseIDs := make(map[string]struct{}, len(availableExercises))
-	for _, exercise := range availableExercises {
-		availableExerciseIDs[exercise.ID] = struct{}{}
-	}
-
 	seenExerciseIDs := make(map[string]struct{}, len(generated.Exercises))
 	exercisesToSave := make([]model.AIRoutineExerciseToSave, 0, len(generated.Exercises))
 	for _, exercise := range generated.Exercises {
-		exerciseID := strings.TrimSpace(exercise.ExerciseID)
+		exerciseID, err := s.resolveOrCreateGeneratedAIRoutineExerciseID(ctx, userID, exercise)
+		if err != nil {
+			return "", err
+		}
 		if exerciseID == "" {
 			continue
-		}
-		if _, ok := availableExerciseIDs[exerciseID]; !ok {
-			return "", fmt.Errorf("%w: generated unknown exercise id %s", ErrAIRoutineProviderUnavailable, exerciseID)
 		}
 		if _, exists := seenExerciseIDs[exerciseID]; exists {
 			continue
@@ -314,9 +371,112 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 	return s.repo.SaveGeneratedAIRoutine(ctx, model.AIRoutineToSave{
 		UserID:      userID,
 		Name:        routineName,
-		Description: buildAIRoutineDescription(req, generated),
+		Description: buildAIRoutineDescription(generated),
 		Exercises:   exercisesToSave,
 	})
+}
+
+func (s *RoutineAIService) resolveOrCreateGeneratedAIRoutineExerciseID(
+	ctx context.Context,
+	userID string,
+	exercise model.AIRoutineExercise,
+) (string, error) {
+	exerciseID := strings.TrimSpace(exercise.ExerciseID)
+	if exerciseID != "" {
+		if _, err := s.exerciseService.GetByID(ctx, exerciseID); err == nil {
+			return exerciseID, nil
+		}
+	}
+
+	if existing, err := s.findExistingGeneratedExercise(ctx, exercise); err != nil {
+		return "", err
+	} else if existing != nil {
+		return existing.ID, nil
+	}
+
+	name := normalizeName(exercise.Name)
+	if name == "" {
+		return "", nil
+	}
+
+	muscleGroup := normalizeDomainValue(exercise.MuscleGroup)
+	newExercise := model.Exercise{
+		Name:         name,
+		MuscleGroup:  muscleGroup,
+		ExerciseType: normalizeAIExerciseTypeForCreation(exercise.ExerciseType),
+		IsOfficial:   false,
+	}
+	newExercise.OwnerUserID = &userID
+
+	if err := s.exerciseService.Create(ctx, &newExercise); err != nil {
+		return "", err
+	}
+
+	return newExercise.ID, nil
+}
+
+func (s *RoutineAIService) findExistingGeneratedExercise(
+	ctx context.Context,
+	exercise model.AIRoutineExercise,
+) (*model.Exercise, error) {
+	name := normalizeName(exercise.Name)
+	muscleGroup := normalizeDomainValue(exercise.MuscleGroup)
+	exerciseType := normalizeAIExerciseTypeForLookup(exercise.ExerciseType)
+
+	if name == "" {
+		return nil, nil
+	}
+
+	filters := model.ExerciseFilter{
+		Search:      name,
+		Type:        exerciseType,
+		MuscleGroup: muscleGroup,
+		Page:        1,
+		Limit:       100,
+	}
+
+	exercises, err := s.exerciseService.List(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, candidate := range exercises.Items {
+		if normalizeName(candidate.Name) != name {
+			continue
+		}
+		if muscleGroup != "" && normalizeDomainValue(candidate.MuscleGroup) != muscleGroup {
+			continue
+		}
+		if exerciseType != "" && normalizeDomainValue(candidate.ExerciseType) != exerciseType {
+			continue
+		}
+		return &candidate, nil
+	}
+
+	return nil, nil
+}
+
+func normalizeAISearchKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func normalizeAIExerciseTypeForLookup(value string) string {
+	normalized := normalizeDomainValue(value)
+	if normalized == "" {
+		return ""
+	}
+	if !isValidExerciseType(normalized) {
+		return ""
+	}
+	return normalized
+}
+
+func normalizeAIExerciseTypeForCreation(value string) string {
+	normalized := normalizeDomainValue(value)
+	if normalized == "" || !isValidExerciseType(normalized) {
+		return ExerciseTypeStrength
+	}
+	return normalized
 }
 
 func (s *RoutineAIService) buildUserContext(
@@ -420,11 +580,8 @@ func normalizeTextList(values []string) []string {
 	return normalized
 }
 
-func buildAIRoutineDescription(req model.AIRoutineGenerationRequest, generated model.AIRoutineJSON) string {
+func buildAIRoutineDescription(generated model.AIRoutineJSON) string {
 	objective := strings.TrimSpace(generated.Objective)
-	if objective == "" {
-		objective = strings.TrimSpace(req.Objective)
-	}
 
 	parts := []string{"Generated by Gemini"}
 	if objective != "" {
@@ -432,8 +589,6 @@ func buildAIRoutineDescription(req model.AIRoutineGenerationRequest, generated m
 	}
 	if generated.DurationMinutes > 0 {
 		parts = append(parts, fmt.Sprintf("Duration: %d minutes", generated.DurationMinutes))
-	} else if req.DurationMinutes > 0 {
-		parts = append(parts, fmt.Sprintf("Duration: %d minutes", req.DurationMinutes))
 	}
 
 	return strings.Join(parts, ". ")
@@ -581,6 +736,18 @@ func extractGeminiText(response geminiGenerateContentResponse) string {
 		return ""
 	}
 	return parts[0].Text
+}
+
+func truncateProviderError(body []byte) string {
+	const maxLength = 600
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		return "empty response body"
+	}
+	if len(message) <= maxLength {
+		return message
+	}
+	return message[:maxLength] + "..."
 }
 
 func buildRoutineAIBodyMetrics(entries []model.OverviewBodyMetricEntry) *routineAIBodyMetrics {
