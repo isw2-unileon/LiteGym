@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,8 @@ func (h *RoutineHandler) GenerateRoutineJSON(c *gin.Context) {
 		"objective", req.Objective,
 		"duration_minutes", req.DurationMinutes,
 		"target_muscle_groups", req.TargetMuscleGroups,
-		"mandatory_exercise_ids_count", len(req.MandatoryExerciseIDs),
+		"mandatory_exercises_count", len(req.MandatoryExercises),
+		"notes_present", strings.TrimSpace(req.Notes) != "",
 	)
 
 	response, err := h.aiService.GenerateRoutineJSON(c.Request.Context(), userID, req)

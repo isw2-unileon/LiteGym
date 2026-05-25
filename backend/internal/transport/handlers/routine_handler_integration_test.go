@@ -201,12 +201,19 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 		t.Fatalf("failed to generate auth token: %v", err)
 	}
 
-	generateBody := `{"objective":"Ganar fuerza","duration_minutes":50,"target_muscle_groups":["chest"],"mandatory_exercise_ids":[]}`
+	generateBody := `{"objective":"Ganar fuerza","duration_minutes":50,"target_muscle_groups":["chest"],"mandatory_exercises":["Press banca"],"notes":"Prioriza técnica y control"}`
 	generateReq := httptest.NewRequest(http.MethodPost, "/api/routines/ai/generate", strings.NewReader(generateBody))
 	generateReq.Header.Set("Content-Type", "application/json")
 	generateReq.AddCookie(&http.Cookie{Name: "auth_token", Value: token})
 	generateW := httptest.NewRecorder()
 	router.ServeHTTP(generateW, generateReq)
+
+	if generateW.Code == http.StatusServiceUnavailable &&
+		(strings.Contains(generateW.Body.String(), "RESOURCE_EXHAUSTED") ||
+			strings.Contains(generateW.Body.String(), "quota exceeded") ||
+			strings.Contains(generateW.Body.String(), "gemini status 429")) {
+		t.Skip("skipping real Gemini integration test: quota exceeded")
+	}
 
 	if generateW.Code != http.StatusOK {
 		t.Fatalf("expected generate status %d, got %d body=%s", http.StatusOK, generateW.Code, strings.TrimSpace(generateW.Body.String()))

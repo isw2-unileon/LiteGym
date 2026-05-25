@@ -105,12 +105,36 @@ describe("UserRoutinesPage", () => {
       .mockResolvedValueOnce(jsonResponse([]))
       .mockResolvedValueOnce(
         jsonResponse({
+          items: [
+            {
+              id: "exercise-1",
+              name: "Bench Press",
+              description: "Press de pecho con barra",
+              muscle_group: "chest",
+              exercise_type: "strength",
+            },
+            {
+              id: "exercise-2",
+              name: "Squat",
+              description: "Sentadilla libre",
+              muscle_group: "legs",
+              exercise_type: "strength",
+            },
+          ],
+          page: 1,
+          limit: 100,
+          total: 2,
+          total_pages: 1,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
           routine_json: {
             name: "AI Strength",
             objective: "Ganar masa muscular",
             duration_minutes: 45,
             target_muscles: ["legs", "back"],
-            mandatory_count: 0,
+            mandatory_count: 1,
             generated_at: "2026-05-24T10:00:00Z",
             generation_source: "gemini",
             exercises: [
@@ -138,7 +162,7 @@ describe("UserRoutinesPage", () => {
             objective: "Ganar masa muscular",
             duration_minutes: 45,
             target_muscles: ["legs", "back"],
-            mandatory_count: 0,
+            mandatory_count: 1,
             generated_at: "2026-05-24T10:00:00Z",
             generation_source: "gemini",
             exercises: [
@@ -196,6 +220,15 @@ describe("UserRoutinesPage", () => {
     await user.clear(screen.getByLabelText("Minutos"));
     await user.type(screen.getByLabelText("Minutos"), "45");
     await user.type(screen.getByLabelText("Musculos objetivo"), "legs, back");
+    await user.type(
+      screen.getByPlaceholderText(
+        "Ej. prioriza press con barra, evita sentadillas traseras y mantén descansos largos.",
+      ),
+      "Prioriza press con barra y agrega trabajo de espalda.",
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /Bench Press/i }),
+    );
     await user.click(screen.getByRole("button", { name: "Generar vista previa" }));
 
     expect(await screen.findByRole("heading", { name: "AI Strength" })).toBeInTheDocument();
@@ -210,7 +243,8 @@ describe("UserRoutinesPage", () => {
           objective: "Ganar masa muscular",
           duration_minutes: 45,
           target_muscle_groups: ["legs", "back"],
-          mandatory_exercise_ids: [],
+          mandatory_exercises: ["Bench Press"],
+          notes: "Prioriza press con barra y agrega trabajo de espalda.",
         }),
       }),
     );

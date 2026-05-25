@@ -3,6 +3,7 @@ import { apiUrl } from "../lib/api";
 import AIRoutinePreviewModal, {
   type AIRoutinePreview,
 } from "../components/Routine/AIRoutinePreviewModal";
+import type { Exercise } from "../types/exercise";
 
 type RoutineSummary = {
   id: string;
@@ -61,6 +62,14 @@ type AIRoutineSaveResponse = {
 
 type RoutineStatus = "idle" | "loading" | "success" | "error";
 
+type ExerciseListResponse = {
+  items: Exercise[];
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+};
+
 const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "short",
@@ -92,7 +101,15 @@ export default function UserRoutinesPage() {
   const [aiObjective, setAIObjective] = useState("Ganar fuerza");
   const [aiDuration, setAIDuration] = useState(60);
   const [aiMuscleGroups, setAIMuscleGroups] = useState("");
-  const [aiMandatoryExerciseIDs, setAIMandatoryExerciseIDs] = useState("");
+  const [aiNotes, setAINotes] = useState("");
+  const [exerciseSearch, setExerciseSearch] = useState("");
+  const [selectedMandatoryExercises, setSelectedMandatoryExercises] = useState<
+    string[]
+  >([]);
+  const [availableExercises, setAvailableExercises] = useState<Exercise[]>([]);
+  const [availableExercisesStatus, setAvailableExercisesStatus] =
+    useState<RoutineStatus>("idle");
+  const [availableExercisesMessage, setAvailableExercisesMessage] = useState("");
   const [aiStatus, setAIStatus] = useState<RoutineStatus>("idle");
   const [aiMessage, setAIMessage] = useState("");
   const [aiPreviewRoutine, setAIPreviewRoutine] =
@@ -148,9 +165,77 @@ export default function UserRoutinesPage() {
     }
   }, []);
 
+  const fetchAvailableExercises = useCallback(async () => {
+    setAvailableExercisesStatus("loading");
+    setAvailableExercisesMessage("");
+
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "100",
+      });
+
+      const response = await fetch(
+        apiUrl(`/api/exercises?${params.toString()}`),
+        {
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        setAvailableExercises([]);
+        setAvailableExercisesStatus("error");
+        setAvailableExercisesMessage(
+          "No se pudieron cargar los ejercicios disponibles.",
+        );
+        return;
+      }
+
+      const payload = (await response.json()) as ExerciseListResponse;
+      setAvailableExercises(payload.items);
+      setAvailableExercisesStatus("success");
+    } catch {
+      setAvailableExercises([]);
+      setAvailableExercisesStatus("error");
+      setAvailableExercisesMessage(
+        "No se pudieron cargar los ejercicios disponibles.",
+      );
+    }
+  }, []);
+
   useEffect(() => {
     void fetchRoutines();
   }, [fetchRoutines]);
+
+  useEffect(() => {
+    if (!isAIFormOpen) {
+      return;
+    }
+
+    if (availableExercisesStatus === "loading" || availableExercisesStatus === "success") {
+      return;
+    }
+
+    void fetchAvailableExercises();
+  }, [availableExercisesStatus, fetchAvailableExercises, isAIFormOpen]);
+
+  const toggleMandatoryExercise = (exerciseName: string) => {
+    const normalizedName = exerciseName.trim();
+    if (normalizedName === "") {
+      return;
+    }
+
+    setSelectedMandatoryExercises((current) =>
+      current.some(
+        (currentName) => currentName.toLowerCase() === normalizedName.toLowerCase(),
+      )
+        ? current.filter(
+            (currentName) =>
+              currentName.toLowerCase() !== normalizedName.toLowerCase(),
+          )
+        : [...current, normalizedName],
+    );
+  };
 
   const handleGenerateAIRoutine = async (
     event: FormEvent<HTMLFormElement>,
@@ -170,7 +255,8 @@ export default function UserRoutinesPage() {
           objective: aiObjective.trim(),
           duration_minutes: aiDuration,
           target_muscle_groups: splitCommaList(aiMuscleGroups),
-          mandatory_exercise_ids: splitCommaList(aiMandatoryExerciseIDs),
+          mandatory_exercises: selectedMandatoryExercises,
+          notes: aiNotes.trim(),
         }),
       });
 
@@ -310,34 +396,36 @@ export default function UserRoutinesPage() {
 
       {isAIFormOpen && (
         <form
-          className="grid gap-4 rounded-[2rem] border border-[#265c52]/20 bg-[#ecf5ef] p-5 shadow-[0_18px_45px_rgba(47,39,27,0.10)] lg:grid-cols-[minmax(0,1.4fr)_160px]"
+          className="grid gap-4 rounded-[2rem] border border-[#265c52]/20 bg-[#ecf5ef] p-5 shadow-[0_18px_45px_rgba(47,39,27,0.10)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
           onSubmit={handleGenerateAIRoutine}
         >
-          <label className="block">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-              Objetivo
-            </span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
-              required
-              value={aiObjective}
-              onChange={(event) => setAIObjective(event.target.value)}
-            />
-          </label>
+          <div className="grid gap-4 lg:col-span-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                Objetivo
+              </span>
+              <input
+                className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
+                required
+                value={aiObjective}
+                onChange={(event) => setAIObjective(event.target.value)}
+              />
+            </label>
 
-          <label className="block">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-              Minutos
-            </span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
-              min={15}
-              required
-              type="number"
-              value={aiDuration}
-              onChange={(event) => setAIDuration(Number(event.target.value))}
-            />
-          </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                Minutos
+              </span>
+              <input
+                className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
+                min={15}
+                required
+                type="number"
+                value={aiDuration}
+                onChange={(event) => setAIDuration(Number(event.target.value))}
+              />
+            </label>
+          </div>
 
           <label className="block lg:col-span-2">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
@@ -353,17 +441,154 @@ export default function UserRoutinesPage() {
 
           <label className="block lg:col-span-2">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-              Ejercicios obligatorios
+              Notas para la IA
             </span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
-              placeholder="IDs separados por coma"
-              value={aiMandatoryExerciseIDs}
-              onChange={(event) =>
-                setAIMandatoryExerciseIDs(event.target.value)
-              }
+            <textarea
+              className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-semibold leading-6 outline-none transition placeholder:font-medium focus:border-[#265c52]"
+              placeholder="Ej. prioriza press con barra, evita sentadillas traseras y mantén descansos largos."
+              value={aiNotes}
+              onChange={(event) => setAINotes(event.target.value)}
             />
           </label>
+
+          <section className="lg:col-span-2 rounded-[1.75rem] border border-[#1f1b16]/10 bg-white/70 p-4 shadow-[0_12px_28px_rgba(47,39,27,0.06)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                  Ejercicios obligatorios
+                </span>
+                <p className="mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
+                  Selecciona ejercicios por nombre. La IA recibira exactamente
+                  esos nombres como referencia.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
+                {selectedMandatoryExercises.length} seleccionados
+              </span>
+            </div>
+
+            <label className="mt-4 block">
+              <span className="sr-only">Buscar ejercicios</span>
+              <input
+                className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition placeholder:font-medium focus:border-[#265c52]"
+                placeholder="Buscar ejercicios por nombre o musculo"
+                value={exerciseSearch}
+                onChange={(event) => setExerciseSearch(event.target.value)}
+              />
+            </label>
+
+            {selectedMandatoryExercises.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedMandatoryExercises.map((exerciseName) => (
+                  <button
+                    key={exerciseName}
+                    className="rounded-full border border-[#265c52]/20 bg-[#ecf5ef] px-3 py-1 text-xs font-black text-[#265c52] transition hover:bg-[#dcefe4]"
+                    type="button"
+                    onClick={() => toggleMandatoryExercise(exerciseName)}
+                  >
+                    {exerciseName} ×
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-3">
+              {availableExercisesStatus === "loading" && (
+                <p className="rounded-2xl bg-white/70 p-4 text-sm font-semibold text-[#5d5348]">
+                  Cargando ejercicios disponibles...
+                </p>
+              )}
+
+              {availableExercisesStatus === "error" && (
+                <p className="rounded-2xl border border-[#9b2d20]/20 bg-[#fff0ed] p-4 text-sm font-semibold text-[#9b2d20]">
+                  {availableExercisesMessage}
+                </p>
+              )}
+
+              {availableExercisesStatus === "success" && (
+                <>
+                  {availableExercises
+                    .filter((exercise) => {
+                      const search = exerciseSearch.trim().toLowerCase();
+                      if (search === "") {
+                        return true;
+                      }
+
+                      return (
+                        exercise.name.toLowerCase().includes(search) ||
+                        exercise.muscle_group.toLowerCase().includes(search) ||
+                        (exercise.exercise_type ?? "")
+                          .toLowerCase()
+                          .includes(search)
+                      );
+                    })
+                    .length === 0 ? (
+                    <p className="rounded-2xl bg-white/70 p-4 text-sm font-semibold text-[#5d5348]">
+                      No hay ejercicios que coincidan con el filtro.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableExercises
+                        .filter((exercise) => {
+                          const search = exerciseSearch.trim().toLowerCase();
+                          if (search === "") {
+                            return true;
+                          }
+
+                          return (
+                            exercise.name.toLowerCase().includes(search) ||
+                            exercise.muscle_group.toLowerCase().includes(search) ||
+                            (exercise.exercise_type ?? "")
+                              .toLowerCase()
+                              .includes(search)
+                          );
+                        })
+                        .map((exercise) => {
+                          const isSelected = selectedMandatoryExercises.some(
+                            (name) =>
+                              name.toLowerCase() === exercise.name.toLowerCase(),
+                          );
+
+                          return (
+                            <button
+                              key={exercise.id}
+                              className={`flex w-full items-start justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+                                isSelected
+                                  ? "border-[#265c52] bg-[#ecf5ef]"
+                                  : "border-[#1f1b16]/10 bg-white/90 hover:border-[#265c52]/30 hover:bg-white"
+                              }`}
+                              type="button"
+                              onClick={() => toggleMandatoryExercise(exercise.name)}
+                            >
+                              <div className="min-w-0">
+                                <p className="break-words text-sm font-black text-[#1f1b16]">
+                                  {exercise.name}
+                                </p>
+                                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7a6b5c]">
+                                  {exercise.muscle_group}
+                                  {exercise.exercise_type
+                                    ? ` · ${exercise.exercise_type}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <span
+                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
+                                  isSelected
+                                    ? "bg-[#265c52] text-white"
+                                    : "bg-[#265c52]/10 text-[#265c52]"
+                                }`}
+                              >
+                                {isSelected ? "Quitar" : "Añadir"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
 
           <div className="flex flex-col gap-3 lg:col-span-2 sm:flex-row sm:items-center">
             <button
