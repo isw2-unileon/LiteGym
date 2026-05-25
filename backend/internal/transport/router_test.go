@@ -126,6 +126,10 @@ func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID string) (
 	return []model.OverviewRoutineSummary{}, nil
 }
 
+func (m *MockRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+	return nil, nil
+}
+
 func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
 	return 0, nil
 }
