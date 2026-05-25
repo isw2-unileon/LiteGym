@@ -158,6 +158,7 @@ func setupRouterInternal(
 	// Routines
 	if routineHandler != nil {
 		protected.GET("/routines", routineHandler.ListRoutines)
+		protected.GET("/routines/:id", routineHandler.GetRoutineByID)
 		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
 	}
 

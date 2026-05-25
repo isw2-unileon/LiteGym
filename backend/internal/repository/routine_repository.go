@@ -14,6 +14,7 @@ import (
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
 	ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error)
+	GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error)
 	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
 	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
 	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
@@ -77,6 +78,161 @@ func (r *routineRepository) ListByUser(ctx context.Context, userID string) ([]mo
 	defer rows.Close()
 
 	return scanRoutineSummaries(rows)
+}
+
+func (r *routineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+	var routine model.Routine
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			id::text,
+			user_id::text,
+			name,
+			COALESCE(description, ''),
+			source,
+			is_predefined,
+			is_public,
+			created_at,
+			updated_at
+		FROM public.routines
+		WHERE id = $1::uuid
+			AND user_id = $2::uuid
+	`, routineID, userID).Scan(
+		&routine.ID,
+		&routine.UserID,
+		&routine.Name,
+		&routine.Description,
+		&routine.Source,
+		&routine.IsPredefined,
+		&routine.IsPublic,
+		&routine.CreatedAt,
+		&routine.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			re.id::text,
+			re.routine_id::text,
+			re.exercise_id::text,
+			e.name,
+			COALESCE(e.description, ''),
+			e.muscle_group,
+			COALESCE(e.exercise_type, ''),
+			re.exercise_order,
+			COALESCE(re.notes, ''),
+			res.id::text,
+			res.routine_exercise_id::text,
+			res.set_number,
+			res.target_reps_min,
+			res.target_reps_max,
+			COALESCE(res.target_reps_text, ''),
+			res.target_weight_kg::float8,
+			res.target_duration_seconds,
+			res.target_distance_km::float8,
+			res.target_rir,
+			res.rest_seconds,
+			COALESCE(res.notes, ''),
+			res.created_at
+		FROM public.routine_exercises re
+		INNER JOIN public.exercises e ON e.id = re.exercise_id
+		LEFT JOIN public.routine_exercise_sets res ON res.routine_exercise_id = re.id
+		WHERE re.routine_id = $1::uuid
+		ORDER BY re.exercise_order ASC, re.created_at ASC, res.set_number ASC, res.created_at ASC
+	`, routineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	exerciseIndexByID := make(map[string]int)
+	routine.Exercises = make([]model.RoutineExercise, 0)
+
+	for rows.Next() {
+		var (
+			exercise             model.RoutineExercise
+			set                  model.RoutineSet
+			exerciseType         string
+			setID                *string
+			setRoutineExerciseID *string
+			setNumber            *int
+			setRepsMin           *int
+			setRepsMax           *int
+			setRepsText          string
+			setWeightKg          *float64
+			setDurationSeconds   *int
+			setDistanceKm        *float64
+			setRir               *int
+			setRestSeconds       *int
+			setNotes             string
+			setCreatedAt         *time.Time
+		)
+
+		if err := rows.Scan(
+			&exercise.ID,
+			&exercise.RoutineID,
+			&exercise.ExerciseID,
+			&exercise.ExerciseName,
+			&exercise.ExerciseDescription,
+			&exercise.MuscleGroup,
+			&exerciseType,
+			&exercise.ExerciseOrder,
+			&exercise.Notes,
+			&setID,
+			&setRoutineExerciseID,
+			&setNumber,
+			&setRepsMin,
+			&setRepsMax,
+			&setRepsText,
+			&setWeightKg,
+			&setDurationSeconds,
+			&setDistanceKm,
+			&setRir,
+			&setRestSeconds,
+			&setNotes,
+			&setCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		exercise.ExerciseType = strings.TrimSpace(exerciseType)
+
+		index, exists := exerciseIndexByID[exercise.ID]
+		if !exists {
+			exercise.Sets = make([]model.RoutineSet, 0)
+			routine.Exercises = append(routine.Exercises, exercise)
+			index = len(routine.Exercises) - 1
+			exerciseIndexByID[exercise.ID] = index
+		}
+
+		if setID == nil || setRoutineExerciseID == nil || setNumber == nil || setCreatedAt == nil {
+			continue
+		}
+
+		set = model.RoutineSet{
+			ID:                    *setID,
+			RoutineExerciseID:     *setRoutineExerciseID,
+			SetNumber:             *setNumber,
+			TargetRepsMin:         setRepsMin,
+			TargetRepsMax:         setRepsMax,
+			TargetRepsText:        strings.TrimSpace(setRepsText),
+			TargetWeightKg:        setWeightKg,
+			TargetDurationSeconds: setDurationSeconds,
+			TargetDistanceKm:      setDistanceKm,
+			TargetRir:             setRir,
+			RestSeconds:           setRestSeconds,
+			Notes:                 strings.TrimSpace(setNotes),
+			CreatedAt:             *setCreatedAt,
+		}
+		routine.Exercises[index].Sets = append(routine.Exercises[index].Sets, set)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &routine, nil
 }
 
 func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {

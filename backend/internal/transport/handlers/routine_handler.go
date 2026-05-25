@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,26 @@ type RoutineHandler struct {
 // NewRoutineHandler creates a new RoutineHandler.
 func NewRoutineHandler(svc *service.RoutineService, aiService *service.RoutineAIService) *RoutineHandler {
 	return &RoutineHandler{service: svc, aiService: aiService}
+}
+
+// GetRoutineByID returns one authenticated user's routine with exercises and planned sets.
+func (h *RoutineHandler) GetRoutineByID(c *gin.Context) {
+	userID, ok := authenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	respondWithResourceByID(c, func(ctx context.Context, routineID string) (*model.Routine, error) {
+		return h.service.GetByID(ctx, userID, routineID)
+	}, getByIDConfig{
+		invalidIDMessage: "invalid routine id",
+		notFoundMessage:  "routine not found",
+		logMessage:       "failed to retrieve routine",
+		internalMessage:  "failed to retrieve routine",
+		invalidInputErr:  service.ErrInvalidRoutineInput,
+		notFoundErr:      service.ErrRoutineNotFound,
+	})
 }
 
 // ListRoutines returns the authenticated user's routines.

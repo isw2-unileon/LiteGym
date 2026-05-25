@@ -69,6 +69,108 @@ func TestRoutineRepositoryListRecentByUserIntegration(t *testing.T) {
 	}
 }
 
+func TestRoutineRepositoryGetByIDIntegration(t *testing.T) {
+	db := setupExerciseTestDB(t)
+	cleanupExercisesRepository(t, db)
+
+	userID := insertUserRaw(t, db, "routinedetail", "routinedetail@example.com")
+	otherUserID := insertUserRaw(t, db, "otheruser", "otheruser@example.com")
+
+	routineID := insertRoutineRawRepository(t, db, userID, "Push Day", "Rutina detallada", time.Now())
+	otherRoutineID := insertRoutineRawRepository(t, db, otherUserID, "Other Routine", "Ajena", time.Now())
+
+	benchID := insertExerciseRawRepository(t, db, model.Exercise{
+		Name:         "Bench Press",
+		Description:  "Flat bench press",
+		MuscleGroup:  "chest",
+		ExerciseType: "strength",
+		IsOfficial:   true,
+	})
+	flyID := insertExerciseRawRepository(t, db, model.Exercise{
+		Name:         "Chest Fly",
+		Description:  "Cable fly",
+		MuscleGroup:  "chest",
+		ExerciseType: "isolation",
+		IsOfficial:   true,
+	})
+
+	var routineExerciseID string
+	err := db.QueryRow(context.Background(), `
+		INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
+		VALUES ($1::uuid, $2::uuid, 1, 'principal')
+		RETURNING id::text
+	`, routineID, benchID).Scan(&routineExerciseID)
+	if err != nil {
+		t.Fatalf("error insertando primer routine_exercise: %v", err)
+	}
+
+	if _, err := db.Exec(context.Background(), `
+		INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
+		VALUES ($1::uuid, $2::uuid, 2, 'accesorio')
+	`, routineID, flyID); err != nil {
+		t.Fatalf("error insertando segundo routine_exercise: %v", err)
+	}
+
+	if _, err := db.Exec(context.Background(), `
+		INSERT INTO public.routine_exercise_sets (
+			routine_exercise_id,
+			set_number,
+			target_reps_min,
+			target_reps_max,
+			target_weight_kg,
+			target_rir,
+			rest_seconds,
+			notes
+		)
+		VALUES
+			($1::uuid, 1, 6, 8, 75, 2, 120, 'heavy set'),
+			($1::uuid, 2, 8, 10, 72.5, 2, 90, 'backoff set')
+	`, routineExerciseID); err != nil {
+		t.Fatalf("error insertando routine_exercise_sets: %v", err)
+	}
+
+	repo := NewRoutineRepository(db)
+
+	routine, err := repo.GetByID(context.Background(), userID, routineID)
+	if err != nil {
+		t.Fatalf("no se esperaba error en GetByID, pero se obtuvo: %v", err)
+	}
+
+	if routine == nil {
+		t.Fatal("se esperaba rutina, pero se obtuvo nil")
+	}
+
+	if routine.ID != routineID {
+		t.Fatalf("se esperaba id %s, pero se obtuvo %s", routineID, routine.ID)
+	}
+	if routine.Name != "Push Day" {
+		t.Fatalf("se esperaba nombre Push Day, pero se obtuvo %s", routine.Name)
+	}
+	if len(routine.Exercises) != 2 {
+		t.Fatalf("se esperaban 2 ejercicios, pero se obtuvieron %d", len(routine.Exercises))
+	}
+	if routine.Exercises[0].ExerciseName != "Bench Press" {
+		t.Fatalf("se esperaba Bench Press en primer lugar, pero se obtuvo %s", routine.Exercises[0].ExerciseName)
+	}
+	if len(routine.Exercises[0].Sets) != 2 {
+		t.Fatalf("se esperaban 2 sets para el primer ejercicio, pero se obtuvieron %d", len(routine.Exercises[0].Sets))
+	}
+	if routine.Exercises[0].Sets[0].TargetWeightKg == nil || *routine.Exercises[0].Sets[0].TargetWeightKg != 75 {
+		t.Fatalf("se esperaba target_weight_kg=75, pero se obtuvo %#v", routine.Exercises[0].Sets[0].TargetWeightKg)
+	}
+	if len(routine.Exercises[1].Sets) != 0 {
+		t.Fatalf("se esperaban 0 sets para el segundo ejercicio, pero se obtuvieron %d", len(routine.Exercises[1].Sets))
+	}
+
+	otherRoutine, err := repo.GetByID(context.Background(), userID, otherRoutineID)
+	if err == nil {
+		t.Fatal("se esperaba error al intentar leer una rutina de otro usuario")
+	}
+	if otherRoutine != nil {
+		t.Fatalf("se esperaba rutina nil para usuario ajeno, pero se obtuvo %#v", otherRoutine)
+	}
+}
+
 func TestOverviewWorkoutRepositoryIntegration(t *testing.T) {
 	db := setupExerciseTestDB(t)
 	cleanupExercisesRepository(t, db)
