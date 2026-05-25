@@ -54,7 +54,7 @@ func NewRoutineAIService(
 ) *RoutineAIService {
 	model = strings.TrimSpace(model)
 	if model == "" {
-		model = "gemini-1.5-flash"
+		model = "gemini-2.5-flash"
 	}
 
 	return &RoutineAIService{
