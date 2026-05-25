@@ -290,10 +290,11 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	}
 
 	response, err := svc.GenerateRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", model.AIRoutineGenerationRequest{
-		Objective:            "Ganar fuerza",
-		TargetMuscleGroups:   []string{"chest", "legs"},
-		MandatoryExerciseIDs: []string{"exercise-1"},
-		DurationMinutes:      60,
+		Objective:          "Ganar fuerza",
+		TargetMuscleGroups: []string{"chest", "legs"},
+		MandatoryExercises: []string{"Bench Press"},
+		Notes:              "Prioriza press con barra y descanso amplio.",
+		DurationMinutes:    60,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error generating routine: %v", err)
@@ -321,6 +322,14 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
 	userContext := mapField(t, promptPayload, "user_context")
 	assertCompactUserContext(t, userContext)
+
+	mandatoryExercises := sliceField(t, promptPayload, "mandatory_exercises", 1)
+	if got := mandatoryExercises[0].(string); got != "Bench Press" {
+		t.Fatalf("expected mandatory exercise name to be sent, got %q", got)
+	}
+	if got := promptPayload["user_notes"].(string); got != "Prioriza press con barra y descanso amplio." {
+		t.Fatalf("expected user notes to be forwarded, got %q", got)
+	}
 }
 
 func TestGenerateRoutineJSONResolvesHallucinatedExerciseIDByName(t *testing.T) {

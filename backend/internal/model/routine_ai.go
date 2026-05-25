@@ -2,12 +2,13 @@ package model
 
 import "time"
 
-// AIRoutineGenerationRequest defines pre-generation filters selected by user.
+// AIRoutineGenerationRequest defines the user input used to guide AI routine generation.
 type AIRoutineGenerationRequest struct {
-	Objective            string   `json:"objective"`
-	TargetMuscleGroups   []string `json:"target_muscle_groups"`
-	MandatoryExerciseIDs []string `json:"mandatory_exercise_ids"`
-	DurationMinutes      int      `json:"duration_minutes"`
+	Objective          string   `json:"objective"`
+	TargetMuscleGroups []string `json:"target_muscle_groups"`
+	MandatoryExercises []string `json:"mandatory_exercises"`
+	Notes              string   `json:"notes,omitempty"`
+	DurationMinutes    int      `json:"duration_minutes"`
 }
 
 // AIRoutineRecentWorkoutSet represents one set from a recent workout session.

@@ -90,7 +90,8 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 		"objective", req.Objective,
 		"duration_minutes", req.DurationMinutes,
 		"target_muscle_groups", normalizeTextList(req.TargetMuscleGroups),
-		"mandatory_exercise_ids_count", len(normalizeTextList(req.MandatoryExerciseIDs)),
+		"mandatory_exercises_count", len(normalizeTextList(req.MandatoryExercises)),
+		"notes_present", strings.TrimSpace(req.Notes) != "",
 	)
 
 	var used int
@@ -193,12 +194,13 @@ func (s *RoutineAIService) generateWithGemini(
 	}
 
 	inputPayload := map[string]any{
-		"objective":              req.Objective,
-		"duration_minutes":       req.DurationMinutes,
-		"target_muscle_groups":   normalizeTextList(req.TargetMuscleGroups),
-		"mandatory_exercise_ids": normalizeTextList(req.MandatoryExerciseIDs),
-		"user_context":           userContext,
-		"exercise_catalog":       exerciseCatalog,
+		"objective":            req.Objective,
+		"duration_minutes":     req.DurationMinutes,
+		"target_muscle_groups": normalizeTextList(req.TargetMuscleGroups),
+		"mandatory_exercises":  normalizeTextList(req.MandatoryExercises),
+		"user_notes":           strings.TrimSpace(req.Notes),
+		"user_context":         userContext,
+		"exercise_catalog":     exerciseCatalog,
 		"output_contract": map[string]any{
 			"name":              "string",
 			"objective":         "string",
@@ -220,7 +222,7 @@ func (s *RoutineAIService) generateWithGemini(
 		},
 	}
 
-	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Return only valid JSON matching output_contract. Put planned sets in exercises[].sets. Use target_weight_kg only when recent history supports it; otherwise use null or omit it. Do not include markdown."
+	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Respect user_notes and mandatory_exercises as strong instructions from the user. Return only valid JSON matching output_contract. Put planned sets in exercises[].sets. Use target_weight_kg only when recent history supports it; otherwise use null or omit it. Do not include markdown."
 	userPromptBytes, _ := json.Marshal(inputPayload)
 
 	requestBody := map[string]any{
@@ -253,6 +255,8 @@ func (s *RoutineAIService) generateWithGemini(
 	slog.Info("ai routine gemini request started",
 		"model", s.model,
 		"exercise_catalog_count", len(exercises),
+		"mandatory_exercises_count", len(normalizeTextList(req.MandatoryExercises)),
+		"notes_present", strings.TrimSpace(req.Notes) != "",
 		"user_context_recent_workouts", len(userContext.RecentWorkouts),
 		"user_context_recent_training_sessions", len(userContext.RecentTrainingHistory),
 		"user_context_recent_routines", len(userContext.RecentRoutines),
