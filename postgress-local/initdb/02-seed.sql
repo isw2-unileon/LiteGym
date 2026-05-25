@@ -194,13 +194,13 @@ VALUES
 -- Richer workout history for exercise insight examples.
 -- These sessions give Press banca and Curl bíceps mancuerna enough data
 -- to show max weight, best set, volume, frequency, trend and progression.
-INSERT INTO public.workout_sessions (id, user_id, routine_id, name, started_at, ended_at, duration_minutes, calories_burned, notes)
+INSERT INTO public.workout_sessions (id, user_id, routine_id, name, performed_at, planned_at, duration_minutes, calories_burned, notes)
 VALUES
-  ('cccccccc-cccc-cccc-cccc-cccccccccccb', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push volumen base', now() - interval '55 days', now() - interval '55 days' + interval '67 minutes', 67, 505, 'Inicio del bloque de press'),
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso hipertrofia', now() - interval '46 days', now() - interval '46 days' + interval '72 minutes', 72, 535, 'Mas volumen de empuje y brazos'),
-  ('cccccccc-cccc-cccc-cccc-cccccccccccd', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push progresion', now() - interval '32 days', now() - interval '32 days' + interval '69 minutes', 69, 525, 'Buenas repeticiones en banca'),
-  ('cccccccc-cccc-cccc-cccc-ccccccccccce', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso fuerza', now() - interval '18 days', now() - interval '18 days' + interval '78 minutes', 78, 585, 'Top set pesado en banca'),
-  ('cccccccc-cccc-cccc-cccc-cccccccccccf', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push PR', now() - interval '4 days', now() - interval '4 days' + interval '74 minutes', 74, 565, 'Mejor marca reciente');
+  ('cccccccc-cccc-cccc-cccc-cccccccccccb', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push volumen base', now() - interval '55 days', NULL, 67, 505, 'Inicio del bloque de press'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso hipertrofia', now() - interval '46 days', NULL, 72, 535, 'Mas volumen de empuje y brazos'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccd', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push progresion', now() - interval '32 days', NULL, 69, 525, 'Buenas repeticiones en banca'),
+  ('cccccccc-cccc-cccc-cccc-ccccccccccce', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888883', 'Torso fuerza', now() - interval '18 days', NULL, 78, 585, 'Top set pesado en banca'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccf', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-888888888881', 'Push PR', now() - interval '4 days', NULL, 74, 565, 'Mejor marca reciente');
 
 INSERT INTO public.workout_exercises (id, workout_session_id, exercise_id, exercise_order, notes)
 VALUES
