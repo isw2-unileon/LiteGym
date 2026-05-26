@@ -83,6 +83,15 @@ func cleanupRoutineAIIntegration(t *testing.T, db *pgxpool.Pool) {
 	}
 }
 
+type routineAIGenerateIntegrationPayload struct {
+	RoutineJSON model.AIRoutineJSON `json:"routine_json"`
+}
+
+type routineAISaveIntegrationPayload struct {
+	RoutineID   string              `json:"routine_id"`
+	RoutineJSON model.AIRoutineJSON `json:"routine_json"`
+}
+
 func insertUserRawRoutineAI(t *testing.T, db *pgxpool.Pool, username, email string) string {
 	t.Helper()
 
@@ -172,6 +181,10 @@ func setupRoutineAIRouter(db *pgxpool.Pool, aiService *service.RoutineAIService)
 }
 
 func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
+	runRoutineAIPreviewAndSaveIntegration(t)
+}
+
+func runRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 	db := setupRoutineAIIntegrationDB(t)
 	cleanupRoutineAIIntegration(t, db)
 
@@ -201,6 +214,23 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 		t.Fatalf("failed to generate auth token: %v", err)
 	}
 
+	generatePayload := mustGenerateRoutinePreview(t, router, token)
+	for index := range generatePayload.RoutineJSON.Exercises {
+		generatePayload.RoutineJSON.Exercises[index].MuscleGroup = "chest"
+	}
+
+	savePayload := mustSaveRoutinePreview(t, router, token, generatePayload)
+	mustVerifySavedRoutineExercise(t, db, userID, generatePayload.RoutineJSON.Exercises[0].Name)
+	mustVerifyRoutineExerciseCount(t, db, savePayload.RoutineID)
+}
+
+func mustGenerateRoutinePreview(
+	t *testing.T,
+	router *gin.Engine,
+	token string,
+) routineAIGenerateIntegrationPayload {
+	t.Helper()
+
 	generateBody := `{"objective":"Ganar fuerza","duration_minutes":50,"target_muscle_groups":["chest"],"mandatory_exercises":["Press banca"],"notes":"Prioriza técnica y control"}`
 	generateReq := httptest.NewRequest(http.MethodPost, "/api/routines/ai/generate", strings.NewReader(generateBody))
 	generateReq.Header.Set("Content-Type", "application/json")
@@ -219,22 +249,27 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 		t.Fatalf("expected generate status %d, got %d body=%s", http.StatusOK, generateW.Code, strings.TrimSpace(generateW.Body.String()))
 	}
 
-	var generatePayload struct {
-		RoutineJSON model.AIRoutineJSON `json:"routine_json"`
-	}
-	if err := json.Unmarshal(generateW.Body.Bytes(), &generatePayload); err != nil {
+	var payload routineAIGenerateIntegrationPayload
+	if err := json.Unmarshal(generateW.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to unmarshal generate response: %v", err)
 	}
-	if len(generatePayload.RoutineJSON.Exercises) == 0 {
-		t.Fatalf("expected at least one generated exercise, got %#v", generatePayload.RoutineJSON.Exercises)
+	if len(payload.RoutineJSON.Exercises) == 0 {
+		t.Fatalf("expected at least one generated exercise, got %#v", payload.RoutineJSON.Exercises)
 	}
-	for index := range generatePayload.RoutineJSON.Exercises {
-		generatePayload.RoutineJSON.Exercises[index].MuscleGroup = "chest"
-	}
-	generatedExerciseName := strings.TrimSpace(generatePayload.RoutineJSON.Exercises[0].Name)
-	if generatedExerciseName == "" {
+	if strings.TrimSpace(payload.RoutineJSON.Exercises[0].Name) == "" {
 		t.Fatal("expected the generated exercise to have a name")
 	}
+
+	return payload
+}
+
+func mustSaveRoutinePreview(
+	t *testing.T,
+	router *gin.Engine,
+	token string,
+	generatePayload routineAIGenerateIntegrationPayload,
+) routineAISaveIntegrationPayload {
+	t.Helper()
 
 	saveBodyBytes, err := json.Marshal(generatePayload)
 	if err != nil {
@@ -250,16 +285,19 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 		t.Fatalf("expected save status %d, got %d body=%s", http.StatusOK, saveW.Code, strings.TrimSpace(saveW.Body.String()))
 	}
 
-	var savePayload struct {
-		RoutineID   string              `json:"routine_id"`
-		RoutineJSON model.AIRoutineJSON `json:"routine_json"`
-	}
-	if err := json.Unmarshal(saveW.Body.Bytes(), &savePayload); err != nil {
+	var payload routineAISaveIntegrationPayload
+	if err := json.Unmarshal(saveW.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to unmarshal save response: %v", err)
 	}
-	if savePayload.RoutineID == "" {
+	if payload.RoutineID == "" {
 		t.Fatal("expected saved routine id in response")
 	}
+
+	return payload
+}
+
+func mustVerifySavedRoutineExercise(t *testing.T, db *pgxpool.Pool, userID, exerciseName string) {
+	t.Helper()
 
 	var exerciseOwner sql.NullString
 	var exerciseOfficial bool
@@ -269,7 +307,7 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 		WHERE LOWER(name) = LOWER($1)
 		ORDER BY created_at DESC
 		LIMIT 1
-	`, generatedExerciseName).Scan(&exerciseOwner, &exerciseOfficial); err != nil {
+	`, exerciseName).Scan(&exerciseOwner, &exerciseOfficial); err != nil {
 		t.Fatalf("failed to load created exercise: %v", err)
 	}
 	if exerciseOwner.Valid {
@@ -277,15 +315,19 @@ func TestRoutineAIPreviewAndSaveIntegration(t *testing.T) {
 			t.Fatalf("expected created exercise owner_user_id to be %s, got %s", userID, exerciseOwner.String)
 		}
 	} else {
-		t.Logf("exercise %q already existed in the catalogue (official=%t), so owner_user_id was not set by this run", generatedExerciseName, exerciseOfficial)
+		t.Logf("exercise %q already existed in the catalogue (official=%t), so owner_user_id was not set by this run", exerciseName, exerciseOfficial)
 	}
+}
+
+func mustVerifyRoutineExerciseCount(t *testing.T, db *pgxpool.Pool, routineID string) {
+	t.Helper()
 
 	var routineExerciseCount int
 	if err := db.QueryRow(context.Background(), `
 		SELECT COUNT(1)::int
 		FROM public.routine_exercises
 		WHERE routine_id = $1::uuid
-	`, savePayload.RoutineID).Scan(&routineExerciseCount); err != nil {
+	`, routineID).Scan(&routineExerciseCount); err != nil {
 		t.Fatalf("failed to verify saved routine exercises: %v", err)
 	}
 	if routineExerciseCount < 1 {

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ErrRoutineNotFound indicates that the requested routine does not exist or is not accessible.
 var ErrRoutineNotFound = errors.New("routine not found")
 
 // RoutineService provides business logic for routines.
