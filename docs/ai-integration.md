@@ -1,148 +1,107 @@
-# AI System in LiteGym
+# AI integration
 
-This document explains in detail how Gemini-based routine generation works inside LiteGym.
+This document describes the current Gemini-based AI routine generation flow in LiteGym.
 
-The current implementation lives entirely in the Go backend. The frontend does not yet expose a dedicated screen that triggers this feature directly, so the important part today is the API -> service -> Gemini -> response flow.
+## Current feature scope
 
-## Executive Summary
+The AI integration currently covers:
 
-Routine generation follows this path:
+- routine generation preview
+- user confirmation before persistence
+- resolving existing exercises during save
+- creating missing user-owned exercises when needed
 
-1. An authenticated user calls `POST /api/routines/ai/generate`.
-2. The handler validates the session and request body.
-3. The service checks the per-user usage limit.
-4. The service gathers a compact summary of the user, the latest workout history at session/exercise/set level, and a filtered exercise catalog.
-5. It builds a structured JSON prompt.
-6. It calls Gemini over HTTP.
-7. Gemini returns JSON.
-8. The backend parses, normalizes, and saves the generated routine as a permanent user routine.
-9. The backend returns the generated JSON, the saved `routine_id`, and rate-limit metadata.
-10. A generation log is also persisted, so usage can be counted.
+The AI feature is exposed through the routines area of the application.
 
-## Where It Starts
+## Entry points
 
-Dependency injection happens at server startup.
+Backend wiring starts in:
 
-- [backend/cmd/server/main.go](../backend/cmd/server/main.go)
+- `backend/cmd/server/main.go`
 
-At that point the application builds:
+The main runtime service is:
 
-- the routine, workout session, and body metric repositories
-- `RoutineAIService`
-- `RoutineHandler`
+- `backend/internal/service/routine_ai_service.go`
 
-The relevant piece is:
+The HTTP handler is:
 
-```go
-routineAIService := service.NewRoutineAIService(
-    routineRepo,
-    workoutSessionRepo,
-    bodyMetricRepo,
-    cfg.GeminiAPIKey,
-    cfg.GeminiModel,
-)
-```
+- `backend/internal/transport/handlers/routine_handler.go`
 
-That means the AI service is not standalone. It depends on the database to build useful context before contacting the model, including the latest workout sessions and their set-level detail.
+The routes are:
+
+- `POST /api/routines/ai/generate`
+- `POST /api/routines/ai/save`
 
 ## Configuration
 
-The environment variables that control this feature are:
+Relevant environment variables:
 
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL`
 
-They are loaded in:
+Important behavior:
 
-- [backend/internal/config/config.go](../backend/internal/config/config.go)
+- if `GEMINI_API_KEY` is missing, generation fails with `503`
+- if `GEMINI_MODEL` is empty when it reaches the AI service, the service falls back to `gemini-2.5-flash`
 
-If no model is set, the backend falls back to:
+## Current request contract
 
-- `gemini-1.5-flash`
+Generation request fields:
 
-If there is no API key, generation cannot run and the backend returns `503`.
+- `objective`
+- `target_muscle_groups`
+- `mandatory_exercises`
+- `notes`
+- `duration_minutes`
 
-## Exposed Endpoint
+This is intentionally user-friendly:
 
-The protected route is registered in:
+- mandatory exercises are sent by name, not by raw id
+- notes let the user add free-text instructions such as preferences or restrictions
 
-- [backend/internal/transport/router.go](../backend/internal/transport/router.go)
+## High-level generation flow
 
-Route:
+### Step 1: preview generation
 
-```http
-POST /api/routines/ai/generate
-```
+When a request hits `POST /api/routines/ai/generate`, the backend:
 
-It is authenticated. If there is no user in context, the handler returns `401`.
+1. validates the authenticated user
+2. validates the request body
+3. loads available exercises for the user context
+4. builds compact recent-training context
+5. builds a Gemini prompt
+6. calls Gemini over HTTP
+7. parses and normalizes the returned JSON
+8. returns a preview payload to the frontend
 
-## Input Contract
+### Step 2: explicit save
 
-The request body expects:
+When the user confirms the preview through `POST /api/routines/ai/save`, the backend:
 
-- `objective`: training goal
-- `target_muscle_groups`: list of muscle groups
-- `mandatory_exercise_ids`: list of required exercises
-- `duration_minutes`: target duration
+1. iterates over generated exercises
+2. tries to reuse the returned `exercise_id` if it already exists
+3. otherwise searches existing exercises by normalized name, muscle group, and type
+4. if still not found, creates a new private exercise owned by the authenticated user
+5. persists the routine and its planned sets
 
-The model is defined in:
+## What is sent to Gemini
 
-- [backend/internal/model/routine_ai.go](../backend/internal/model/routine_ai.go)
+The backend sends a structured JSON prompt rather than a natural-language-only prompt.
 
-## What the Handler Does
+Main blocks:
 
-The handler does not talk to Gemini directly. It only coordinates validation and error translation.
-
-File:
-
-- [backend/internal/transport/handlers/routine_handler.go](../backend/internal/transport/handlers/routine_handler.go)
-
-Responsibilities:
-
-- check authentication
-- parse JSON
-- call `RoutineAIService.GenerateRoutineJSON`
-- translate errors into HTTP responses
-
-Error mapping:
-
-- invalid input -> `400`
-- rate limit exceeded -> `429`
-- provider unavailable -> `503`
-- missing API key -> `503`
-- any other failure -> `500`
-
-## How Usage Is Limited
-
-There is a simple per-user limit:
-
-- maximum `2` generations per hour
-
-That logic lives in:
-
-- [backend/internal/service/routine_ai_service.go](../backend/internal/service/routine_ai_service.go)
-- [backend/internal/repository/routine_repository.go](../backend/internal/repository/routine_repository.go)
-
-The sequence is:
-
-1. compute the time window
-2. count previous generations in `ai_routine_generation_logs`
-3. if the limit is already reached, stop before calling Gemini
-4. if generation succeeds, insert a new log
-
-This avoids spending provider calls when the user has already exhausted their quota.
-
-## What User Data Is Sent to Gemini
-
-The key design decision is that the backend does not send raw history. It sends a compact summary designed to use fewer tokens and be easier for the model to understand.
-
-That summary is built in:
-
-- [backend/internal/service/routine_ai_service.go](../backend/internal/service/routine_ai_service.go)
+- `objective`
+- `duration_minutes`
+- `target_muscle_groups`
+- `mandatory_exercises`
+- `user_notes`
+- `user_context`
+- `exercise_catalog`
+- `output_contract`
 
 ### `user_context`
 
-The prompt includes a `user_context` object with:
+The context is compact and intentionally token-aware. It includes:
 
 - `training_days_30d`
 - `current_streak_days`
@@ -152,397 +111,95 @@ The prompt includes a `user_context` object with:
 - `top_muscle_groups`
 - `body_metrics`
 
-### What Each Block Means
+### `exercise_catalog`
 
-- `training_days_30d`: number of days trained in the last 30 days.
-- `current_streak_days`: current training streak.
-- `recent_workouts`: recent sessions with name, associated routine, duration, and number of exercises.
-- `recent_training_history`: the latest sessions expanded into exercises and sets, including `reps` and `weight_kg`.
-- `recent_routines`: recent routines with name and exercise count.
-- `top_muscle_groups`: most trained muscle groups, with count and percentage.
-- `body_metrics`: the latest body metrics and deltas when available.
-
-### Why This Reduces Tokens
-
-Because Gemini does not need:
-
-- every historical session
-- every set from the whole account history
-- every exercise the user has ever done
-- the full user profile from the database
-
-Instead, it receives a compact signal that carries the useful information. That reduces:
-
-- prompt size
-- cost
-- latency
-- semantic noise
-
-## What Exercise Catalog Is Sent
-
-Before calling Gemini, the backend loads a filtered catalog of candidate exercises.
-
-The query lives in:
-
-- [backend/internal/repository/routine_repository.go](../backend/internal/repository/routine_repository.go)
-
-Included exercises are:
-
-- official exercises
-- or exercises owned by the user
-- not deleted
-- optionally filtered by target muscle groups
-
-The goal is to prevent the model from inventing arbitrary exercises. It should choose from a known valid list.
-
-Each catalog entry contains:
+Gemini also receives a filtered exercise catalog with:
 
 - `id`
 - `name`
 - `muscle_group`
 - `exercise_type`
 
-## How the Prompt Is Built
+This helps constrain the model toward valid exercises known by the application.
 
-The prompt has two parts:
+## Prompt behavior
 
-### 1. `system_instruction`
+The current system instruction tells Gemini to:
 
-This is a short instruction that tells the model to:
+- use recent training history as the main history signal
+- respect user notes and mandatory exercises strongly
+- build the most complete and sensible routine for the available time
+- choose exercise count freely
+- avoid a fixed one-to-one mapping between target muscle groups and exercises
+- return valid JSON only
 
-- act as a workout planner
-- use `user_context`, especially `recent_training_history`, as the main history signal
-- return only valid JSON
-- avoid Markdown
+This was added to avoid a simplistic pattern where the model returned one exercise per selected target muscle.
 
-### 2. `contents`
+## Exercise resolution strategy
 
-A single JSON-serialized block is sent with:
+Saving a generated routine uses a tolerant resolution flow:
 
-- objective
-- duration
-- target muscle groups
-- mandatory exercise IDs
-- `user_context`
-- `exercise_catalog`
-- `output_contract`
+1. trust `exercise_id` only if it exists in the database
+2. otherwise search by normalized exercise name
+3. narrow by muscle group and exercise type when available
+4. create a new private exercise as a last resort
 
-File:
+The created exercise:
 
-- [backend/internal/service/routine_ai_service.go](../backend/internal/service/routine_ai_service.go)
+- is marked as non-official
+- receives `owner_user_id` equal to the authenticated user
 
-## What `output_contract` Is
+## Failure modes
 
-`output_contract` tells Gemini what shape the output must follow.
+Common generation failures:
 
-It includes fields such as:
+- missing API key
+- Gemini quota exhaustion
+- model not available for the active plan
+- provider `429` or other non-2xx status
+- malformed provider response
 
-- `name`
-- `objective`
-- `duration_minutes`
-- `target_muscles`
-- `mandatory_count`
-- `generated_at`
-- `generation_source`
-- `exercises`
+Error handling behavior:
 
-And each exercise must include:
+- invalid input -> `400`
+- rate-limit exceeded -> `429`
+- provider unavailable or malformed response -> `503`
+- unexpected internal issues -> `500`
 
-- `exercise_id`
-- `name`
-- `muscle_group`
-- `exercise_type`
-- `is_mandatory`
-- `sets`
+## Rate limiting
 
-Each planned set can include:
+The service still contains per-user rate-limit logic based on `ai_routine_generation_logs`, but:
 
-- `set_number`
-- `target_reps_min`
-- `target_reps_max`
-- `target_reps_text`
-- `target_weight_kg`
-- `target_duration_seconds`
-- `target_distance_km`
-- `target_rir`
-- `rest_seconds`
-- `notes`
+- `aiRoutineRateLimitEnabled` is currently `false`
 
-`recommended_sets` and `recommended_reps` are still tolerated by the backend as a fallback for older model responses, but the preferred format is the structured `sets` array.
+So at the moment the internal application-side limit is disabled, even though the provider may still enforce external quotas.
 
-This is not a hard schema validator by itself, but it makes the model much more likely to return parseable structured output.
+## Frontend flow
 
-## Recent Workout History
+The frontend page responsible for AI routine generation is:
 
-This is the new part of the prompt that was added after the initial AI integration.
+- `frontend/src/pages/UserRoutinesPage.tsx`
 
-The backend now sends a compact representation of the latest workouts, not just a high-level summary. Each session includes:
+Current UX behavior:
 
-- session identity and display name
-- routine name
-- start time
-- duration
-- exercises performed in that session
-- the order of each exercise
-- sets per exercise
-- repetitions per set
-- weight per set
+- user opens the AI form
+- user sets objective and duration
+- user selects mandatory exercises from the available catalog
+- user adds optional free-text notes
+- frontend requests a preview
+- preview is shown in a dedicated modal
+- user confirms save only after reviewing the result
 
-This data is produced by the workout session repository and folded into `user_context.recent_training_history`.
+## Testing
 
-### Why This Matters
+AI-related testing exists at multiple levels:
 
-The model can now see not only that the user trained chest or legs recently, but also:
+- service tests in `backend/internal/service/routine_ai_service_test.go`
+- integration-style handler test in `backend/internal/transport/handlers/routine_handler_integration_test.go`
+- frontend behavior test in `frontend/src/pages/UserRoutinesPage.test.tsx`
 
-- which movements they already used
-- the set and rep ranges they actually handled
-- the weight progression between recent sessions
+The real Gemini integration test is defensive:
 
-That gives Gemini more signal for:
-
-- progressive overload
-- exercise selection
-- balancing repeated movements
-- avoiding overly repetitive routines
-
-### Token Tradeoff
-
-This extra context does increase prompt size. In local real requests, the prompt token count moved from roughly `1117` tokens for the lighter summary to roughly `1640` tokens once the training history block was added.
-
-That is still a controlled prompt size for the amount of signal being sent, but it is materially larger than the earlier version.
-
-## Gemini Request
-
-The HTTP request goes to:
-
-```text
-https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}
-```
-
-The request body uses:
-
-- `temperature: 0.3`
-- `responseMimeType: application/json`
-
-That combination aims for:
-
-- more stable output
-- less unnecessary creativity
-- JSON that can be parsed directly
-
-## How the Response Is Processed
-
-Gemini returns a structure like `candidates -> content -> parts -> text`.
-
-The backend:
-
-1. parses the HTTP response
-2. extracts the first `candidate`
-3. extracts the first `part.text`
-4. tries to unmarshal that text into `AIRoutineJSON`
-
-If the text is missing or the JSON does not parse, generation fails.
-
-File:
-
-- [backend/internal/service/routine_ai_service.go](../backend/internal/service/routine_ai_service.go)
-
-## What the Backend Normalizes Afterwards
-
-Even if Gemini returns a valid routine, the service fills missing or incomplete fields:
-
-- if `objective` is empty, it uses the original objective
-- if `duration_minutes` is zero, it uses the requested duration
-- if `target_muscles` is empty, it uses the normalized input muscle groups
-- `generated_at` is always set by the backend to the current generation time
-- `generation_source` is always set by the backend to `"gemini"`
-
-That gives the frontend a more consistent response.
-
-## What Is Stored in the Database
-
-The generated routine is persisted as a real user routine.
-
-The backend writes:
-
-- a row in `public.routines`
-- one row per generated exercise in `public.routine_exercises`
-- one row per planned set in `public.routine_exercise_sets`
-- a usage log in `public.ai_routine_generation_logs`
-
-The saved routine is private to the requesting user:
-
-- `user_id` is the authenticated user
-- `source` is `"ai"`
-- `is_predefined` is `false`
-- `is_public` is `false`
-- `name` comes from Gemini, with a backend fallback if it is missing
-- `description` records that the routine was generated by Gemini and includes the requested objective and duration
-
-The saved exercise rows contain:
-
-- `routine_id`
-- `exercise_id`
-- `exercise_order`
-- `notes`
-
-The saved planned set rows contain:
-
-- `routine_exercise_id`
-- `set_number`
-- `target_reps_min`
-- `target_reps_max`
-- `target_reps_text`
-- `target_weight_kg`
-- `target_duration_seconds`
-- `target_distance_km`
-- `target_rir`
-- `rest_seconds`
-- `notes`
-
-This keeps the routine as a reusable plan. Actual execution data remains in workout tables.
-
-Before saving, the backend checks that every generated `exercise_id` exists in the exercise catalog that was sent to Gemini. Unknown exercise IDs are rejected instead of saving an invalid routine.
-
-The generation log is stored in:
-
-- `public.ai_routine_generation_logs`
-
-Schema:
-
-- [postgress-local/initdb/01-schema.sql](../postgress-local/initdb/01-schema.sql)
-
-That log is used to enforce the usage limit.
-
-## Response Format Returned to the Client
-
-The backend returns:
-
-- `routine_json`
-- `routine_id`
-- `rate_limit`
-
-The contract is defined in:
-
-- [backend/internal/model/routine_ai.go](../backend/internal/model/routine_ai.go)
-
-### `routine_json`
-
-Contains the generated routine.
-
-### `routine_id`
-
-Contains the database ID of the permanent routine created from the AI response.
-
-### `rate_limit`
-
-Contains:
-
-- total limit
-- remaining calls
-- current usage
-- window size
-- reset time
-
-This lets the frontend display usage information without recalculating anything.
-
-## Internal Flow Summary
-
-```text
-Authenticated user
-  -> POST /api/routines/ai/generate
-  -> handler validates session and JSON
-  -> service validates input
-  -> service checks rate limit
-  -> service loads compact user summary
-  -> service loads recent workout history with exercises and sets
-  -> service loads exercise catalog
-  -> service builds JSON prompt
-  -> service calls Gemini
-  -> service parses the response
-  -> service normalizes fields
-  -> service saves routine + routine exercises + planned sets
-  -> service logs the generation
-  -> responds with routine + routine_id + rate limit
-```
-
-## Planned Versus Actual Training Data
-
-LiteGym now separates recommended work from performed work:
-
-- `routine_exercise_sets.target_*` stores the plan generated by Gemini or by the user.
-- `workout_sets.target_*` stores the target for one concrete workout session.
-- `workout_sets.reps`, `weight_kg`, `duration_seconds`, `distance_km`, and `rir` store what the user actually performs.
-
-When a workout is started with a `routine_id`, the backend creates the workout session and copies:
-
-- `routine_exercises` into `workout_exercises`
-- `routine_exercise_sets` into `workout_sets` with `completed = false`
-
-During that copy, `target_weight_kg` is adjusted dynamically from the user's latest completed workout for the same exercise:
-
-- if the user reached the top of the target rep range and met the target RIR, the backend increases the target by a percentage of the latest working weight
-- if the user missed the minimum rep target or finished at `RIR <= 0`, the backend reduces the target by that same personalized increment
-- otherwise, it keeps the latest working weight
-- if the routine has no base weight but the user has history for that exercise, the backend uses the latest historical weight as the base
-- if there is no weight history, the routine target remains unchanged
-
-The increment depends on exercise context:
-
-- legs and glutes use `5%`
-- strength exercises use `3%`
-- hypertrophy and smaller muscle groups use `2%`
-- bodyweight and isometric exercises do not force external load progression
-
-These tiers are based on the ACSM progression model recommendation to increase resistance by `2-10%` once the current workload can be performed above the target repetition goal. LiteGym uses the lower end of that range for small muscle-mass or isolation work and a moderate value for lower-body movements instead of defaulting to the full `10%`.
-
-The result is rounded to the nearest `0.5kg`, with a minimum non-zero adjustment of `0.5kg`.
-
-This keeps the routine stable while making each workout's target weights adaptive. The frontend receives editable target values before the user starts logging the actual set results.
-
-## What This Design Solves
-
-This design balances four goals:
-
-1. Enough context for Gemini to produce a useful routine.
-2. Enough token efficiency so the call stays practical.
-3. Structured output so post-processing stays simple.
-4. Abuse control so provider usage does not grow without limits.
-
-## Current Limitations
-
-There are a few clear limitations today:
-
-- no deep semantic validation of the generated JSON
-- if Gemini returns valid JSON but a poor routine, the backend does not catch it
-- the frontend does not yet expose a dedicated UI for this feature
-- the user context is summarized, not exhaustive
-- the recent training history increases prompt size, so the context needs to stay intentionally compact
-- the built-in progression rates are still hardcoded in the backend
-
-## Possible Improvements
-
-If this needs to be hardened later, reasonable next steps would be:
-
-- validate the generated JSON against an internal schema
-- add richer validation for exercise order, duration, volume, target weights, and planned set ranges
-- enrich the context with a compact per-exercise performance summary
-- make progression rates configurable by exercise type, muscle group, user level, or available equipment
-- persist the raw AI payload and generation metadata if auditing is needed
-- add a frontend UI for launching generation and opening the saved routine
-- tune the workout history window and session count if prompt size grows too much
-
-## Conclusion
-
-LiteGym currently uses the AI layer as a controlled backend routine generator:
-
-- it authenticates the user
-- it limits usage
-- it summarizes the user history
-- it filters valid exercises
-- it calls Gemini with a compact prompt
-- it expects pure JSON
-- it saves the generated routine permanently
-- it returns a structured routine and `routine_id` to the client
-
-The most important design choice is not sending full history, but a compact behavioral summary instead. That reduces cost, simplifies the prompt, and makes the output more predictable.
+- it reads credentials from backend env
+- it can skip when no key is configured
+- it now also skips when provider quota is exhausted

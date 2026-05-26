@@ -1,132 +1,186 @@
-# Getting Started
+# Getting started
 
-How to use this template to start a new project.
+This guide explains how to boot LiteGym locally and what each part of the repository is responsible for.
 
-## 1. Create Your Repository
+## Prerequisites
 
-Click **Use this template** on GitHub (or clone and re-init):
+You should have the following tools available:
 
-```bash
-git clone https://github.com/isw2-unileon/proyect-scaffolding.git my-project
-cd my-project
-rm -rf .git
-git init
+- Go
+- Node.js and npm
+- Docker or Podman with compose support
+
+The root `Makefile` automatically prefers `docker compose`, and falls back to `podman compose` if Docker is not available.
+
+## Repository structure
+
+```text
+backend/          Go backend application
+frontend/         React frontend application
+e2e/              Playwright tests
+postgress-local/  local PostgreSQL image, schema, and seed
+docs/             project documentation
 ```
 
-## 2. Rename the Go Module
+## Environment files
 
-Update the module path in `go.mod` to match your new repository:
+There are two environment stories in this project:
 
-```bash
-# Replace with your actual module path
-go mod edit -module github.com/your-org/my-project
-```
+- backend runtime variables
+- frontend Vite variables
 
-Then update all import paths in Go files:
+The example backend-oriented environment file is in the repository root:
 
-```bash
-grep -rl "isw2-unileon/proyect-scaffolding" backend/ | xargs sed -i '' 's|isw2-unileon/proyect-scaffolding|your-org/my-project|g'
-```
+- `.env.example`
 
-Run `go mod tidy` to verify.
+For day-to-day local work, these are the most relevant files:
 
-## 3. Update the Auto-Assign Workflow
+- `.env.local`
+- `backend/.env`
+- `frontend/.env`
 
-Edit `.github/workflows/auto-assign.yml` and replace `jferrl` with your GitHub username.
+Detailed variable behavior is documented in [configuration.md](configuration.md).
 
-## 4. Install Dependencies
+## First-time setup
+
+Install project dependencies:
 
 ```bash
 make install
 ```
 
-This runs `go mod download`, `npm ci` in `frontend/`, and `npm ci` in `e2e/`.
+This command:
 
-## 5. Run Locally
+- installs Air for Go hot reload
+- installs golangci-lint
+- downloads Go modules
+- installs frontend dependencies
+- installs Playwright package dependencies
 
-Open two terminals:
+## Start the local database
+
+The local PostgreSQL stack uses the files in `postgress-local/`.
 
 ```bash
-# Terminal 1 - Backend on :8080
-make run-backend
+make start-postgres-db
+```
 
-# Terminal 2 - Frontend on :5173
+Useful related commands:
+
+```bash
+make stop-postgres-db
+make down-postgres-db
+make delete-postgres-db
+make reset-postgres-db
+make logs-postgres-db
+```
+
+`reset-postgres-db` recreates the database and replays the schema and seed scripts from scratch.
+
+## Run backend and frontend
+
+Open two terminals.
+
+Terminal 1:
+
+```bash
+make run-backend
+```
+
+Terminal 2:
+
+```bash
 make run-frontend
 ```
 
-Open http://localhost:5173 to see the app. The Vite dev server proxies `/api` and `/health` requests to the Go backend.
+The usual local URLs are:
 
-## 6. Build Your Application
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:8080`
 
-### Backend
+## Full stack with compose
 
-Add your Go code following the existing layout:
-
-```text
-backend/
-├── cmd/server/main.go          # Entry point - add routes here
-└── internal/
-    ├── config/config.go        # Add env vars here
-    ├── domain/                 # Create: domain models
-    ├── service/                # Create: business logic
-    ├── repository/             # Create: data access
-    └── api/                    # Create: HTTP handlers
-```
-
-The sample `/api/hello` endpoint in `main.go` shows where to start. As the app grows, extract handlers into `internal/api/` and business logic into `internal/service/`.
-
-### Frontend
-
-The frontend is a standard Vite + React + TypeScript + Tailwind project:
-
-```text
-frontend/src/
-├── App.tsx                     # Root component - start here
-├── main.tsx                    # Entry point
-├── index.css                   # Tailwind imports
-├── components/                 # Create: React components
-├── services/                   # Create: API client functions
-└── types/                      # Create: TypeScript types
-```
-
-Path aliases are configured -- use `@/components/Foo` instead of relative imports.
-
-## 7. Available Make Commands
+If you want to run the complete application snapshot, including backend, frontend, and PostgreSQL through one compose file:
 
 ```bash
-make install         # Install all dependencies
-make run-backend     # Backend with hot reload (Air)
-make run-frontend    # Frontend dev server (Vite)
-make build-backend   # Build Go binary
-make build-frontend  # Build frontend for production
-make test            # Run all tests
-make lint            # Run all linters
-make e2e             # Run Playwright E2E tests
+make start-app-snapshot
 ```
 
-## 8. CI/CD
-
-The template includes four GitHub Actions workflows:
-
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
-| `backend.yml` | Push/PR changing `backend/` or `go.mod` | `go vet` + `go test -race` + `go build` |
-| `frontend.yml` | Push/PR changing `frontend/` | ESLint + TypeScript check + Vite build |
-| `e2e.yml` | Manual dispatch | Playwright tests across browsers |
-| `codeql.yml` | Weekly + push/PR | Security analysis for Go and JS/TS |
-
-## 9. Record Decisions
-
-Use Architecture Decision Records to document important choices:
+Related commands:
 
 ```bash
-cp docs/adr/000-template.md docs/adr/002-your-decision.md
+make down-app-snapshot
+make delete-app-snapshot
 ```
 
-See [docs/adr/](adr/) for the template and existing records.
+The full stack compose definition is in:
 
-## Related Docs
+- `compose.yaml`
 
-- [Why a monorepo](monorepo.md)
-- [Go best practices](golang.md)
-- [ADR template](adr/000-template.md)
+## Build commands
+
+Backend:
+
+```bash
+make build-backend
+```
+
+Frontend:
+
+```bash
+make build-frontend
+```
+
+## Test commands
+
+All main tests:
+
+```bash
+make test
+```
+
+Backend integration tests against local PostgreSQL:
+
+```bash
+make test-integration
+```
+
+Frontend lint and backend lint:
+
+```bash
+make lint
+```
+
+Playwright E2E suite:
+
+```bash
+make e2e
+```
+
+## Common local issues
+
+### Frontend cannot reach the backend
+
+Check:
+
+- backend is running on port `8080`
+- frontend dev server is running on port `5173`
+- Vite proxy settings in `frontend/vite.config.ts`
+
+### Backend says database is unavailable
+
+Check:
+
+- local Postgres stack is running
+- `DATABASE_URL` points to the correct database
+- the database health endpoint `/api/db/health`
+
+### AI routine generation returns `503`
+
+Common causes:
+
+- missing `GEMINI_API_KEY`
+- unsupported or rate-limited `GEMINI_MODEL`
+- Gemini free tier quota exhausted
+
+See [ai-integration.md](ai-integration.md) for details.
