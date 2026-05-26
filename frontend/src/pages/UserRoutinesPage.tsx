@@ -99,7 +99,7 @@ export default function UserRoutinesPage() {
   const [detailStatus, setDetailStatus] = useState<RoutineStatus>("idle");
   const [isAIFormOpen, setIsAIFormOpen] = useState(false);
   const [aiObjective, setAIObjective] = useState("Ganar fuerza");
-  const [aiDuration, setAIDuration] = useState(60);
+  const [aiDuration, setAIDuration] = useState("60");
   const [aiMuscleGroups, setAIMuscleGroups] = useState("");
   const [aiNotes, setAINotes] = useState("");
   const [exerciseSearch, setExerciseSearch] = useState("");
@@ -241,6 +241,14 @@ export default function UserRoutinesPage() {
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+
+    const durationMinutes = Number.parseInt(aiDuration.trim(), 10);
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      setAIStatus("error");
+      setAIMessage("Introduce unos minutos válidos.");
+      return;
+    }
+
     setAIStatus("loading");
     setAIMessage("");
 
@@ -251,12 +259,12 @@ export default function UserRoutinesPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          objective: aiObjective.trim(),
-          duration_minutes: aiDuration,
-          target_muscle_groups: splitCommaList(aiMuscleGroups),
-          mandatory_exercises: selectedMandatoryExercises,
-          notes: aiNotes.trim(),
+          body: JSON.stringify({
+            objective: aiObjective.trim(),
+            duration_minutes: durationMinutes,
+            target_muscle_groups: splitCommaList(aiMuscleGroups),
+            mandatory_exercises: selectedMandatoryExercises,
+            notes: aiNotes.trim(),
         }),
       });
 
@@ -420,9 +428,13 @@ export default function UserRoutinesPage() {
                 className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
                 min={15}
                 required
-                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                type="text"
                 value={aiDuration}
-                onChange={(event) => setAIDuration(Number(event.target.value))}
+                onChange={(event) =>
+                  setAIDuration(event.target.value.replace(/[^\d]/g, ""))
+                }
               />
             </label>
           </div>
