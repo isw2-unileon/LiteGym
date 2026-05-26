@@ -252,9 +252,11 @@ export default function AIRoutinePreviewModal({
                             {exercise.exercise_type ? ` · ${exercise.exercise_type}` : ""}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
-                          {exercise.is_mandatory ? "Obligatorio" : "Opcional"}
-                        </span>
+                        {exercise.is_mandatory && (
+                          <span className="shrink-0 rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
+                            Obligatorio
+                          </span>
+                        )}
                       </div>
 
                       {exercise.sets && exercise.sets.length > 0 ? (
