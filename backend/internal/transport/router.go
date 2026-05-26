@@ -92,6 +92,7 @@ func SetupRouter(
 	// Profile
 	protected.GET("/profile/dashboard", profileHandler.GetDashboard)
 	protected.PUT("/profile/goals", profileHandler.UpdateGoals)
+	protected.POST("/profile/metrics", profileHandler.AddBodyMetric)
 
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "react": "^19.0.0",
+    "react-body-highlighter": "^2.0.5",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.14.1",
     "recharts": "^3.8.1"

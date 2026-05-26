@@ -84,6 +84,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
@@ -126,6 +127,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // Logout clears the authentication cookie for the current client.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    "",

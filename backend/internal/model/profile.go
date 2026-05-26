@@ -16,6 +16,13 @@ type BodyMetric struct {
 	RecordedAt        time.Time `json:"recorded_at"`
 }
 
+// AddBodyMetricRequest is the payload to add a new body metric.
+type AddBodyMetricRequest struct {
+	WeightKg          float64  `json:"weight_kg" binding:"required,gt=0"`
+	BodyFatPercentage *float64 `json:"body_fat_percentage,omitempty" binding:"omitempty,gte=0,lte=100"`
+	HeightCm          *float64 `json:"height_cm,omitempty" binding:"omitempty,gt=0"`
+}
+
 // UserGoal represents the user's fitness goals.
 type UserGoal struct {
 	UserID            uuid.UUID `json:"-"`
@@ -36,15 +43,26 @@ type MuscleRadarStat struct {
 	Value  int    `json:"value"`
 }
 
-// ProfileStats represents the aggregated dashboard data for the user.
+// CalendarActivity represents an activity in the user's calendar.
+type CalendarActivity struct {
+	Date        string `json:"date"`
+	WorkoutName string `json:"workout_name"`
+	Duration    int    `json:"duration"`
+	IsPlanned   bool   `json:"is_planned"`
+}
+
+// ProfileStats representa los datos del dashboard
 type ProfileStats struct {
-	TotalWorkouts int               `json:"total_workouts"`
-	TotalDuration int               `json:"total_duration_minutes"`
-	TotalVolume   float64           `json:"total_volume_kg"`
-	TotalSets     int               `json:"total_sets"`
-	StreakDays    []string          `json:"streak_days"`
-	TopExercises  []ExerciseStat    `json:"top_exercises"`
-	MuscleRadar   []MuscleRadarStat `json:"muscle_radar"`
-	WeightHistory []BodyMetric      `json:"weight_history"`
-	Goals         *UserGoal         `json:"goals"`
+	TotalWorkouts    int                `json:"total_workouts"`
+	TotalDuration    int                `json:"total_duration_minutes"`
+	TotalVolume      float64            `json:"total_volume_kg"`
+	TotalSets        int                `json:"total_sets"`
+	WeeklyStreak     int                `json:"weekly_streak"`
+	WeeklyGoal       int                `json:"weekly_goal"`
+	StreakDays       []string           `json:"streak_days"`
+	StreakActivities []CalendarActivity `json:"streak_activities"`
+	TopExercises     []ExerciseStat     `json:"top_exercises"`
+	MuscleRadar      []MuscleRadarStat  `json:"muscle_radar"`
+	WeightHistory    []BodyMetric       `json:"weight_history"`
+	Goals            *UserGoal          `json:"goals"`
 }

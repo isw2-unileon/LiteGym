@@ -42,49 +42,7 @@ func main() {
 
 	gin.SetMode(cfg.GinMode)
 
-	// Initialize repositories
-	userRepo := repository.NewUserRepository(db)
-	exerciseRepo := repository.NewExerciseRepository(db)
-	routineRepo := repository.NewRoutineRepository(db)
-	overviewWorkoutRepo := repository.NewOverviewWorkoutRepository(db)
-	bodyMetricRepo := repository.NewBodyMetricRepository(db)
-	ticketRepo := repository.NewTicketRepository(db)
-	workoutRepo := repository.NewWorkoutRepository(db)
-
-	// Initialize services
-	userService := service.NewUserService(userRepo)
-	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
-	exerciseService := service.NewExerciseService(exerciseRepo)
-	overviewService := service.NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo)
-	ticketService := service.NewTicketService(ticketRepo)
-	workoutService := service.NewWorkoutService(workoutRepo)
-
-	// Initialize handlers
-	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
-	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-	routineHandler := handlers.NewRoutineHandler(service.NewRoutineService(routineRepo))
-	overviewHandler := handlers.NewOverviewHandler(overviewService)
-	healthHandler := handlers.NewHealthHandler()
-	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
-	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db)))
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
-
-	r := transport.SetupRouter(
-		db,
-		userHandler,
-		authHandler,
-		authMiddleware,
-		exerciseHandler,
-		routineHandler,
-		overviewHandler,
-		healthHandler,
-		ticketHandler,
-		workoutHandler,
-		profileHandler,
-		cfg.CORSAllowOrigin,
-	)
+	r := setupDependencies(db, cfg)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -115,4 +73,50 @@ func main() {
 	}
 
 	logger.Info("server stopped")
+}
+
+func setupDependencies(db *pgxpool.Pool, cfg *config.Config) *gin.Engine {
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
+	exerciseRepo := repository.NewExerciseRepository(db)
+	routineRepo := repository.NewRoutineRepository(db)
+	overviewWorkoutRepo := repository.NewOverviewWorkoutRepository(db)
+	bodyMetricRepo := repository.NewBodyMetricRepository(db)
+	ticketRepo := repository.NewTicketRepository(db)
+	workoutRepo := repository.NewWorkoutRepository(db)
+
+	// Initialize services
+	userService := service.NewUserService(userRepo)
+	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
+	exerciseService := service.NewExerciseService(exerciseRepo)
+	overviewService := service.NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo)
+	ticketService := service.NewTicketService(ticketRepo)
+	workoutService := service.NewWorkoutService(workoutRepo)
+
+	// Initialize handlers
+	userHandler := handlers.NewUserHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
+	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	routineHandler := handlers.NewRoutineHandler(service.NewRoutineService(routineRepo))
+	overviewHandler := handlers.NewOverviewHandler(overviewService)
+	healthHandler := handlers.NewHealthHandler()
+	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db)))
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
+
+	return transport.SetupRouter(
+		db,
+		userHandler,
+		authHandler,
+		authMiddleware,
+		exerciseHandler,
+		routineHandler,
+		overviewHandler,
+		healthHandler,
+		ticketHandler,
+		workoutHandler,
+		profileHandler,
+		cfg.CORSAllowOrigin,
+	)
 }

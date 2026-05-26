@@ -18,11 +18,16 @@ func NewProfileService(repo repository.ProfileRepository) *ProfileService {
 }
 
 // GetDashboardStats retrieves all stats needed for the profile view.
-func (s *ProfileService) GetDashboardStats(ctx context.Context, userID string) (*model.ProfileStats, error) {
-	return s.repo.GetStats(ctx, userID)
+func (s *ProfileService) GetDashboardStats(ctx context.Context, userID string, timeRange string, year int, month int) (*model.ProfileStats, error) {
+	return s.repo.GetStats(ctx, userID, timeRange, year, month)
 }
 
 // UpdateGoals saves the user's short and long term goals.
 func (s *ProfileService) UpdateGoals(ctx context.Context, goal *model.UserGoal) error {
 	return s.repo.UpsertGoals(ctx, goal)
+}
+
+// AddBodyMetric adds a new body metric record.
+func (s *ProfileService) AddBodyMetric(ctx context.Context, userID string, req *model.AddBodyMetricRequest) error {
+	return s.repo.AddBodyMetric(ctx, userID, req)
 }
