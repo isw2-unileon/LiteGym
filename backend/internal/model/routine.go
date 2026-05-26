@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// RoutineDetail represents a saved routine with its exercises and planned sets.
 type RoutineDetail struct {
 	ID            string                  `json:"id"`
 	Name          string                  `json:"name"`
@@ -13,6 +14,7 @@ type RoutineDetail struct {
 	Exercises     []RoutineExerciseDetail `json:"exercises"`
 }
 
+// RoutineExerciseDetail represents a routine exercise in the saved routine payload.
 type RoutineExerciseDetail struct {
 	ID                   string                     `json:"id"`
 	ExerciseID           string                     `json:"exercise_id"`
@@ -26,6 +28,7 @@ type RoutineExerciseDetail struct {
 	Sets                 []RoutineExerciseSetDetail `json:"sets"`
 }
 
+// RoutineExerciseSetDetail represents a planned set for a routine exercise.
 type RoutineExerciseSetDetail struct {
 	ID                    string   `json:"id"`
 	SetNumber             int      `json:"set_number"`

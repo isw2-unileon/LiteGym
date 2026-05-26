@@ -18,20 +18,16 @@ type OverviewWorkoutRepository interface {
 }
 
 type overviewWorkoutRepository struct {
-	db                 *pgxpool.Pool
-	workoutSessionRepo *workoutSessionRepository
+	db *pgxpool.Pool
 }
 
 // NewOverviewWorkoutRepository creates a new dashboard workout repository backed by PostgreSQL.
 func NewOverviewWorkoutRepository(db *pgxpool.Pool) OverviewWorkoutRepository {
-	return &overviewWorkoutRepository{
-		db:                 db,
-		workoutSessionRepo: &workoutSessionRepository{db: db},
-	}
+	return &overviewWorkoutRepository{db: db}
 }
 
 func (r *overviewWorkoutRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
-	return r.workoutSessionRepo.ListRecentByUser(ctx, userID, limit)
+	return listOverviewWorkoutSummaries(ctx, r.db, userID, limit)
 }
 
 func (r *overviewWorkoutRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
@@ -125,5 +121,5 @@ func (r *overviewWorkoutRepository) listDatesInRange(ctx context.Context, userID
 }
 
 func (r *overviewWorkoutRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
-	return r.workoutSessionRepo.ListMuscleDistributionByUser(ctx, userID, from, to)
+	return listMuscleDistributionByUser(ctx, r.db, userID, from, to)
 }
