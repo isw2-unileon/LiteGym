@@ -32,6 +32,10 @@ func setupRoutineAIIntegrationDB(t *testing.T) *pgxpool.Pool {
 func loadGeminiAPIKeyFromBackendEnv(t *testing.T) {
 	t.Helper()
 
+	if apiKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY")); apiKey != "" {
+		return
+	}
+
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("failed to resolve test file location")
@@ -42,7 +46,7 @@ func loadGeminiAPIKeyFromBackendEnv(t *testing.T) {
 
 	values, err := godotenv.Read(envPath)
 	if err != nil {
-		t.Fatalf("failed to read backend/.env: %v", err)
+		t.Skip("skipping real Gemini integration test: GEMINI_API_KEY is not set and backend/.env is unavailable")
 	}
 
 	apiKey := strings.TrimSpace(values["GEMINI_API_KEY"])
