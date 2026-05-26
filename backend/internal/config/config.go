@@ -47,7 +47,7 @@ func Load() *Config {
 		AuthCookieSecure: getEnvBool("AUTH_COOKIE_SECURE", false),
 		AuthTokenTTL:     getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
-		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-1.5-flash"),
+		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
 	}
 }
 
