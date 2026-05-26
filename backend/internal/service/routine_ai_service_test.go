@@ -330,6 +330,14 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	if got := promptPayload["user_notes"].(string); got != "Prioriza press con barra y descanso amplio." {
 		t.Fatalf("expected user notes to be forwarded, got %q", got)
 	}
+
+	systemInstruction := strings.TrimSpace(capturedPromptSystemInstruction(t, capturedPrompt))
+	if !strings.Contains(systemInstruction, "Build the most complete and sensible routine possible") {
+		t.Fatalf("expected system instruction to encourage adaptive exercise count, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Do not force a one-to-one mapping") {
+		t.Fatalf("expected system instruction to avoid one-to-one muscle mapping, got %q", systemInstruction)
+	}
 }
 
 func TestGenerateRoutineJSONResolvesHallucinatedExerciseIDByName(t *testing.T) {
@@ -420,6 +428,24 @@ func decodeCapturedPromptPayload(t *testing.T, capturedPrompt map[string]any) ma
 	}
 
 	return promptPayload
+}
+
+func capturedPromptSystemInstruction(t *testing.T, capturedPrompt map[string]any) string {
+	t.Helper()
+
+	systemInstruction, ok := capturedPrompt["system_instruction"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected system_instruction object, got %#v", capturedPrompt["system_instruction"])
+	}
+
+	parts := sliceField(t, systemInstruction, "parts", 1)
+	part := mapItem(t, parts[0], "system instruction part")
+	rawText, ok := part["text"].(string)
+	if !ok {
+		t.Fatalf("expected system instruction text string, got %#v", part["text"])
+	}
+
+	return rawText
 }
 
 func assertCompactUserContext(t *testing.T, userContext map[string]any) {
