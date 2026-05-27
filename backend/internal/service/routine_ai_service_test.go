@@ -21,6 +21,9 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type routineAITestRoutineRepository struct {
 	savedRoutine *model.AIRoutineToSave
+	getByIDFunc  func(ctx context.Context, userID, routineID string) (*model.Routine, error)
+	countFunc    func(ctx context.Context, userID string, since time.Time) (int, error)
+	loggedCount  int
 }
 
 func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
@@ -35,10 +38,16 @@ func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID 
 }
 
 func (r *routineAITestRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+	if r.getByIDFunc != nil {
+		return r.getByIDFunc(ctx, userID, routineID)
+	}
 	return nil, nil
 }
 
 func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	if r.countFunc != nil {
+		return r.countFunc(ctx, userID, since)
+	}
 	return 0, nil
 }
 
@@ -48,6 +57,7 @@ func (r *routineAITestRoutineRepository) SaveGeneratedAIRoutine(ctx context.Cont
 }
 
 func (r *routineAITestRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	r.loggedCount++
 	return nil
 }
 
@@ -392,5 +402,148 @@ func TestGenerateRoutineJSONFailsWithoutAPIKey(t *testing.T) {
 	})
 	if !errors.Is(err, ErrAIRoutineMissingAPIKey) {
 		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
+func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+			repsMin := 6
+			repsMax := 8
+			weight := 70.0
+			rest := 120
+			return &model.Routine{
+				ID:          routineID,
+				UserID:      userID,
+				Name:        "Push Day",
+				Description: "Improve upper body strength",
+				Source:      "manual",
+				Exercises: []model.RoutineExercise{
+					{
+						ID:            "re-1",
+						RoutineID:     routineID,
+						ExerciseID:    "exercise-1",
+						ExerciseName:  "Bench Press",
+						MuscleGroup:   "chest",
+						ExerciseType:  "compound",
+						ExerciseOrder: 1,
+						Sets: []model.RoutineSet{
+							{
+								ID:                "set-1",
+								RoutineExerciseID: "re-1",
+								SetNumber:         1,
+								TargetRepsMin:     &repsMin,
+								TargetRepsMax:     &repsMax,
+								TargetWeightKg:    &weight,
+								RestSeconds:       &rest,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	var capturedPrompt map[string]any
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(body, &capturedPrompt); err != nil {
+				return nil, err
+			}
+
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"name\":\"Push Day 2.0\",\"objective\":\"More balanced push session\",\"duration_minutes\":45,\"target_muscles\":[\"chest\",\"shoulders\"],\"mandatory_count\":1,\"exercises\":[{\"exercise_id\":\"exercise-1\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"sets\":[{\"set_number\":1,\"target_reps_min\":5,\"target_reps_max\":7,\"target_weight_kg\":77.5,\"target_rir\":2,\"rest_seconds\":150}]},{\"exercise_id\":\"exercise-2\",\"name\":\"Squat\",\"muscle_group\":\"legs\",\"exercise_type\":\"compound\",\"is_mandatory\":false,\"sets\":[{\"set_number\":1,\"target_reps_min\":8,\"target_reps_max\":10,\"rest_seconds\":90}]}]}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message:         "Make it more balanced and slightly harder.",
+		FeedbackMessage: "Keep Bench Press but raise intensity.",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error upgrading routine: %v", err)
+	}
+
+	if response.RoutineJSON.Name != "Push Day 2.0" {
+		t.Fatalf("expected upgraded routine name, got %q", response.RoutineJSON.Name)
+	}
+	if response.RateLimit.Remaining != 1 {
+		t.Fatalf("expected one remaining generation, got %#v", response.RateLimit)
+	}
+	if routineRepo.savedRoutine != nil {
+		t.Fatal("did not expect upgrade flow to persist the routine")
+	}
+	if routineRepo.loggedCount != 1 {
+		t.Fatalf("expected one generation log, got %d", routineRepo.loggedCount)
+	}
+
+	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
+	if got := promptPayload["message"]; got != "Make it more balanced and slightly harder." {
+		t.Fatalf("expected message in prompt, got %#v", got)
+	}
+	if got := promptPayload["feedback_message"]; got != "Keep Bench Press but raise intensity." {
+		t.Fatalf("expected feedback_message in prompt, got %#v", got)
+	}
+	existingRoutine := mapField(t, promptPayload, "existing_routine")
+	if got := existingRoutine["name"]; got != "Push Day" {
+		t.Fatalf("expected existing routine name in prompt, got %#v", got)
+	}
+	existingExercises := sliceField(t, existingRoutine, "exercises", 1)
+	firstExercise := mapItem(t, existingExercises[0], "existing routine first exercise")
+	if got := firstExercise["exercise_id"]; got != "exercise-1" {
+		t.Fatalf("expected existing routine exercise id, got %#v", got)
+	}
+}
+
+func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
+	svc := NewRoutineAIService(
+		&routineAITestRoutineRepository{
+			countFunc: func(ctx context.Context, userID string, since time.Time) (int, error) {
+				return aiRoutineRateLimit, nil
+			},
+		},
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Improve it",
+	})
+	if !errors.Is(err, ErrAIRoutineRateLimited) {
+		t.Fatalf("expected ErrAIRoutineRateLimited, got %v", err)
+	}
+	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 0 {
+		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
 	}
 }

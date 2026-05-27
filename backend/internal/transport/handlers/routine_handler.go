@@ -116,6 +116,61 @@ func (h *RoutineHandler) GenerateRoutineJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// UpgradeRoutineJSON generates an AI upgrade proposal for an existing routine without persisting it.
+func (h *RoutineHandler) UpgradeRoutineJSON(c *gin.Context) {
+	userID, ok := authenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	routineID := c.Param("id")
+
+	var req model.AIRoutineUpgradeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	response, err := h.aiService.UpgradeRoutineJSON(c.Request.Context(), userID, routineID, req)
+	if err != nil {
+		if errors.Is(err, service.ErrAIRoutineInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "message or feedback_message is required"})
+			return
+		}
+		if errors.Is(err, service.ErrRoutineNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "routine not found"})
+			return
+		}
+		if errors.Is(err, service.ErrAIRoutineRateLimited) {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       "ai generation rate limit exceeded (max 2 per hour)",
+				"rate_limit":  response.RateLimit,
+				"retry_after": int(time.Until(response.RateLimit.ResetAt).Seconds()),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrAIRoutineProviderUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":  "ai provider unavailable",
+				"detail": err.Error(),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrAIRoutineMissingAPIKey) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "ai provider unavailable: configure GEMINI_API_KEY",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upgrade ai routine"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func authenticatedUserID(c *gin.Context) (string, bool) {
 	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
 	if !ok {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,7 +18,12 @@ import (
 
 type routineHandlerTestRepository struct {
 	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.Routine, error)
+	countFunc   func(ctx context.Context, userID string, since time.Time) (int, error)
 }
+
+type routineHandlerTestWorkoutSessionRepository struct{}
+
+type routineHandlerTestBodyMetricRepository struct{}
 
 func (r *routineHandlerTestRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
@@ -39,6 +45,9 @@ func (r *routineHandlerTestRepository) SaveGeneratedAIRoutine(ctx context.Contex
 }
 
 func (r *routineHandlerTestRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	if r.countFunc != nil {
+		return r.countFunc(ctx, userID, since)
+	}
 	return 0, nil
 }
 
@@ -48,6 +57,26 @@ func (r *routineHandlerTestRepository) LogAIGeneration(ctx context.Context, user
 
 func (r *routineHandlerTestRepository) ListAvailableExercisesForAI(ctx context.Context, userID string, targetMuscleGroups []string, limit int) ([]model.Exercise, error) {
 	return []model.Exercise{}, nil
+}
+
+func (r *routineHandlerTestWorkoutSessionRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewWorkoutSummary, error) {
+	return []model.OverviewWorkoutSummary{}, nil
+}
+
+func (r *routineHandlerTestWorkoutSessionRepository) ListRecentWorkoutHistoryByUser(ctx context.Context, userID string, limit int) ([]model.AIRoutineRecentWorkoutSession, error) {
+	return []model.AIRoutineRecentWorkoutSession{}, nil
+}
+
+func (r *routineHandlerTestWorkoutSessionRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
+	return []time.Time{}, nil
+}
+
+func (r *routineHandlerTestWorkoutSessionRepository) ListMuscleDistributionByUser(ctx context.Context, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
+	return []model.OverviewMuscleGroupShare{}, 0, nil
+}
+
+func (r *routineHandlerTestBodyMetricRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewBodyMetricEntry, error) {
+	return []model.OverviewBodyMetricEntry{}, nil
 }
 
 func TestGetRoutineByID(t *testing.T) {
@@ -178,5 +207,76 @@ func TestGetRoutineByIDUnauthorized(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{
+		countFunc: func(ctx context.Context, userID string, since time.Time) (int, error) {
+			return 2, nil
+		},
+	}
+	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("POST", "/api/routines/550e8400-e29b-41d4-a716-446655440000/ai/upgrade", bytes.NewBufferString(`{"message":"Make it better"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpgradeRoutineJSON(c)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, w.Code)
+	}
+}
+
+func TestUpgradeRoutineJSONNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+			return nil, service.ErrRoutineNotFound
+		},
+	}
+	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("POST", "/api/routines/550e8400-e29b-41d4-a716-446655440000/ai/upgrade", bytes.NewBufferString(`{"message":"Make it better"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpgradeRoutineJSON(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+}
+
+func TestUpgradeRoutineJSONInvalidInput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{}
+	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("POST", "/api/routines/550e8400-e29b-41d4-a716-446655440000/ai/upgrade", bytes.NewBufferString(`{"message":"   ","feedback_message":"  "}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpgradeRoutineJSON(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }

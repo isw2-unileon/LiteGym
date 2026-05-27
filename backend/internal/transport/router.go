@@ -160,6 +160,7 @@ func setupRouterInternal(
 		protected.GET("/routines", routineHandler.ListRoutines)
 		protected.GET("/routines/:id", routineHandler.GetRoutineByID)
 		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+		protected.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)
 	}
 
 	// Dashboard

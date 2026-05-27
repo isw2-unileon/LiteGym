@@ -10,6 +10,12 @@ type AIRoutineGenerationRequest struct {
 	DurationMinutes      int      `json:"duration_minutes"`
 }
 
+// AIRoutineUpgradeRequest defines the input required to improve an existing routine with AI.
+type AIRoutineUpgradeRequest struct {
+	Message         string `json:"message"`
+	FeedbackMessage string `json:"feedback_message"`
+}
+
 // AIRoutineRecentWorkoutSet represents one set from a recent workout session.
 type AIRoutineRecentWorkoutSet struct {
 	SetNumber int      `json:"set_number"`
@@ -118,5 +124,11 @@ type AIRoutineRateLimitStatus struct {
 type AIRoutineGenerateResponse struct {
 	RoutineJSON AIRoutineJSON            `json:"routine_json"`
 	RoutineID   string                   `json:"routine_id,omitempty"`
+	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
+}
+
+// AIRoutineUpgradeResponse wraps an upgraded routine proposal plus rate-limit metadata.
+type AIRoutineUpgradeResponse struct {
+	RoutineJSON AIRoutineJSON            `json:"routine_json"`
 	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
 }

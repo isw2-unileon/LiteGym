@@ -81,24 +81,14 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 	}
 
 	now := time.Now().UTC()
-	since := now.Add(-aiRoutineRateWindow)
-	used, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
+	used, resetAt, err := s.enforceAIRoutineRateLimit(ctx, userID, now)
 	if err != nil {
+		if errors.Is(err, ErrAIRoutineRateLimited) {
+			return model.AIRoutineGenerateResponse{
+				RateLimit: buildAIRoutineRateLimitStatus(used, resetAt),
+			}, err
+		}
 		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	resetAt := now.Add(aiRoutineRateWindow)
-
-	if used >= aiRoutineRateLimit {
-		return model.AIRoutineGenerateResponse{
-			RateLimit: model.AIRoutineRateLimitStatus{
-				Limit:               aiRoutineRateLimit,
-				Remaining:           0,
-				UsedInCurrentWindow: used,
-				WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
-				ResetAt:             resetAt,
-			},
-		}, ErrAIRoutineRateLimited
 	}
 
 	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, req.TargetMuscleGroups, 200)
@@ -128,13 +118,67 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 	return model.AIRoutineGenerateResponse{
 		RoutineJSON: generated,
 		RoutineID:   routineID,
-		RateLimit: model.AIRoutineRateLimitStatus{
-			Limit:               aiRoutineRateLimit,
-			Remaining:           aiRoutineRateLimit - (used + 1),
-			UsedInCurrentWindow: used + 1,
-			WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
-			ResetAt:             resetAt,
-		},
+		RateLimit:   buildAIRoutineRateLimitStatus(used+1, resetAt),
+	}, nil
+}
+
+// UpgradeRoutineJSON builds a proposed upgrade for one existing routine without persisting it.
+func (s *RoutineAIService) UpgradeRoutineJSON(
+	ctx context.Context,
+	userID, routineID string,
+	req model.AIRoutineUpgradeRequest,
+) (model.AIRoutineUpgradeResponse, error) {
+	userID = strings.TrimSpace(userID)
+	routineID = strings.TrimSpace(routineID)
+	req.Message = strings.TrimSpace(req.Message)
+	req.FeedbackMessage = strings.TrimSpace(req.FeedbackMessage)
+
+	if userID == "" || routineID == "" || (req.Message == "" && req.FeedbackMessage == "") {
+		return model.AIRoutineUpgradeResponse{}, ErrAIRoutineInvalidInput
+	}
+
+	now := time.Now().UTC()
+	used, resetAt, err := s.enforceAIRoutineRateLimit(ctx, userID, now)
+	if err != nil {
+		if errors.Is(err, ErrAIRoutineRateLimited) {
+			return model.AIRoutineUpgradeResponse{
+				RateLimit: buildAIRoutineRateLimitStatus(used, resetAt),
+			}, err
+		}
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	routine, err := s.repo.GetByID(ctx, userID, routineID)
+	if err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, extractRoutineTargetMuscles(routine), 200)
+	if err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	userContext, err := s.buildUserContext(ctx, userID, now)
+	if err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	generated, err := s.generateUpgradeWithGemini(ctx, *routine, req, exercises, userContext, now)
+	if err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	if _, err := s.buildExercisesToSave(generated, exercises); err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	if err := s.repo.LogAIGeneration(ctx, userID, now); err != nil {
+		return model.AIRoutineUpgradeResponse{}, err
+	}
+
+	return model.AIRoutineUpgradeResponse{
+		RoutineJSON: generated,
+		RateLimit:   buildAIRoutineRateLimitStatus(used+1, resetAt),
 	}, nil
 }
 
@@ -267,6 +311,147 @@ func (s *RoutineAIService) generateWithGemini(
 	return generated, nil
 }
 
+func (s *RoutineAIService) generateUpgradeWithGemini(
+	ctx context.Context,
+	routine model.Routine,
+	req model.AIRoutineUpgradeRequest,
+	exercises []model.Exercise,
+	userContext routineAIUserContext,
+	now time.Time,
+) (model.AIRoutineJSON, error) {
+	if s.apiKey == "" {
+		return model.AIRoutineJSON{}, ErrAIRoutineMissingAPIKey
+	}
+
+	inputPayload := map[string]any{
+		"message":          req.Message,
+		"feedback_message": req.FeedbackMessage,
+		"user_context":     userContext,
+		"existing_routine": buildAIRoutineJSONFromRoutine(routine, now),
+		"exercise_catalog": buildAIExerciseCatalog(exercises),
+		"output_contract": map[string]any{
+			"name":              "string",
+			"objective":         "string",
+			"duration_minutes":  "number",
+			"target_muscles":    []string{},
+			"mandatory_count":   "number",
+			"generated_at":      "RFC3339 datetime string",
+			"generation_source": "string",
+			"exercises": []map[string]string{
+				{
+					"exercise_id":   "string",
+					"name":          "string",
+					"muscle_group":  "string",
+					"exercise_type": "string",
+					"is_mandatory":  "boolean",
+					"sets":          "array of planned sets with set_number, target_reps_min, target_reps_max, target_reps_text, target_weight_kg, target_rir, rest_seconds, notes",
+				},
+			},
+		},
+	}
+
+	systemInstruction := "You are a workout planner improving an existing routine. Keep the response compatible with the existing routine format. Use user_context and existing_routine together. Only return valid JSON matching output_contract. Prefer the provided exercise_catalog. Do not include markdown."
+
+	generated, err := s.callGeminiForRoutineJSON(ctx, inputPayload, systemInstruction, now)
+	if err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+
+	if strings.TrimSpace(generated.Objective) == "" {
+		generated.Objective = fmt.Sprintf("Upgrade of %s", strings.TrimSpace(routine.Name))
+	}
+	if generated.DurationMinutes <= 0 {
+		generated.DurationMinutes = estimateRoutineDurationMinutes(routine)
+	}
+	if len(generated.TargetMuscles) == 0 {
+		generated.TargetMuscles = extractRoutineTargetMuscles(&routine)
+	}
+
+	return generated, nil
+}
+
+func (s *RoutineAIService) callGeminiForRoutineJSON(
+	ctx context.Context,
+	inputPayload map[string]any,
+	systemInstruction string,
+	now time.Time,
+) (model.AIRoutineJSON, error) {
+	if s.apiKey == "" {
+		return model.AIRoutineJSON{}, ErrAIRoutineMissingAPIKey
+	}
+
+	userPromptBytes, _ := json.Marshal(inputPayload)
+
+	requestBody := map[string]any{
+		"system_instruction": map[string]any{
+			"parts": []map[string]string{
+				{"text": systemInstruction},
+			},
+		},
+		"contents": []map[string]any{
+			{
+				"parts": []map[string]string{
+					{"text": string(userPromptBytes)},
+				},
+			},
+		},
+		"generationConfig": map[string]any{
+			"temperature":      0.3,
+			"responseMimeType": "application/json",
+		},
+	}
+
+	bodyBytes, _ := json.Marshal(requestBody)
+	endpoint := fmt.Sprintf(
+		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		url.PathEscape(s.model),
+		url.QueryEscape(s.apiKey),
+	)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	httpResp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+	defer httpResp.Body.Close()
+
+	responseBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+
+	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		return model.AIRoutineJSON{}, fmt.Errorf("%w: gemini status %d", ErrAIRoutineProviderUnavailable, httpResp.StatusCode)
+	}
+
+	var geminiResp geminiGenerateContentResponse
+	if err := json.Unmarshal(responseBody, &geminiResp); err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+
+	jsonText := extractGeminiText(geminiResp)
+	if strings.TrimSpace(jsonText) == "" {
+		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
+	}
+
+	var generated model.AIRoutineJSON
+	if err := json.Unmarshal([]byte(jsonText), &generated); err != nil {
+		return model.AIRoutineJSON{}, err
+	}
+
+	generated.GeneratedAt = now
+	if strings.TrimSpace(generated.GenerationSource) == "" {
+		generated.GenerationSource = "gemini"
+	}
+
+	return generated, nil
+}
+
 func (s *RoutineAIService) saveGeneratedRoutine(
 	ctx context.Context,
 	userID string,
@@ -274,34 +459,10 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 	generated model.AIRoutineJSON,
 	availableExercises []model.Exercise,
 ) (string, error) {
-	availableExerciseIDs := make(map[string]struct{}, len(availableExercises))
-	for _, exercise := range availableExercises {
-		availableExerciseIDs[exercise.ID] = struct{}{}
+	exercisesToSave, err := s.buildExercisesToSave(generated, availableExercises)
+	if err != nil {
+		return "", err
 	}
-
-	seenExerciseIDs := make(map[string]struct{}, len(generated.Exercises))
-	exercisesToSave := make([]model.AIRoutineExerciseToSave, 0, len(generated.Exercises))
-	for _, exercise := range generated.Exercises {
-		exerciseID := strings.TrimSpace(exercise.ExerciseID)
-		if exerciseID == "" {
-			continue
-		}
-		if _, ok := availableExerciseIDs[exerciseID]; !ok {
-			return "", fmt.Errorf("%w: generated unknown exercise id %s", ErrAIRoutineProviderUnavailable, exerciseID)
-		}
-		if _, exists := seenExerciseIDs[exerciseID]; exists {
-			continue
-		}
-
-		exercisesToSave = append(exercisesToSave, model.AIRoutineExerciseToSave{
-			ExerciseID: exerciseID,
-			Order:      len(exercisesToSave) + 1,
-			Notes:      buildAIRoutineExerciseNotes(exercise),
-			Sets:       buildAIRoutineExerciseSetsToSave(exercise),
-		})
-		seenExerciseIDs[exerciseID] = struct{}{}
-	}
-
 	if len(exercisesToSave) == 0 {
 		return "", ErrAIRoutineProviderUnavailable
 	}
@@ -317,6 +478,41 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 		Description: buildAIRoutineDescription(req, generated),
 		Exercises:   exercisesToSave,
 	})
+}
+
+func (s *RoutineAIService) buildExercisesToSave(
+	generated model.AIRoutineJSON,
+	availableExercises []model.Exercise,
+) ([]model.AIRoutineExerciseToSave, error) {
+	availableExerciseIDs := make(map[string]struct{}, len(availableExercises))
+	for _, exercise := range availableExercises {
+		availableExerciseIDs[exercise.ID] = struct{}{}
+	}
+
+	seenExerciseIDs := make(map[string]struct{}, len(generated.Exercises))
+	exercisesToSave := make([]model.AIRoutineExerciseToSave, 0, len(generated.Exercises))
+	for _, exercise := range generated.Exercises {
+		exerciseID := strings.TrimSpace(exercise.ExerciseID)
+		if exerciseID == "" {
+			continue
+		}
+		if _, ok := availableExerciseIDs[exerciseID]; !ok {
+			return nil, fmt.Errorf("%w: generated unknown exercise id %s", ErrAIRoutineProviderUnavailable, exerciseID)
+		}
+		if _, exists := seenExerciseIDs[exerciseID]; exists {
+			continue
+		}
+
+		exercisesToSave = append(exercisesToSave, model.AIRoutineExerciseToSave{
+			ExerciseID: exerciseID,
+			Order:      len(exercisesToSave) + 1,
+			Notes:      buildAIRoutineExerciseNotes(exercise),
+			Sets:       buildAIRoutineExerciseSetsToSave(exercise),
+		})
+		seenExerciseIDs[exerciseID] = struct{}{}
+	}
+
+	return exercisesToSave, nil
 }
 
 func (s *RoutineAIService) buildUserContext(
@@ -622,4 +818,132 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (s *RoutineAIService) enforceAIRoutineRateLimit(
+	ctx context.Context,
+	userID string,
+	now time.Time,
+) (int, time.Time, error) {
+	since := now.Add(-aiRoutineRateWindow)
+	used, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+
+	resetAt := now.Add(aiRoutineRateWindow)
+	if used >= aiRoutineRateLimit {
+		return used, resetAt, ErrAIRoutineRateLimited
+	}
+
+	return used, resetAt, nil
+}
+
+func buildAIRoutineRateLimitStatus(used int, resetAt time.Time) model.AIRoutineRateLimitStatus {
+	remaining := aiRoutineRateLimit - used
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	return model.AIRoutineRateLimitStatus{
+		Limit:               aiRoutineRateLimit,
+		Remaining:           remaining,
+		UsedInCurrentWindow: used,
+		WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
+		ResetAt:             resetAt,
+	}
+}
+
+func buildAIExerciseCatalog(exercises []model.Exercise) []map[string]string {
+	exerciseCatalog := make([]map[string]string, 0, len(exercises))
+	for _, exercise := range exercises {
+		exerciseCatalog = append(exerciseCatalog, map[string]string{
+			"id":            exercise.ID,
+			"name":          exercise.Name,
+			"muscle_group":  exercise.MuscleGroup,
+			"exercise_type": exercise.ExerciseType,
+		})
+	}
+	return exerciseCatalog
+}
+
+func buildAIRoutineJSONFromRoutine(routine model.Routine, now time.Time) model.AIRoutineJSON {
+	exercises := make([]model.AIRoutineExercise, 0, len(routine.Exercises))
+	mandatoryCount := 0
+	for _, exercise := range routine.Exercises {
+		sets := make([]model.AIRoutineExerciseSet, 0, len(exercise.Sets))
+		for _, set := range exercise.Sets {
+			sets = append(sets, model.AIRoutineExerciseSet{
+				SetNumber:             set.SetNumber,
+				TargetRepsMin:         set.TargetRepsMin,
+				TargetRepsMax:         set.TargetRepsMax,
+				TargetRepsText:        set.TargetRepsText,
+				TargetWeightKg:        set.TargetWeightKg,
+				TargetDurationSeconds: set.TargetDurationSeconds,
+				TargetDistanceKm:      set.TargetDistanceKm,
+				TargetRir:             set.TargetRir,
+				RestSeconds:           set.RestSeconds,
+				Notes:                 set.Notes,
+			})
+		}
+
+		isMandatory := exercise.ExerciseOrder <= 2
+		if isMandatory {
+			mandatoryCount++
+		}
+
+		exercises = append(exercises, model.AIRoutineExercise{
+			ExerciseID:      exercise.ExerciseID,
+			Name:            exercise.ExerciseName,
+			MuscleGroup:     exercise.MuscleGroup,
+			ExerciseType:    exercise.ExerciseType,
+			IsMandatory:     isMandatory,
+			RecommendedSets: len(sets),
+			Sets:            sets,
+		})
+	}
+
+	return model.AIRoutineJSON{
+		Name:             routine.Name,
+		Objective:        routine.Description,
+		DurationMinutes:  estimateRoutineDurationMinutes(routine),
+		TargetMuscles:    extractRoutineTargetMuscles(&routine),
+		MandatoryCount:   mandatoryCount,
+		GeneratedAt:      now,
+		Exercises:        exercises,
+		GenerationSource: routine.Source,
+	}
+}
+
+func extractRoutineTargetMuscles(routine *model.Routine) []string {
+	if routine == nil {
+		return nil
+	}
+
+	muscles := make([]string, 0, len(routine.Exercises))
+	for _, exercise := range routine.Exercises {
+		muscles = append(muscles, exercise.MuscleGroup)
+	}
+	return normalizeTextList(muscles)
+}
+
+func estimateRoutineDurationMinutes(routine model.Routine) int {
+	if len(routine.Exercises) == 0 {
+		return 0
+	}
+
+	totalSets := 0
+	for _, exercise := range routine.Exercises {
+		if len(exercise.Sets) > 0 {
+			totalSets += len(exercise.Sets)
+			continue
+		}
+		totalSets += 3
+	}
+
+	estimated := totalSets * 3
+	if estimated < 20 {
+		estimated = 20
+	}
+	return estimated
 }
