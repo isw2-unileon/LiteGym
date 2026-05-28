@@ -1,149 +1,105 @@
 # LiteGym
 
-## Overview
+LiteGym is a full-stack fitness application for managing routines, tracking workouts, reviewing performance history, and generating AI-assisted training plans. The project is organized as a monorepo with a Go backend, a React frontend, a PostgreSQL database, and a Playwright E2E test package.
 
-This project is a desktop-oriented web application designed for users who want to track and analyze their workouts in a detailed and intelligent way. It combines workout management, performance analytics, social interaction, and AI-driven recommendations into a single platform.
+The application currently focuses on these product areas:
 
-The application allows users to monitor their progress, manage training routines, compare results with friends, and receive personalized suggestions through an integrated AI assistant.
+- authentication and session-based access control
+- exercise catalog management with official and user-owned exercises
+- routine browsing, routine detail, and AI-generated routine preview/save flows
+- workout session execution with exercises and sets
+- dashboard and exercise insights
+- support tickets and basic admin views
 
----
-
-## Key Features
-
-### Main Dashboard
-
-- **Workout Calendar**  
-  Visual representation of past and scheduled training sessions.
-
-- **Workout History**  
-  Detailed log of all completed workouts.
-
-- **Statistics Radar Chart**  
-  Displays performance metrics across different muscle groups such as chest, back, legs, cardio, and more.
-
-- **Muscle Heatmap**  
-  Visualizes muscle engagement and training intensity over time.
-
-- **Workout Streak System**  
-  Tracks consistency and encourages habit-building through gamification.
-
-- **Quick Start Training Button**  
-  Fast access to begin a new workout session.
-
----
-
-### Routine Management
-
-- **Predefined Routines**  
-  Standard workout splits such as chest, back, and legs.
-
-- **Custom Routines**  
-  Users can create, edit, and manage personalized workout plans.
-
-- **AI-Generated Routines**  
-  Automatic routine creation based on the user’s profile, fitness level, and goals.
-
-- **Routine Improvement Suggestions**  
-  Existing routines can be analyzed and optimized with AI-generated recommendations.
-
----
-
-### Performance and Analytics
-
-- **One-Rep Max Prediction**  
-  Estimate the maximum weight a user can lift for a single repetition in a given exercise.
-
-- **Fatigue Indicators**  
-  Detect signs of fatigue by analyzing workout performance and progression.
-
-- **Smart Exercise Counter**  
-  Intelligent counting system adapted to the type of exercise being performed.
-
-- **Progressive Overload Charts**  
-  Visual representation of progress over time based on recorded workout data.
-
-- **Calorie Burn Estimation**  
-  Approximate the calories burned during a workout session.
-
-- **Workout Duration Tracking**  
-  Record and analyze the duration of each training session.
-
----
-
-### Active Workout View
-
-- **Session Progress Bar**  
-  Shows the percentage of the current workout that has been completed.
-
-- **Exercise List**  
-  Displays the exercises included in the current routine, with the ability to mark completed sets and view previous statistics.
-
-- **Weight and Repetition Logging**  
-  Users can add, edit, and update repetitions and weights in real time during the workout.
-
----
-
-### Social Features
-
-- **Friends Statistics**  
-  Compare performance, progress, and workout consistency with friends.
-
-- **Friend System and Routine Sharing**  
-  Add friends and share routines through unique invitation or sharing codes.
-
-- **Restricted Access**  
-  Only friends can access shared routines and personal performance statistics.
-
----
-
-### AI Chatbot
-
-- **Personalized Recommendations**  
-  Analyze workout history, physical progress, and performance data to provide customized advice.
-
-- **Routine Generation**  
-  Create workout plans based on specific goals such as fat loss, muscle gain, or performance improvement.
-
----
-
-### Administrator Role
-
-- **User Management**  
-  Create, modify, and delete user accounts.
-
-- **Support Ticket Management**  
-  Handle support requests and user issues related to official exercises or platform usage.
-
----
-
-## Tech Stack
-
-- **Backend:** Go (Golang)
-- **Frontend:** React + TypeScript + Vite
-- **Styling:** Tailwind CSS
-- **Testing:** Usage of TDD and End-to-end test
-- **Artificial Intelligence:** AI chatbot for recommendations and routine generation with the usage of Gemini API Key
-- **Data Persistence:** PostgreSQL with the usage of Supabase
-
----
-
-## Project Structure
+## Repository map
 
 ```text
-├── backend/              Go API server (Gin)
-│   ├── cmd/server/       Entry point
-│   └── internal/
-│       │── config/       Environment config
-│       │── model/        Structs to match database tables
-│       │── repository/   Manage CRUD operations
-│       │── service/      Connects all the internal modules with the repositories
-│       └── transport/    API Core
-│           └── handlers/ Helps to the API Core
-│
-├── frontend/             React + TypeScript + Vite + Tailwind
-│   └── src/
-│
-├── e2e/                  Playwright E2E tests
-├── .github/workflows/    CI/CD pipelines
-└── Makefile              Development commands
+.
+|-- backend/                 Go API server
+|   |-- cmd/server/          bootstrap entry point
+|   `-- internal/            config, model, repository, service, transport
+|-- frontend/                React + TypeScript + Vite application
+|-- e2e/                     Playwright end-to-end tests
+|-- postgress-local/         local PostgreSQL image, schema, seed data
+|-- docs/                    project documentation
+|-- compose.yaml             full local stack
+`-- Makefile                 common developer commands
 ```
+
+## Main stack
+
+- Backend: Go, Gin, pgx, PostgreSQL
+- Frontend: React 19, TypeScript, React Router, Vite
+- Styling: CSS utility-first approach with Tailwind tooling in the frontend stack
+- Testing: Go unit/integration tests, Vitest, Playwright
+- AI: Gemini API for AI-generated routines
+
+## Quick start
+
+### Prerequisites
+
+- Go
+- Node.js and npm
+- Docker or Podman with compose support
+
+### Local setup
+
+1. Copy the example environment file and fill in the values you need.
+2. Start the local database.
+3. Run backend and frontend in separate terminals.
+
+Typical commands:
+
+```bash
+make start-postgres-db
+make run-backend
+make run-frontend
+```
+
+Frontend runs on `http://localhost:5173` and the backend on `http://localhost:8080`.
+
+## Documentation
+
+The detailed project documentation lives in [`docs/`](docs/index.md).
+
+- [Documentation index](docs/index.md)
+- [Getting started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Backend guide](docs/backend.md)
+- [Frontend guide](docs/frontend.md)
+- [API reference](docs/api-reference.md)
+- [Database guide](docs/database.md)
+- [AI integration](docs/ai-integration.md)
+- [Testing guide](docs/testing.md)
+
+## Development commands
+
+Common commands are exposed through the root `Makefile`:
+
+```bash
+make install
+make run-backend
+make run-frontend
+make build-backend
+make build-frontend
+make test
+make test-integration
+make lint
+make e2e
+```
+
+There are also stack management targets for the local database and the full application snapshot:
+
+```bash
+make start-postgres-db
+make reset-postgres-db
+make start-app-snapshot
+make down-app-snapshot
+```
+
+## Current notes
+
+- AI routine generation currently uses a preview-and-confirm flow.
+- The AI service creates user-owned exercises automatically when Gemini proposes a valid new exercise that does not already exist in the catalog.
+- AI routine endpoints are rate-limited by an in-memory transport middleware (see `RateLimiter.AI()`); the older DB-backed limiter in the AI service is currently disabled.

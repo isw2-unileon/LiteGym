@@ -477,9 +477,10 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 			description,
 			muscle_group,
 			exercise_type,
-			is_official
+			is_official,
+			owner_user_id
 		)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id::text, created_at
 	`
 
@@ -491,6 +492,7 @@ func (r *exerciseRepository) Create(ctx context.Context, exercise *model.Exercis
 		exercise.MuscleGroup,
 		exercise.ExerciseType,
 		exercise.IsOfficial,
+		exercise.OwnerUserID,
 	).Scan(&exercise.ID, &exercise.CreatedAt); err != nil {
 		return err
 	}

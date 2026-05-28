@@ -7,10 +7,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -23,6 +25,11 @@ type routineAITestRoutineRepository struct {
 	savedRoutine *model.AIRoutineToSave
 }
 
+type routineAITestExerciseRepository struct {
+	exercises        []model.Exercise
+	createdExercises []*model.Exercise
+}
+
 func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{
 		{ID: "routine-1", Name: "Push Pull Legs", ExerciseCount: 6},
@@ -32,6 +39,10 @@ func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, u
 
 func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
+}
+
+func (r *routineAITestRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+	return nil, nil
 }
 
 func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
@@ -57,6 +68,64 @@ func (r *routineAITestRoutineRepository) ListAvailableExercisesForAI(
 		{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound"},
 		{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound"},
 	}, nil
+}
+
+func (r *routineAITestExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
+	for index := range r.exercises {
+		if r.exercises[index].ID == id {
+			exercise := r.exercises[index]
+			return &exercise, nil
+		}
+	}
+
+	return nil, pgx.ErrNoRows
+}
+
+func (r *routineAITestExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
+	matches := make([]model.Exercise, 0, len(r.exercises))
+	for _, exercise := range r.exercises {
+		if filters.Search != "" && !containsInsensitive(exercise.Name, filters.Search) {
+			continue
+		}
+		if filters.Type != "" && exercise.ExerciseType != filters.Type {
+			continue
+		}
+		if filters.MuscleGroup != "" && exercise.MuscleGroup != filters.MuscleGroup {
+			continue
+		}
+		matches = append(matches, exercise)
+	}
+
+	return matches, len(matches), nil
+}
+
+func (r *routineAITestExerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	return nil, nil
+}
+
+func (r *routineAITestExerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	return model.ExerciseInsights{}, nil
+}
+
+func (r *routineAITestExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
+	exercise.ID = "created-exercise-" + time.Now().UTC().Format("150405.000000")
+	exercise.CreatedAt = time.Now().UTC()
+	exerciseCopy := *exercise
+	r.exercises = append(r.exercises, exerciseCopy)
+	r.createdExercises = append(r.createdExercises, &exerciseCopy)
+	return nil
+}
+
+func (r *routineAITestExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	return nil
+}
+
+func (r *routineAITestExerciseRepository) DeleteExercise(ctx context.Context, id string) error {
+	return nil
+}
+
+func containsInsensitive(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
 
 type routineAITestWorkoutSessionRepository struct{}
@@ -172,8 +241,15 @@ func (r *routineAITestBodyMetricRepository) ListRecentByUser(ctx context.Context
 
 func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	routineRepo := &routineAITestRoutineRepository{}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
 	svc := NewRoutineAIService(
 		routineRepo,
+		NewExerciseService(exerciseRepo),
 		&routineAITestWorkoutSessionRepository{},
 		&routineAITestBodyMetricRepository{},
 		"test-key",
@@ -214,28 +290,15 @@ func TestGenerateRoutineJSONIncludesCompactUserContext(t *testing.T) {
 	}
 
 	response, err := svc.GenerateRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", model.AIRoutineGenerationRequest{
-		Objective:            "Ganar fuerza",
-		TargetMuscleGroups:   []string{"chest", "legs"},
-		MandatoryExerciseIDs: []string{"exercise-1"},
-		DurationMinutes:      60,
+		Objective:          "Ganar fuerza",
+		TargetMuscleGroups: []string{"chest", "legs"},
+		MandatoryExercises: []string{"Bench Press"},
+		Notes:              "Prioriza press con barra y descanso amplio.",
+		DurationMinutes:    60,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error generating routine: %v", err)
 	}
-
-	assertGeneratedRoutineResponse(t, response, routineRepo.savedRoutine)
-
-	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
-	userContext := mapField(t, promptPayload, "user_context")
-	assertCompactUserContext(t, userContext)
-}
-
-func assertGeneratedRoutineResponse(
-	t *testing.T,
-	response model.AIRoutineGenerateResponse,
-	savedRoutine *model.AIRoutineToSave,
-) {
-	t.Helper()
 
 	if response.RoutineJSON.Objective != "Ganar fuerza" {
 		t.Fatalf("expected objective to be preserved, got %q", response.RoutineJSON.Objective)
@@ -249,27 +312,101 @@ func assertGeneratedRoutineResponse(
 	if response.RoutineJSON.GeneratedAt.IsZero() {
 		t.Fatal("expected generated_at to be populated")
 	}
-	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 1 {
-		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
+	if response.RoutineID != "" {
+		t.Fatalf("expected preview response to omit routine id, got %q", response.RoutineID)
 	}
-	if response.RoutineID != "saved-routine-1" {
-		t.Fatalf("expected saved routine id, got %q", response.RoutineID)
+	if routineRepo.savedRoutine != nil {
+		t.Fatal("did not expect preview generation to save a routine")
 	}
-	if savedRoutine == nil {
+
+	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
+	userContext := mapField(t, promptPayload, "user_context")
+	assertCompactUserContext(t, userContext)
+
+	mandatoryExercises := sliceField(t, promptPayload, "mandatory_exercises", 1)
+	if got := mandatoryExercises[0].(string); got != "Bench Press" {
+		t.Fatalf("expected mandatory exercise name to be sent, got %q", got)
+	}
+	if got := promptPayload["user_notes"].(string); got != "Prioriza press con barra y descanso amplio." {
+		t.Fatalf("expected user notes to be forwarded, got %q", got)
+	}
+
+	systemInstruction := strings.TrimSpace(capturedPromptSystemInstruction(t, capturedPrompt))
+	if !strings.Contains(systemInstruction, "Build the most complete and sensible routine possible") {
+		t.Fatalf("expected system instruction to encourage adaptive exercise count, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Do not force a one-to-one mapping") {
+		t.Fatalf("expected system instruction to avoid one-to-one muscle mapping, got %q", systemInstruction)
+	}
+}
+
+func TestGenerateRoutineJSONResolvesHallucinatedExerciseIDByName(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{}
+	exerciseRepo := &routineAITestExerciseRepository{}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"name\":\"Rutina de fuerza\",\"exercises\":[{\"exercise_id\":\"66666666-6666-6666-6666-666666666661\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"sets\":[{\"set_number\":1,\"target_reps_min\":5,\"target_reps_max\":5,\"target_rir\":2,\"rest_seconds\":120}]}]}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := svc.GenerateRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", model.AIRoutineGenerationRequest{
+		Objective:       "Ganar fuerza",
+		DurationMinutes: 60,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error generating routine: %v", err)
+	}
+
+	if response.RoutineID != "" {
+		t.Fatalf("expected preview response to omit routine id, got %q", response.RoutineID)
+	}
+
+	saved, err := svc.SaveGeneratedRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", response.RoutineJSON)
+	if err != nil {
+		t.Fatalf("unexpected error saving generated routine: %v", err)
+	}
+
+	if saved.RoutineID != "saved-routine-1" {
+		t.Fatalf("expected saved routine id, got %q", saved.RoutineID)
+	}
+	if routineRepo.savedRoutine == nil {
 		t.Fatal("expected generated routine to be saved")
 	}
-	if savedRoutine.Name != "Rutina de empuje" {
-		t.Fatalf("expected saved routine name, got %q", savedRoutine.Name)
+	if len(routineRepo.savedRoutine.Exercises) != 1 {
+		t.Fatalf("expected one saved exercise, got %#v", routineRepo.savedRoutine.Exercises)
 	}
-	if len(savedRoutine.Exercises) != 1 || savedRoutine.Exercises[0].ExerciseID != "exercise-1" {
-		t.Fatalf("unexpected saved routine exercises: %#v", savedRoutine.Exercises)
+	if len(exerciseRepo.createdExercises) != 1 {
+		t.Fatalf("expected one exercise to be created, got %#v", exerciseRepo.createdExercises)
 	}
-	if len(savedRoutine.Exercises[0].Sets) != 1 {
-		t.Fatalf("expected one planned set, got %#v", savedRoutine.Exercises[0].Sets)
-	}
-	savedSet := savedRoutine.Exercises[0].Sets[0]
-	if savedSet.TargetWeightKg == nil || *savedSet.TargetWeightKg != 75 {
-		t.Fatalf("expected saved target weight, got %#v", savedSet.TargetWeightKg)
+	if exerciseRepo.createdExercises[0].OwnerUserID == nil || *exerciseRepo.createdExercises[0].OwnerUserID != "550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("expected created exercise to belong to the requesting user, got %#v", exerciseRepo.createdExercises[0].OwnerUserID)
 	}
 }
 
@@ -291,6 +428,24 @@ func decodeCapturedPromptPayload(t *testing.T, capturedPrompt map[string]any) ma
 	}
 
 	return promptPayload
+}
+
+func capturedPromptSystemInstruction(t *testing.T, capturedPrompt map[string]any) string {
+	t.Helper()
+
+	systemInstruction, ok := capturedPrompt["system_instruction"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected system_instruction object, got %#v", capturedPrompt["system_instruction"])
+	}
+
+	parts := sliceField(t, systemInstruction, "parts", 1)
+	part := mapItem(t, parts[0], "system instruction part")
+	rawText, ok := part["text"].(string)
+	if !ok {
+		t.Fatalf("expected system instruction text string, got %#v", part["text"])
+	}
+
+	return rawText
 }
 
 func assertCompactUserContext(t *testing.T, userContext map[string]any) {
@@ -368,8 +523,10 @@ func sliceField(t *testing.T, values map[string]any, key string, minLen int) []a
 }
 
 func TestGenerateRoutineJSONFailsWithoutAPIKey(t *testing.T) {
+	exerciseRepo := &routineAITestExerciseRepository{}
 	svc := NewRoutineAIService(
 		&routineAITestRoutineRepository{},
+		NewExerciseService(exerciseRepo),
 		&routineAITestWorkoutSessionRepository{},
 		&routineAITestBodyMetricRepository{},
 		"",
@@ -388,5 +545,36 @@ func TestGenerateRoutineJSONFailsWithoutAPIKey(t *testing.T) {
 	})
 	if !errors.Is(err, ErrAIRoutineMissingAPIKey) {
 		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
+func TestGenerateRoutineJSONTreatsMalformedGeminiResponseAsProviderUnavailable(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{}
+	exerciseRepo := &routineAITestExerciseRepository{}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("{not-json")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	_, err := svc.GenerateRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", model.AIRoutineGenerationRequest{
+		Objective:       "Ganar fuerza",
+		DurationMinutes: 60,
+	})
+	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
+		t.Fatalf("expected provider unavailable error, got %v", err)
 	}
 }
