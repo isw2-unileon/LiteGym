@@ -117,7 +117,7 @@ type AIRoutineRateLimitStatus struct {
 
 // AIRoutineGenerateResponse wraps generated JSON plus rate-limit metadata.
 type AIRoutineGenerateResponse struct {
-	RoutineJSON AIRoutineJSON            `json:"routine_json"`
-	RoutineID   string                   `json:"routine_id,omitempty"`
-	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
+	RoutineJSON AIRoutineJSON             `json:"routine_json"`
+	RoutineID   string                    `json:"routine_id,omitempty"`
+	RateLimit   *AIRoutineRateLimitStatus `json:"rate_limit,omitempty"`
 }
