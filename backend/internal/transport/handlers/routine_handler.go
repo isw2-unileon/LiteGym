@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -105,14 +104,6 @@ func (h *RoutineHandler) GenerateRoutineJSON(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrAIRoutineInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "objective and duration_minutes are required"})
-			return
-		}
-		if errors.Is(err, service.ErrAIRoutineRateLimited) {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "ai generation rate limit exceeded (max 2 per hour)",
-				"rate_limit":  response.RateLimit,
-				"retry_after": int(time.Until(response.RateLimit.ResetAt).Seconds()),
-			})
 			return
 		}
 		if errors.Is(err, service.ErrAIRoutineProviderUnavailable) {

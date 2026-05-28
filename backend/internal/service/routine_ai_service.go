@@ -20,20 +20,13 @@ import (
 var (
 	// ErrAIRoutineInvalidInput indicates that the generation request is incomplete or invalid.
 	ErrAIRoutineInvalidInput = errors.New("invalid ai routine input")
-	// ErrAIRoutineRateLimited indicates that the user exhausted the generation quota.
-	ErrAIRoutineRateLimited = errors.New("ai routine generation rate limit exceeded")
 	// ErrAIRoutineProviderUnavailable indicates that Gemini could not return a usable routine.
 	ErrAIRoutineProviderUnavailable = errors.New("ai provider unavailable")
 	// ErrAIRoutineMissingAPIKey indicates that Gemini credentials are not configured.
 	ErrAIRoutineMissingAPIKey = errors.New("ai provider missing api key")
 )
 
-const (
-	aiRoutineRateLimitEnabled = false
-	aiRoutineRateWindow       = time.Hour
-)
-
-// RoutineAIService generates AI routine JSON and enforces per-user rate limits.
+// RoutineAIService generates AI routine JSON and persists AI routines.
 type RoutineAIService struct {
 	repo               repository.RoutineRepository
 	exerciseService    *ExerciseService
@@ -93,29 +86,6 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 		"mandatory_exercises_count", len(normalizeTextList(req.MandatoryExercises)),
 		"notes_present", strings.TrimSpace(req.Notes) != "",
 	)
-
-	var used int
-	if aiRoutineRateLimitEnabled {
-		since := now.Add(-aiRoutineRateWindow)
-		usedValue, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
-		if err != nil {
-			return model.AIRoutineGenerateResponse{}, err
-		}
-		used = usedValue
-
-		resetAt := now.Add(aiRoutineRateWindow)
-		if used >= 2 {
-			return model.AIRoutineGenerateResponse{
-				RateLimit: model.AIRoutineRateLimitStatus{
-					Limit:               2,
-					Remaining:           0,
-					UsedInCurrentWindow: used,
-					WindowSeconds:       int(aiRoutineRateWindow.Seconds()),
-					ResetAt:             resetAt,
-				},
-			}, ErrAIRoutineRateLimited
-		}
-	}
 
 	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, req.TargetMuscleGroups, 200)
 	if err != nil {

@@ -91,6 +91,7 @@ func setupRouterInternal(
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(corsMiddleware(resolveCORSAllowOrigins(corsAllowOrigin)))
+	rateLimiter := middleware.NewRateLimiter()
 
 	// Health check
 	r.GET("/health", healthHandler.Health)
@@ -101,15 +102,22 @@ func setupRouterInternal(
 	// --------------------
 	// Public endpoints
 	// --------------------
-	api.POST("/users", userHandler.CreateUser)
-	api.POST("/auth/login", authHandler.Login)
-	api.POST("/auth/logout", authHandler.Logout)
+	api.POST("/users", rateLimiter.Register(), userHandler.CreateUser)
+	api.POST("/auth/login", rateLimiter.Login(), authHandler.Login)
+	api.POST("/auth/logout", rateLimiter.PublicAuth(), authHandler.Logout)
 
 	// --------------------
 	// Protected endpoints
 	// --------------------
 	protected := api.Group("")
 	protected.Use(authMiddleware.RequireAuth())
+	protected.Use(rateLimiter.Protected())
+
+	heavyReads := protected.Group("")
+	heavyReads.Use(rateLimiter.ProtectedReadHeavy())
+
+	aiLimited := protected.Group("")
+	aiLimited.Use(rateLimiter.AI())
 
 	// General
 	protected.GET("/hello", func(c *gin.Context) {
@@ -149,23 +157,23 @@ func setupRouterInternal(
 	// Exercises
 	protected.POST("/exercises", exerciseHandler.CreateExercise)
 	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
-	protected.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
-	protected.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
+	heavyReads.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
+	heavyReads.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
 	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
-	protected.GET("/exercises", exerciseHandler.ListExercises)
+	heavyReads.GET("/exercises", exerciseHandler.ListExercises)
 	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
 	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
 
 	// Routines
 	if routineHandler != nil {
-		protected.GET("/routines", routineHandler.ListRoutines)
-		protected.GET("/routines/:id", routineHandler.GetRoutine)
-		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
-		protected.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
+		heavyReads.GET("/routines", routineHandler.ListRoutines)
+		heavyReads.GET("/routines/:id", routineHandler.GetRoutine)
+		aiLimited.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+		aiLimited.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
 	}
 
 	// Dashboard
-	protected.GET("/dashboard", overviewHandler.GetOverview)
+	heavyReads.GET("/dashboard", overviewHandler.GetOverview)
 
 	// Tickets
 	protected.POST("/tickets", ticketHandler.CreateTicket)
