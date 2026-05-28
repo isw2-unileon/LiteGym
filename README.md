@@ -102,4 +102,4 @@ make down-app-snapshot
 
 - AI routine generation currently uses a preview-and-confirm flow.
 - The AI service creates user-owned exercises automatically when Gemini proposes a valid new exercise that does not already exist in the catalog.
-- The AI routine rate limit code path exists in the backend, but it is currently disabled in the service implementation.
+- AI routine endpoints are rate-limited by an in-memory transport middleware (see `RateLimiter.AI()`); the older DB-backed limiter in the AI service is currently disabled.
