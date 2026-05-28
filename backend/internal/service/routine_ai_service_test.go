@@ -408,39 +408,7 @@ func TestGenerateRoutineJSONFailsWithoutAPIKey(t *testing.T) {
 func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
 	routineRepo := &routineAITestRoutineRepository{
 		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
-			repsMin := 6
-			repsMax := 8
-			weight := 70.0
-			rest := 120
-			return &model.Routine{
-				ID:          routineID,
-				UserID:      userID,
-				Name:        "Push Day",
-				Description: "Improve upper body strength",
-				Source:      "manual",
-				Exercises: []model.RoutineExercise{
-					{
-						ID:            "re-1",
-						RoutineID:     routineID,
-						ExerciseID:    "exercise-1",
-						ExerciseName:  "Bench Press",
-						MuscleGroup:   "chest",
-						ExerciseType:  "compound",
-						ExerciseOrder: 1,
-						Sets: []model.RoutineSet{
-							{
-								ID:                "set-1",
-								RoutineExerciseID: "re-1",
-								SetNumber:         1,
-								TargetRepsMin:     &repsMin,
-								TargetRepsMax:     &repsMax,
-								TargetWeightKg:    &weight,
-								RestSeconds:       &rest,
-							},
-						},
-					},
-				},
-			}, nil
+			return testRoutineForUpgrade(routineID, userID), nil
 		},
 	}
 
@@ -493,12 +461,7 @@ func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
 		t.Fatalf("unexpected error upgrading routine: %v", err)
 	}
 
-	if response.RoutineJSON.Name != "Push Day 2.0" {
-		t.Fatalf("expected upgraded routine name, got %q", response.RoutineJSON.Name)
-	}
-	if response.RateLimit.Remaining != 1 {
-		t.Fatalf("expected one remaining generation, got %#v", response.RateLimit)
-	}
+	assertRoutineUpgradeResponse(t, response)
 	if routineRepo.savedRoutine != nil {
 		t.Fatal("did not expect upgrade flow to persist the routine")
 	}
@@ -524,6 +487,69 @@ func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
 	}
 }
 
+func testRoutineForUpgrade(routineID, userID string) *model.Routine {
+	repsMin := 6
+	repsMax := 8
+	weight := 70.0
+	rest := 120
+
+	return &model.Routine{
+		ID:          routineID,
+		UserID:      userID,
+		Name:        "Push Day",
+		Description: "Improve upper body strength",
+		Source:      "manual",
+		Exercises: []model.RoutineExercise{
+			{
+				ID:            "re-1",
+				RoutineID:     routineID,
+				ExerciseID:    "exercise-1",
+				ExerciseName:  "Bench Press",
+				MuscleGroup:   "chest",
+				ExerciseType:  "compound",
+				ExerciseOrder: 1,
+				Sets: []model.RoutineSet{
+					{
+						ID:                "set-1",
+						RoutineExerciseID: "re-1",
+						SetNumber:         1,
+						TargetRepsMin:     &repsMin,
+						TargetRepsMax:     &repsMax,
+						TargetWeightKg:    &weight,
+						RestSeconds:       &rest,
+					},
+				},
+			},
+		},
+	}
+}
+
+func assertRoutineUpgradeResponse(t *testing.T, response model.AIRoutineUpgradeResponse) {
+	t.Helper()
+
+	if response.RoutineJSON.Name != "Push Day 2.0" {
+		t.Fatalf("expected upgraded routine name, got %q", response.RoutineJSON.Name)
+	}
+	if response.RateLimit.Remaining != 1 {
+		t.Fatalf("expected one remaining generation, got %#v", response.RateLimit)
+	}
+	if response.Diff.Summary.AddedExercises != 1 || response.Diff.Summary.ModifiedExercises != 1 {
+		t.Fatalf("unexpected diff summary: %#v", response.Diff.Summary)
+	}
+	if len(response.Diff.Exercises) != 2 {
+		t.Fatalf("expected two diff exercise entries, got %#v", response.Diff.Exercises)
+	}
+	if response.Diff.Exercises[0].ChangeType != "modified" {
+		t.Fatalf("expected first exercise diff to be modified, got %#v", response.Diff.Exercises[0])
+	}
+	if len(response.Diff.Exercises[0].Sets) != 1 || response.Diff.Exercises[0].Sets[0].ChangeType != "modified" {
+		t.Fatalf("expected first exercise set diff to be modified, got %#v", response.Diff.Exercises[0].Sets)
+	}
+	if response.Diff.Exercises[1].ChangeType != "added" {
+		t.Fatalf("expected second exercise diff to be added, got %#v", response.Diff.Exercises[1])
+	}
+}
+
 func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 	svc := NewRoutineAIService(
 		&routineAITestRoutineRepository{
@@ -545,5 +571,70 @@ func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 	}
 	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 0 {
 		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
+	}
+}
+
+func TestBuildAIRoutineUpgradeDiff(t *testing.T) {
+	before := model.AIRoutineJSON{
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsText: "6-8"},
+				},
+			},
+			{
+				ExerciseID:   "exercise-2",
+				Name:         "Row",
+				MuscleGroup:  "back",
+				ExerciseType: "compound",
+			},
+		},
+	}
+	after := model.AIRoutineJSON{
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsText: "5-7"},
+				},
+			},
+			{
+				ExerciseID:   "exercise-3",
+				Name:         "Shoulder Press",
+				MuscleGroup:  "shoulders",
+				ExerciseType: "compound",
+			},
+		},
+	}
+
+	diff := buildAIRoutineUpgradeDiff(before, after)
+
+	if diff.Summary.AddedExercises != 1 {
+		t.Fatalf("expected one added exercise, got %#v", diff.Summary)
+	}
+	if diff.Summary.RemovedExercises != 1 {
+		t.Fatalf("expected one removed exercise, got %#v", diff.Summary)
+	}
+	if diff.Summary.ModifiedExercises != 1 {
+		t.Fatalf("expected one modified exercise, got %#v", diff.Summary)
+	}
+	if len(diff.Exercises) != 3 {
+		t.Fatalf("expected three exercise diff entries, got %#v", diff.Exercises)
+	}
+	if diff.Exercises[0].ChangeType != "modified" || diff.Exercises[0].Sets[0].ChangeType != "modified" {
+		t.Fatalf("expected first entry to be modified with modified set, got %#v", diff.Exercises[0])
+	}
+	if diff.Exercises[1].ChangeType != "removed" {
+		t.Fatalf("expected second entry removed, got %#v", diff.Exercises[1])
+	}
+	if diff.Exercises[2].ChangeType != "added" {
+		t.Fatalf("expected third entry added, got %#v", diff.Exercises[2])
 	}
 }

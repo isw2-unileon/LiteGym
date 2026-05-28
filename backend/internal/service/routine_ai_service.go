@@ -172,12 +172,16 @@ func (s *RoutineAIService) UpgradeRoutineJSON(
 		return model.AIRoutineUpgradeResponse{}, err
 	}
 
+	originalRoutineJSON := buildAIRoutineJSONFromRoutine(*routine, now)
+	diff := buildAIRoutineUpgradeDiff(originalRoutineJSON, generated)
+
 	if err := s.repo.LogAIGeneration(ctx, userID, now); err != nil {
 		return model.AIRoutineUpgradeResponse{}, err
 	}
 
 	return model.AIRoutineUpgradeResponse{
 		RoutineJSON: generated,
+		Diff:        diff,
 		RateLimit:   buildAIRoutineRateLimitStatus(used+1, resetAt),
 	}, nil
 }
@@ -946,4 +950,266 @@ func estimateRoutineDurationMinutes(routine model.Routine) int {
 		estimated = 20
 	}
 	return estimated
+}
+
+func buildAIRoutineUpgradeDiff(
+	before model.AIRoutineJSON,
+	after model.AIRoutineJSON,
+) model.AIRoutineUpgradeDiff {
+	beforeByExerciseID, beforeOrderByExerciseID := indexAIRoutineExercises(before.Exercises)
+	afterByExerciseID, afterOrderByExerciseID := indexAIRoutineExercises(after.Exercises)
+	orderedIDs := orderedAIRoutineExerciseIDs(before.Exercises, after.Exercises)
+
+	diff := model.AIRoutineUpgradeDiff{
+		Exercises: make([]model.AIRoutineExerciseDiffEntry, 0, len(orderedIDs)),
+	}
+
+	for _, exerciseID := range orderedIDs {
+		beforeExercise, hasBefore := beforeByExerciseID[exerciseID]
+		afterExercise, hasAfter := afterByExerciseID[exerciseID]
+
+		switch {
+		case !hasBefore && hasAfter:
+			diff.Summary.AddedExercises++
+			diff.Exercises = append(diff.Exercises, buildAddedExerciseDiff(afterExercise, afterOrderByExerciseID[exerciseID]))
+		case hasBefore && !hasAfter:
+			diff.Summary.RemovedExercises++
+			diff.Exercises = append(diff.Exercises, buildRemovedExerciseDiff(beforeExercise, beforeOrderByExerciseID[exerciseID]))
+		default:
+			entry := buildModifiedOrUnchangedExerciseDiff(
+				beforeExercise,
+				afterExercise,
+				beforeOrderByExerciseID[exerciseID],
+				afterOrderByExerciseID[exerciseID],
+			)
+			if entry.ChangeType == "modified" {
+				diff.Summary.ModifiedExercises++
+			} else {
+				diff.Summary.UnchangedExercises++
+			}
+			diff.Exercises = append(diff.Exercises, entry)
+		}
+	}
+
+	return diff
+}
+
+func indexAIRoutineExercises(exercises []model.AIRoutineExercise) (map[string]model.AIRoutineExercise, map[string]int) {
+	byExerciseID := make(map[string]model.AIRoutineExercise, len(exercises))
+	orderByExerciseID := make(map[string]int, len(exercises))
+	for index, exercise := range exercises {
+		exerciseID := strings.TrimSpace(exercise.ExerciseID)
+		if exerciseID == "" {
+			continue
+		}
+		byExerciseID[exerciseID] = exercise
+		orderByExerciseID[exerciseID] = index + 1
+	}
+	return byExerciseID, orderByExerciseID
+}
+
+func orderedAIRoutineExerciseIDs(before, after []model.AIRoutineExercise) []string {
+	orderedIDs := make([]string, 0, len(before)+len(after))
+	seenIDs := make(map[string]struct{}, len(before)+len(after))
+	appendUniqueAIRoutineExerciseIDs(&orderedIDs, seenIDs, before)
+	appendUniqueAIRoutineExerciseIDs(&orderedIDs, seenIDs, after)
+	return orderedIDs
+}
+
+func appendUniqueAIRoutineExerciseIDs(
+	orderedIDs *[]string,
+	seenIDs map[string]struct{},
+	exercises []model.AIRoutineExercise,
+) {
+	for _, exercise := range exercises {
+		exerciseID := strings.TrimSpace(exercise.ExerciseID)
+		if exerciseID == "" {
+			continue
+		}
+		if _, exists := seenIDs[exerciseID]; exists {
+			continue
+		}
+		*orderedIDs = append(*orderedIDs, exerciseID)
+		seenIDs[exerciseID] = struct{}{}
+	}
+}
+
+func buildAddedExerciseDiff(exercise model.AIRoutineExercise, order int) model.AIRoutineExerciseDiffEntry {
+	orderPtr := routineAIIntPointer(order)
+	return model.AIRoutineExerciseDiffEntry{
+		ChangeType:        "added",
+		ExerciseID:        exercise.ExerciseID,
+		AfterName:         exercise.Name,
+		AfterOrder:        orderPtr,
+		AfterMuscleGroup:  exercise.MuscleGroup,
+		AfterExerciseType: exercise.ExerciseType,
+		Sets:              buildSetDiffEntries(nil, exercise.Sets),
+	}
+}
+
+func buildRemovedExerciseDiff(exercise model.AIRoutineExercise, order int) model.AIRoutineExerciseDiffEntry {
+	orderPtr := routineAIIntPointer(order)
+	return model.AIRoutineExerciseDiffEntry{
+		ChangeType:         "removed",
+		ExerciseID:         exercise.ExerciseID,
+		BeforeName:         exercise.Name,
+		BeforeOrder:        orderPtr,
+		BeforeMuscleGroup:  exercise.MuscleGroup,
+		BeforeExerciseType: exercise.ExerciseType,
+		Sets:               buildSetDiffEntries(exercise.Sets, nil),
+	}
+}
+
+func buildModifiedOrUnchangedExerciseDiff(
+	before model.AIRoutineExercise,
+	after model.AIRoutineExercise,
+	beforeOrder int,
+	afterOrder int,
+) model.AIRoutineExerciseDiffEntry {
+	beforeOrderPtr := routineAIIntPointer(beforeOrder)
+	afterOrderPtr := routineAIIntPointer(afterOrder)
+	setDiffs := buildSetDiffEntries(before.Sets, after.Sets)
+
+	entry := model.AIRoutineExerciseDiffEntry{
+		ChangeType:         "unchanged",
+		ExerciseID:         after.ExerciseID,
+		BeforeName:         before.Name,
+		AfterName:          after.Name,
+		BeforeOrder:        beforeOrderPtr,
+		AfterOrder:         afterOrderPtr,
+		BeforeMuscleGroup:  before.MuscleGroup,
+		AfterMuscleGroup:   after.MuscleGroup,
+		BeforeExerciseType: before.ExerciseType,
+		AfterExerciseType:  after.ExerciseType,
+		IsMandatoryChanged: before.IsMandatory != after.IsMandatory,
+		Sets:               setDiffs,
+	}
+
+	if before.Name != after.Name ||
+		before.MuscleGroup != after.MuscleGroup ||
+		before.ExerciseType != after.ExerciseType ||
+		before.IsMandatory != after.IsMandatory ||
+		beforeOrder != afterOrder ||
+		hasChangedSetDiff(setDiffs) {
+		entry.ChangeType = "modified"
+	}
+
+	return entry
+}
+
+func buildSetDiffEntries(
+	beforeSets []model.AIRoutineExerciseSet,
+	afterSets []model.AIRoutineExerciseSet,
+) []model.AIRoutineExerciseSetDiffEntry {
+	maxLen := len(beforeSets)
+	if len(afterSets) > maxLen {
+		maxLen = len(afterSets)
+	}
+
+	diffs := make([]model.AIRoutineExerciseSetDiffEntry, 0, maxLen)
+	for index := 0; index < maxLen; index++ {
+		beforeSet, afterSet := routineAISetPointersAt(beforeSets, afterSets, index)
+		setNumber := resolveRoutineAISetNumber(index, beforeSet, afterSet)
+		changeType := classifyRoutineAISetChange(beforeSet, afterSet)
+
+		diffs = append(diffs, model.AIRoutineExerciseSetDiffEntry{
+			ChangeType: changeType,
+			SetNumber:  setNumber,
+			Before:     beforeSet,
+			After:      afterSet,
+		})
+	}
+
+	return diffs
+}
+
+func routineAISetPointersAt(
+	beforeSets []model.AIRoutineExerciseSet,
+	afterSets []model.AIRoutineExerciseSet,
+	index int,
+) (*model.AIRoutineExerciseSet, *model.AIRoutineExerciseSet) {
+	var beforeSet *model.AIRoutineExerciseSet
+	var afterSet *model.AIRoutineExerciseSet
+
+	if index < len(beforeSets) {
+		beforeCopy := beforeSets[index]
+		beforeSet = &beforeCopy
+	}
+	if index < len(afterSets) {
+		afterCopy := afterSets[index]
+		afterSet = &afterCopy
+	}
+
+	return beforeSet, afterSet
+}
+
+func resolveRoutineAISetNumber(index int, beforeSet, afterSet *model.AIRoutineExerciseSet) int {
+	if afterSet != nil && afterSet.SetNumber > 0 {
+		return afterSet.SetNumber
+	}
+	if beforeSet != nil && beforeSet.SetNumber > 0 {
+		return beforeSet.SetNumber
+	}
+	return index + 1
+}
+
+func classifyRoutineAISetChange(beforeSet, afterSet *model.AIRoutineExerciseSet) string {
+	switch {
+	case beforeSet == nil && afterSet != nil:
+		return "added"
+	case beforeSet != nil && afterSet == nil:
+		return "removed"
+	case beforeSet != nil && afterSet != nil && !equalAIRoutineSets(*beforeSet, *afterSet):
+		return "modified"
+	default:
+		return "unchanged"
+	}
+}
+
+func equalAIRoutineSets(a, b model.AIRoutineExerciseSet) bool {
+	return a.SetNumber == b.SetNumber &&
+		equalOptionalInt(a.TargetRepsMin, b.TargetRepsMin) &&
+		equalOptionalInt(a.TargetRepsMax, b.TargetRepsMax) &&
+		a.TargetRepsText == b.TargetRepsText &&
+		equalOptionalFloat(a.TargetWeightKg, b.TargetWeightKg) &&
+		equalOptionalInt(a.TargetDurationSeconds, b.TargetDurationSeconds) &&
+		equalOptionalFloat(a.TargetDistanceKm, b.TargetDistanceKm) &&
+		equalOptionalInt(a.TargetRir, b.TargetRir) &&
+		equalOptionalInt(a.RestSeconds, b.RestSeconds) &&
+		a.Notes == b.Notes
+}
+
+func hasChangedSetDiff(entries []model.AIRoutineExerciseSetDiffEntry) bool {
+	for _, entry := range entries {
+		if entry.ChangeType != "unchanged" {
+			return true
+		}
+	}
+	return false
+}
+
+func equalOptionalInt(a, b *int) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
+}
+
+func equalOptionalFloat(a, b *float64) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
+}
+
+func routineAIIntPointer(value int) *int {
+	return &value
 }

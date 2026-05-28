@@ -130,5 +130,44 @@ type AIRoutineGenerateResponse struct {
 // AIRoutineUpgradeResponse wraps an upgraded routine proposal plus rate-limit metadata.
 type AIRoutineUpgradeResponse struct {
 	RoutineJSON AIRoutineJSON            `json:"routine_json"`
+	Diff        AIRoutineUpgradeDiff     `json:"diff"`
 	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
+}
+
+// AIRoutineUpgradeDiff represents a routine comparison prepared for a git-diff-style UI.
+type AIRoutineUpgradeDiff struct {
+	Summary   AIRoutineUpgradeDiffSummary  `json:"summary"`
+	Exercises []AIRoutineExerciseDiffEntry `json:"exercises"`
+}
+
+// AIRoutineUpgradeDiffSummary aggregates the overall changes between routine versions.
+type AIRoutineUpgradeDiffSummary struct {
+	AddedExercises     int `json:"added_exercises"`
+	RemovedExercises   int `json:"removed_exercises"`
+	ModifiedExercises  int `json:"modified_exercises"`
+	UnchangedExercises int `json:"unchanged_exercises"`
+}
+
+// AIRoutineExerciseDiffEntry describes the change for one exercise between two routine versions.
+type AIRoutineExerciseDiffEntry struct {
+	ChangeType         string                          `json:"change_type"`
+	ExerciseID         string                          `json:"exercise_id"`
+	BeforeName         string                          `json:"before_name,omitempty"`
+	AfterName          string                          `json:"after_name,omitempty"`
+	BeforeOrder        *int                            `json:"before_order,omitempty"`
+	AfterOrder         *int                            `json:"after_order,omitempty"`
+	BeforeMuscleGroup  string                          `json:"before_muscle_group,omitempty"`
+	AfterMuscleGroup   string                          `json:"after_muscle_group,omitempty"`
+	BeforeExerciseType string                          `json:"before_exercise_type,omitempty"`
+	AfterExerciseType  string                          `json:"after_exercise_type,omitempty"`
+	IsMandatoryChanged bool                            `json:"is_mandatory_changed,omitempty"`
+	Sets               []AIRoutineExerciseSetDiffEntry `json:"sets,omitempty"`
+}
+
+// AIRoutineExerciseSetDiffEntry describes the change for one set in one exercise.
+type AIRoutineExerciseSetDiffEntry struct {
+	ChangeType string                `json:"change_type"`
+	SetNumber  int                   `json:"set_number"`
+	Before     *AIRoutineExerciseSet `json:"before,omitempty"`
+	After      *AIRoutineExerciseSet `json:"after,omitempty"`
 }
