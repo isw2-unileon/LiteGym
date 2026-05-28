@@ -27,15 +27,15 @@ type rateLimitPolicy struct {
 
 type rateLimitEntry struct {
 	limiter  *rate.Limiter
-	lastSeen  time.Time
+	lastSeen time.Time
 }
 
 type rateLimitStore struct {
-	mu           sync.Mutex
-	entries      map[string]*rateLimitEntry
-	ttl          time.Duration
-	sweepFreq    time.Duration
-	lastSweep    time.Time
+	mu        sync.Mutex
+	entries   map[string]*rateLimitEntry
+	ttl       time.Duration
+	sweepFreq time.Duration
+	lastSweep time.Time
 }
 
 func newRateLimitStore(ttl, sweepFreq time.Duration) *rateLimitStore {
@@ -72,12 +72,6 @@ func (s *rateLimitStore) limiterFor(key string, limit rate.Limit, burst int, now
 
 	entry.lastSeen = now
 	return entry.limiter
-}
-
-func (s *rateLimitStore) cleanup(now time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.cleanupLocked(now)
 }
 
 func (s *rateLimitStore) cleanupLocked(now time.Time) {

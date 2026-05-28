@@ -87,7 +87,7 @@ test-integration:
 
 ## Run linters
 lint:
-	$(shell go env GOPATH)/bin/golangci-lint run ./backend/...
+	GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache $(shell go env GOPATH)/bin/golangci-lint run ./backend/...
 	cd frontend && npm run lint
 
 ## Run E2E tests, requires backend and frontend running

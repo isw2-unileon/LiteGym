@@ -154,15 +154,7 @@ func setupRouterInternal(
 	protected.GET("/users/:id", userHandler.GetUserByID)
 	protected.DELETE("/users/:id", userHandler.DeleteUser)
 
-	// Exercises
-	protected.POST("/exercises", exerciseHandler.CreateExercise)
-	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
-	heavyReads.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
-	heavyReads.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
-	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
-	heavyReads.GET("/exercises", exerciseHandler.ListExercises)
-	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
-	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+	registerExerciseRoutes(protected, heavyReads, exerciseHandler)
 
 	// Routines
 	if routineHandler != nil {
@@ -180,6 +172,30 @@ func setupRouterInternal(
 	protected.GET("/tickets", ticketHandler.ListTickets)
 	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
 
+	registerWorkoutRoutes(protected, workoutHandler)
+
+	return r
+}
+
+func registerExerciseRoutes(
+	protected, heavyReads gin.IRoutes,
+	exerciseHandler *handlers.ExerciseHandler,
+) {
+	// Exercises
+	protected.POST("/exercises", exerciseHandler.CreateExercise)
+	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
+	heavyReads.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
+	heavyReads.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
+	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
+	heavyReads.GET("/exercises", exerciseHandler.ListExercises)
+	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
+	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+}
+
+func registerWorkoutRoutes(
+	protected gin.IRoutes,
+	workoutHandler *handlers.WorkoutHandler,
+) {
 	// Workout
 	protected.POST("/workouts/planned", workoutHandler.CreatePlannedWorkout)
 	protected.POST("/workout/start", workoutHandler.CreateWorkout)
@@ -191,8 +207,6 @@ func setupRouterInternal(
 	protected.POST("/workout/:id/exercises/:exercise_id/set", workoutHandler.CreateWorkoutSet)
 	protected.GET("/workout/:id/exercises/:exercise_id/sets", workoutHandler.GetWorkoutSetsByExerciseID)
 	protected.POST("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.UpdateWorkoutSet)
-
-	return r
 }
 
 func resolveCORSAllowOrigins(corsAllowOrigin []string) []string {
