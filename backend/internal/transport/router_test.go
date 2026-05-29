@@ -31,6 +31,12 @@ func (m *MockDBPinger) Ping(ctx context.Context) error {
 type MockUserRepository struct{}
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
+	user.ID = "550e8400-e29b-41d4-a716-446655440000"
+	if user.Role == "" {
+		user.Role = "user"
+	}
+	user.CreatedAt = time.Now()
+	user.IsActive = true
 	return nil
 }
 
@@ -598,6 +604,39 @@ func TestLoginRoute(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized && w.Code != http.StatusOK {
 		t.Errorf("expected auth route to be registered, got status %d", w.Code)
+	}
+}
+
+func TestRegisterRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockDB := &MockDBPinger{}
+	mockUserRepo := &MockUserRepository{}
+	exerciseRepo := &MockExerciseRepository{}
+	workoutRepo := &MockWorkoutRepository{}
+
+	userService := service.NewUserService(mockUserRepo)
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	exerciseService := service.NewExerciseService(exerciseRepo)
+	workoutService := service.NewWorkoutService(workoutRepo)
+
+	userHandler := handlers.NewUserHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
+	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	healthHandler := handlers.NewHealthHandler()
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler)
+
+	body := strings.NewReader(`{"username":"newuser","email":"new@example.com","password":"password123"}`)
+	req := httptest.NewRequest("POST", "/api/auth/register", body)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected register route to create user, got status %d", w.Code)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
@@ -20,6 +21,13 @@ type AuthHandler struct {
 
 // LoginRequest represents the expected payload for login requests.
 type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// RegisterRequest represents the expected payload for registration requests.
+type RegisterRequest struct {
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -95,6 +103,72 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, gin.H{
+		"user": user,
+	})
+}
+
+// Register creates a new user account and sets the authentication cookie.
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	user := &model.User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: req.Password,
+		Role:         "user",
+	}
+
+	if err := h.userService.Create(c.Request.Context(), user); err != nil {
+		if errors.Is(err, service.ErrInvalidUserInput) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "username, email and password are required",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "username or email already registered",
+			})
+			return
+		}
+
+		slog.Error("failed to register user", "error", err, "username", req.Username, "email", req.Email)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to register user",
+		})
+		return
+	}
+
+	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username, user.Role)
+	if err != nil {
+		slog.Error("failed to generate auth token", "error", err, "user_id", user.ID)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate auth token",
+		})
+		return
+	}
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteNoneMode,
+		MaxAge:   int(h.tokenService.TTL().Seconds()),
+	})
+
+	c.JSON(http.StatusCreated, gin.H{
 		"user": user,
 	})
 }

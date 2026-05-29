@@ -8,6 +8,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,6 +21,9 @@ var (
 
 	// ErrUserNotFound indicates that the requested user does not exist.
 	ErrUserNotFound = errors.New("user not found")
+
+	// ErrUserAlreadyExists indicates that the provided username or email is already registered.
+	ErrUserAlreadyExists = errors.New("user already exists")
 )
 
 // UserService handles user-related business logic.
@@ -37,7 +41,7 @@ func NewUserService(repo repository.UserRepository) *UserService {
 // Create validates and creates a new user.
 func (s *UserService) Create(ctx context.Context, user *model.User) error {
 	user.Username = strings.TrimSpace(user.Username)
-	user.Email = strings.TrimSpace(user.Email)
+	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
 	user.PasswordHash = strings.TrimSpace(user.PasswordHash)
 
 	if user.Username == "" || user.Email == "" || user.PasswordHash == "" {
@@ -51,7 +55,15 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 
 	user.PasswordHash = string(hashedPassword)
 
-	return s.repo.Create(ctx, user)
+	if err := s.repo.Create(ctx, user); err != nil {
+		if isUniqueViolation(err) {
+			return ErrUserAlreadyExists
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // GetByID retrieves a user by ID.
@@ -117,4 +129,9 @@ func (s *UserService) Delete(ctx context.Context, id string) error {
 		return ErrUserNotFound
 	}
 	return err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

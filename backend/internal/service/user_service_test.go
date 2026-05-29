@@ -8,6 +8,7 @@ import (
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -80,6 +81,25 @@ func TestUserServiceCreateHashesPassword(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestUserServiceCreateReturnsUserAlreadyExistsOnUniqueViolation(t *testing.T) {
+	mockRepo := &mockUserRepository{
+		createFunc: func(ctx context.Context, user *model.User) error {
+			return &pgconn.PgError{Code: "23505"}
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	err := svc.Create(context.Background(), &model.User{
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: "password123",
+	})
+	if !errors.Is(err, ErrUserAlreadyExists) {
+		t.Fatalf("expected ErrUserAlreadyExists, got %v", err)
 	}
 }
 
