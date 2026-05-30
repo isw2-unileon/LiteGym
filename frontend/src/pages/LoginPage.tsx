@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
@@ -115,6 +115,13 @@ export default function LoginPage() {
                 {loginMessage}
               </p>
             )}
+
+            <p className="mt-6 text-sm font-semibold text-[#5b5347]">
+              No tienes cuenta?{" "}
+              <Link className="text-[#ea7130] underline decoration-[#ea7130]/35 underline-offset-4" to="/register">
+                Registrate
+              </Link>
+            </p>
           </div>
         </div>
       </section>

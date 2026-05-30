@@ -52,7 +52,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola,/i })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -78,6 +78,17 @@ describe("App", () => {
     });
   });
 
+  it("renders the register page route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Crea tu cuenta y empieza a entrenar con orden." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeInTheDocument();
+  });
+
   it("redirects unknown routes to dashboard when the session is valid", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: { id: "user-id" } }, { status: 200 })));
 
@@ -88,7 +99,7 @@ describe("App", () => {
     );
 
     expect(screen.getByText("Redirigiendo...")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Hola" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola,/i })).toBeInTheDocument();
   });
 
   it("redirects unknown routes to login when the session is missing", async () => {

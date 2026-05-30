@@ -41,6 +41,7 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Contrasena")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Iniciar sesion" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Registrate" })).toHaveAttribute("href", "/register");
     expect(screen.queryByRole("button", { name: "Probar" })).not.toBeInTheDocument();
   });
 
