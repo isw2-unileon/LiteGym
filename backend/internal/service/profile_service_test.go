@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -182,5 +183,33 @@ func TestProfileServiceAddBodyMetric_PropagatesRepoError(t *testing.T) {
 
 	if !errors.Is(err, repoErr) {
 		t.Errorf("expected repo error, got: %v", err)
+	}
+}
+
+// --- GenerateAIAnalysis ---
+
+func TestProfileServiceGenerateAIAnalysis_OfflineFallback(t *testing.T) {
+	svc := NewProfileService(&mockProfileRepository{}) // No API key -> offline fallback
+	stats := &model.ProfileStats{
+		TotalWorkouts: 4,
+		TotalSets:     12,
+		Goals: &model.UserGoal{
+			ShortTerm: "Ganar fuerza",
+		},
+		MuscleRadar: []model.MuscleRadarStat{{Muscle: "Hombros", Value: 8}},
+	}
+
+	analysis, err := svc.GenerateAIAnalysis(context.Background(), stats)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if analysis == "" {
+		t.Error("expected non-empty analysis feedback")
+	}
+	if !strings.Contains(analysis, "Ganar fuerza") {
+		t.Errorf("expected analysis to contain short-term goal 'Ganar fuerza', got: %s", analysis)
+	}
+	if !strings.Contains(analysis, "Hombros") {
+		t.Errorf("expected analysis to contain top muscle 'Hombros', got: %s", analysis)
 	}
 }

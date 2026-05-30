@@ -115,3 +115,29 @@ func (h *ProfileHandler) AddBodyMetric(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"message": "body metric added successfully"})
 }
+
+// GetAIAnalysis handles the request to generate a personalized performance coaching feedback.
+func (h *ProfileHandler) GetAIAnalysis(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.ContextUserIDKey)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	userID := userIDVal.(string)
+
+	// Fetch full dashboard statistics for all history to get the complete picture of progress
+	stats, err := h.profileService.GetDashboardStats(c.Request.Context(), userID, "all", 0, 0)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch stats for ai analysis"})
+		return
+	}
+
+	analysis, err := h.profileService.GenerateAIAnalysis(c.Request.Context(), stats)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate ai analysis"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"analysis": analysis})
+}

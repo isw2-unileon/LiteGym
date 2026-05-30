@@ -84,6 +84,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	sameSite := http.SameSiteLaxMode
+	if h.cookieSecure {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
@@ -91,7 +96,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: sameSite,
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
@@ -127,6 +132,11 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // Logout clears the authentication cookie for the current client.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	sameSite := http.SameSiteLaxMode
+	if h.cookieSecure {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
@@ -134,7 +144,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 		MaxAge:   -1,
 	})
 

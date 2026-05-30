@@ -311,3 +311,63 @@ func TestProfileHandlerAddBodyMetric_ServiceError(t *testing.T) {
 		t.Fatalf("expected 500, got %d", w.Code)
 	}
 }
+
+// --- GetAIAnalysis ---
+
+func TestProfileHandlerGetAIAnalysis_ReturnsOK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &mockProfileRepo{
+		getStatsFunc: func(_ context.Context, _ string, _ string, _ int, _ int) (*model.ProfileStats, error) {
+			return &model.ProfileStats{
+				TotalWorkouts: 2,
+				TotalSets:     10,
+				Goals: &model.UserGoal{
+					ShortTerm: "Tonificar brazos",
+				},
+				MuscleRadar: []model.MuscleRadarStat{{Muscle: "Brazos", Value: 6}},
+			}, nil
+		},
+	}
+
+	handler := NewProfileHandler(newTestProfileService(repo))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440000")
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/profile/ai-analysis", nil)
+
+	handler.GetAIAnalysis(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	analysis := result["analysis"]
+	if analysis == "" {
+		t.Error("expected analysis text in response, got empty")
+	}
+	if !strings.Contains(analysis, "Tonificar brazos") {
+		t.Errorf("expected analysis to contain goal 'Tonificar brazos', got: %s", analysis)
+	}
+}
+
+func TestProfileHandlerGetAIAnalysis_RequiresAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewProfileHandler(newTestProfileService(&mockProfileRepo{}))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/profile/ai-analysis", nil)
+
+	handler.GetAIAnalysis(c)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+}

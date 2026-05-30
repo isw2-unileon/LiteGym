@@ -134,11 +134,24 @@ export default function Profile() {
   const handleAIAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const radarData = stats?.muscle_radar || [];
-      const topMuscle = radarData.length > 0 ? [...radarData].sort((a, b) => b.value - a.value)[0]?.muscle || "Pecho" : "Pecho";
-      setAiInsight(`¡Vas genial! He analizado tu historial y veo que dominas el trabajo de ${topMuscle}. Para tu meta de "${goals.shortTerm || "progreso"}", céntrate en mantener el volumen esta semana.`);
-    } finally { setIsAnalyzing(false); }
+      const res = await fetch(apiUrl("/api/profile/ai-analysis"), {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        if (res.status === 429) {
+          setAiInsight("¡Uf! He estado analizando muchos perfiles hoy y necesito un breve descanso para recuperar energía. Vuelve a intentarlo en un ratito, ¡y seguiremos dándolo todo!");
+          return;
+        }
+        throw new Error("Error al obtener el análisis del entrenador IA");
+      }
+      const data = await res.json();
+      setAiInsight(data.analysis);
+    } catch {
+      setAiInsight("Parece que hubo un pequeño problema de conexión con tu entrenador. Inténtalo de nuevo más tarde.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleSaveMetric = async (e: React.FormEvent) => {
@@ -272,7 +285,7 @@ export default function Profile() {
               <span className="inline-block h-0.5 w-6 bg-[#265c52]" /> Perfil de atleta
             </div>
             <h1 className="m-0 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[44px] font-black leading-[0.92] tracking-[-0.055em] text-[#1f1b16] sm:text-[64px]">
-              Perfil de <span className="px-1 text-[#ea7130] [background:linear-gradient(180deg,transparent_60%,rgba(234,113,48,0.18)_60%)]">{user.username}</span>
+              Hola, <span className="px-1 text-[#ea7130] [background:linear-gradient(180deg,transparent_60%,rgba(234,113,48,0.18)_60%)]">{user.username}</span>
             </h1>
             <p className="mt-3.5 max-w-[640px] text-[15px] leading-[1.55] text-[#3a332c] flex items-center gap-2">
               <span className="bg-[#1f1b16]/10 px-2 py-1 rounded-md [font-family:'JetBrains_Mono',ui-monospace,monospace] text-xs font-bold">{user.email}</span>
@@ -312,7 +325,7 @@ export default function Profile() {
                 <p className="mt-1 text-sm text-[#fffaf0]/80 max-w-2xl">{aiInsight || "Haz clic para generar un análisis personalizado de tu rendimiento basado en tus últimas métricas."}</p>
               </div>
               <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="shrink-0 group relative cursor-pointer overflow-hidden rounded-[14px] bg-[#ea7130] px-6 py-4 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.30)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:opacity-50">
-                <span className="relative z-10">{isAnalyzing ? "Analizando datos..." : "✨ Generar Análisis"}</span>
+                <span className="relative z-10">{isAnalyzing ? "Analizando datos..." : "Generar Análisis"}</span>
               </button>
             </div>
           </Card>
@@ -438,7 +451,7 @@ export default function Profile() {
                       <XAxis dataKey="id" tickFormatter={(id) => weightData.find(d => d.id === id)?.date || ''} tick={{ fontSize: 10, fill: '#3a332c', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
                       <YAxis yAxisId="left" domain={['dataMin - 1', 'dataMax + 1']} tick={{ fontSize: 10, fill: '#3a332c', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
                       <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#6b4ea0', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-                      <Tooltip 
+                      <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length > 0) {
                             const data = payload[0]?.payload;
@@ -453,10 +466,10 @@ export default function Profile() {
                             );
                           }
                           return null;
-                        }} 
+                        }}
                       />
-                      
-                      <Line yAxisId="left" type="monotone" dataKey="weight" name="Peso (kg)" stroke="#ea7130" strokeWidth={3} 
+
+                      <Line yAxisId="left" type="monotone" dataKey="weight" name="Peso (kg)" stroke="#ea7130" strokeWidth={3}
                         dot={(props: { cx?: number; cy?: number; payload?: { isLast?: boolean; date?: string } }) => {
                           const { cx, cy, payload } = props;
                           if (!cx || !cy || !payload) return null;
@@ -465,7 +478,7 @@ export default function Profile() {
                           }
                           return <circle cx={cx} cy={cy} r={4} fill="#ea7130" key={`dot-${payload.date}`} />;
                         }}
-                        activeDot={{ r: 6 }} 
+                        activeDot={{ r: 6 }}
                       />
                       <Line yAxisId="right" type="monotone" dataKey="bmi" name="IMC" stroke="#6b4ea0" strokeWidth={2} strokeDasharray="5 5" connectNulls={true}
                         dot={(props: { cx?: number; cy?: number; payload?: { isLast?: boolean; date?: string; bmi?: number } }) => {
@@ -729,8 +742,7 @@ function BodyHeatmap({ data }: { data: MuscleRadarStat[] }) {
     const key = d.muscle.toLowerCase();
     return {
       name: d.muscle,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      muscles: (muscleMapping[key] || [key]) as any,
+      muscles: (muscleMapping[key] || [key]) as unknown as string[],
       frequency: Math.ceil((d.value / maxVal) * 5),
     };
   });

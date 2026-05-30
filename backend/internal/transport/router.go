@@ -164,6 +164,7 @@ func setupRouterInternal(
 		protected.GET("/profile/dashboard", profileHandler.GetDashboard)
 		protected.PUT("/profile/goals", profileHandler.UpdateGoals)
 		protected.POST("/profile/metrics", profileHandler.AddBodyMetric)
+		protected.POST("/profile/ai-analysis", rateLimiter.ProfileAI(), profileHandler.GetAIAnalysis)
 	}
 
 	registerExerciseRoutes(protected, heavyReads, exerciseHandler)

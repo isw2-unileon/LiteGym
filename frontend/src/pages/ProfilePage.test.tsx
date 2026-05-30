@@ -17,6 +17,8 @@ type ProfileFetchSetup = {
   stats?: unknown;
   meStatus?: number;
   statsStatus?: number;
+  aiStatus?: number;
+  aiResponse?: unknown;
 };
 
 function setupProfileFetchMock({
@@ -24,6 +26,8 @@ function setupProfileFetchMock({
   stats,
   meStatus = 200,
   statsStatus = 200,
+  aiStatus = 200,
+  aiResponse,
 }: ProfileFetchSetup) {
   const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -34,6 +38,10 @@ function setupProfileFetchMock({
 
     if (url.includes("/api/profile/dashboard")) {
       return Promise.resolve(jsonResponse(stats ?? {}, { status: statsStatus }));
+    }
+
+    if (url.includes("/api/profile/ai-analysis")) {
+      return Promise.resolve(jsonResponse(aiResponse ?? { analysis: "Analysis OK" }, { status: aiStatus }));
     }
 
     return Promise.resolve(jsonResponse({}, { status: 200 }));
@@ -135,5 +143,29 @@ describe("ProfilePage", () => {
 
     expect(await screen.findByRole("heading", { name: /Hola,\s*super_admin/i })).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
+  });
+
+  it("shows rate limit message when AI analysis returns 429", async () => {
+    const mockUser = { user: { id: "uuid-1234", username: "user1", email: "u@u.com", role: "user" } };
+    setupProfileFetchMock({ me: mockUser, stats: {}, aiStatus: 429 });
+
+    renderProfilePage();
+
+    const analyzeBtn = await screen.findByRole("button", { name: /Generar Análisis/i });
+    analyzeBtn.click();
+
+    expect(await screen.findByText("¡Uf! He estado analizando muchos perfiles hoy y necesito un breve descanso para recuperar energía. Vuelve a intentarlo en un ratito, ¡y seguiremos dándolo todo!")).toBeInTheDocument();
+  });
+
+  it("shows generic error message when AI analysis connection fails", async () => {
+    const mockUser = { user: { id: "uuid-1234", username: "user1", email: "u@u.com", role: "user" } };
+    setupProfileFetchMock({ me: mockUser, stats: {}, aiStatus: 500 });
+
+    renderProfilePage();
+
+    const analyzeBtn = await screen.findByRole("button", { name: /Generar Análisis/i });
+    analyzeBtn.click();
+
+    expect(await screen.findByText("Parece que hubo un pequeño problema de conexión con tu entrenador. Inténtalo de nuevo más tarde.")).toBeInTheDocument();
   });
 });
