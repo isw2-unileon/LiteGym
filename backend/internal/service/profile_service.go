@@ -72,60 +72,7 @@ func (s *ProfileService) GenerateAIAnalysis(ctx context.Context, stats *model.Pr
 		return s.generateOfflineFeedback(stats), nil
 	}
 
-	// 2. Format the user information for the prompt
-	shortTermGoal := "progreso general"
-	longTermGoal := "desarrollo constante"
-	targetDays := 3
-	if stats.Goals != nil {
-		if strings.TrimSpace(stats.Goals.ShortTerm) != "" {
-			shortTermGoal = stats.Goals.ShortTerm
-		}
-		if strings.TrimSpace(stats.Goals.LongTerm) != "" {
-			longTermGoal = stats.Goals.LongTerm
-		}
-		if stats.Goals.TargetDaysPerWeek > 0 {
-			targetDays = stats.Goals.TargetDaysPerWeek
-		}
-	}
-
-	var muscleList []string
-	for _, m := range stats.MuscleRadar {
-		muscleList = append(muscleList, fmt.Sprintf("%s (%d series)", m.Muscle, m.Value))
-	}
-	muscleDistribution := strings.Join(muscleList, ", ")
-	if muscleDistribution == "" {
-		muscleDistribution = "Ninguna serie registrada aún"
-	}
-
-	var exerciseList []string
-	for _, e := range stats.TopExercises {
-		exerciseList = append(exerciseList, fmt.Sprintf("%s (%d series)", e.Name, e.Sets))
-	}
-	topExercises := strings.Join(exerciseList, ", ")
-	if topExercises == "" {
-		topExercises = "Ninguno registrado"
-	}
-
-	var weightList []string
-	for _, w := range stats.WeightHistory {
-		weightList = append(weightList, fmt.Sprintf("%.1fkg (%s)", w.WeightKg, w.RecordedAt.Format("02/01")))
-	}
-	weightHistory := strings.Join(weightList, " -> ")
-	if weightHistory == "" {
-		weightHistory = "Sin registro de peso aún"
-	}
-
-	promptText := fmt.Sprintf(`Datos reales de progreso del usuario:
-- Objetivos: Corto plazo: "%s". Largo plazo: "%s". Días de entrenamiento semanales objetivo: %d días.
-- Actividad mensual: %d entrenamientos completados, %d minutos totales entrenados, %d series totales, %.1f kg de volumen total acumulado.
-- Reparto muscular por series: %s.
-- Ejercicios preferidos: %s.
-- Historial de peso corporal reciente: %s.
-
-Por favor, como mi entrenador personal, analízalos y dame tu feedback personalizado para mi meta de "%s".`,
-		shortTermGoal, longTermGoal, targetDays,
-		stats.TotalWorkouts, stats.TotalDuration, stats.TotalSets, stats.TotalVolume,
-		muscleDistribution, topExercises, weightHistory, shortTermGoal)
+	promptText, _ := s.buildProfileAIPrompt(stats)
 
 	systemInstruction := "Eres un entrenador personal de gimnasio e inteligencia artificial de LiteGym experto y motivador. Analiza los datos de rendimiento, métricas corporales e historial de entrenamiento del usuario y genera un análisis de rendimiento y consejos altamente personalizados, prácticos y motivadores en español. Mantén el tono profesional, cercano, enérgico y optimista. El análisis debe ser breve (máximo 3-4 frases o unos 300 caracteres) y estar en formato de texto plano sin usar ningún tipo de formato markdown (sin asteriscos, sin almohadillas, sin negrita, sin viñetas)."
 
@@ -237,4 +184,62 @@ func (s *ProfileService) generateOfflineFeedback(stats *model.ProfileStats) stri
 	}
 
 	return fmt.Sprintf("¡Vas genial con tu entrenamiento! He analizado tu historial y veo que dominas el trabajo de %s, con un total de %d series y %d entrenamientos completados. Para lograr tu meta de \"%s\", céntrate en mantener esta consistencia y registrar un nuevo pesaje esta semana.", topMuscle, stats.TotalSets, stats.TotalWorkouts, shortTerm)
+}
+
+func (s *ProfileService) buildProfileAIPrompt(stats *model.ProfileStats) (string, string) {
+	shortTermGoal := "progreso general"
+	longTermGoal := "desarrollo constante"
+	targetDays := 3
+	if stats.Goals != nil {
+		if strings.TrimSpace(stats.Goals.ShortTerm) != "" {
+			shortTermGoal = stats.Goals.ShortTerm
+		}
+		if strings.TrimSpace(stats.Goals.LongTerm) != "" {
+			longTermGoal = stats.Goals.LongTerm
+		}
+		if stats.Goals.TargetDaysPerWeek > 0 {
+			targetDays = stats.Goals.TargetDaysPerWeek
+		}
+	}
+
+	var muscleList []string
+	for _, m := range stats.MuscleRadar {
+		muscleList = append(muscleList, fmt.Sprintf("%s (%d series)", m.Muscle, m.Value))
+	}
+	muscleDistribution := strings.Join(muscleList, ", ")
+	if muscleDistribution == "" {
+		muscleDistribution = "Ninguna serie registrada aún"
+	}
+
+	var exerciseList []string
+	for _, e := range stats.TopExercises {
+		exerciseList = append(exerciseList, fmt.Sprintf("%s (%d series)", e.Name, e.Sets))
+	}
+	topExercises := strings.Join(exerciseList, ", ")
+	if topExercises == "" {
+		topExercises = "Ninguno registrado"
+	}
+
+	var weightList []string
+	for _, w := range stats.WeightHistory {
+		weightList = append(weightList, fmt.Sprintf("%.1fkg (%s)", w.WeightKg, w.RecordedAt.Format("02/01")))
+	}
+	weightHistory := strings.Join(weightList, " -> ")
+	if weightHistory == "" {
+		weightHistory = "Sin registro de peso aún"
+	}
+
+	promptText := fmt.Sprintf(`Datos reales de progreso del usuario:
+- Objetivos: Corto plazo: "%s". Largo plazo: "%s". Días de entrenamiento semanales objetivo: %d días.
+- Actividad mensual: %d entrenamientos completados, %d minutos totales entrenados, %d series totales, %.1f kg de volumen total acumulado.
+- Reparto muscular por series: %s.
+- Ejercicios preferidos: %s.
+- Historial de peso corporal reciente: %s.
+
+Por favor, como mi entrenador personal, analízalos y dame tu feedback personalizado para mi meta de "%s".`,
+		shortTermGoal, longTermGoal, targetDays,
+		stats.TotalWorkouts, stats.TotalDuration, stats.TotalSets, stats.TotalVolume,
+		muscleDistribution, topExercises, weightHistory, shortTermGoal)
+
+	return promptText, shortTermGoal
 }

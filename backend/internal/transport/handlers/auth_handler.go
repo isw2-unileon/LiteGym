@@ -89,7 +89,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		sameSite = http.SameSiteNoneMode
 	}
 
-	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
@@ -137,7 +136,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		sameSite = http.SameSiteNoneMode
 	}
 
-	//nolint:gosec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    "",

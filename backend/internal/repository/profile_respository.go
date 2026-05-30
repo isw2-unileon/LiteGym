@@ -26,7 +26,7 @@ func NewProfileRepository(db *pgxpool.Pool) ProfileRepository {
 }
 
 // GetStats aggregates all the user's data for the profile dashboard.
-//nolint:gocognit,gocyclo
+//nolint:gocognit,gocyclo,funlen
 func (r *profileRepository) GetStats(ctx context.Context, userID string, timeRange string, year int, month int) (*model.ProfileStats, error) {
 	stats := &model.ProfileStats{
 		TopExercises:  make([]model.ExerciseStat, 0),
