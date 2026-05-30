@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,7 @@ const (
 // and injects the parsed claims into the request context for downstream handlers.
 type AuthMiddleware struct {
 	tokenService *service.TokenService
+	userService  *service.UserService
 	cookieName   string
 }
 
@@ -31,9 +33,15 @@ type AuthMiddleware struct {
 //
 // tokenService is used to parse/verify tokens and cookieName specifies which cookie
 // contains the authentication token.
-func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *AuthMiddleware {
+func NewAuthMiddleware(tokenService *service.TokenService, cookieName string, userService ...*service.UserService) *AuthMiddleware {
+	var resolvedUserService *service.UserService
+	if len(userService) > 0 {
+		resolvedUserService = userService[0]
+	}
+
 	return &AuthMiddleware{
 		tokenService: tokenService,
+		userService:  resolvedUserService,
 		cookieName:   cookieName,
 	}
 }
@@ -55,6 +63,18 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: invalid or expired token"})
 			return
+		}
+
+		if m.userService != nil {
+			if _, err := m.userService.GetByID(c.Request.Context(), claims.Subject); err != nil {
+				if errors.Is(err, service.ErrUserNotFound) || errors.Is(err, service.ErrInvalidUserInput) {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: user not found"})
+					return
+				}
+
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to validate authenticated user"})
+				return
+			}
 		}
 
 		c.Set(ContextUserIDKey, claims.Subject)

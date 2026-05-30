@@ -55,13 +55,22 @@ type createExerciseToWorkoutRequest struct {
 }
 
 type createSetToExerciseRequest struct {
-	SetNumber   int      `json:"set_number"`
-	Repetitions *int     `json:"reps"`
-	WeightKg    *float64 `json:"weight_kg"`
-	Duration    *int     `json:"duration_seconds"`
-	DistanceKm  *float64 `json:"distance_km"`
-	Rir         *int     `json:"rir"`
-	Completed   *bool    `json:"completed"`
+	SetNumber             int        `json:"set_number"`
+	RoutineExerciseSetID  *uuid.UUID `json:"routine_exercise_set_id"`
+	TargetRepsMin         *int       `json:"target_reps_min"`
+	TargetRepsMax         *int       `json:"target_reps_max"`
+	TargetRepsText        string     `json:"target_reps_text"`
+	TargetWeightKg        *float64   `json:"target_weight_kg"`
+	TargetDurationSeconds *int       `json:"target_duration_seconds"`
+	TargetDistanceKm      *float64   `json:"target_distance_km"`
+	TargetRir             *int       `json:"target_rir"`
+	RestSeconds           *int       `json:"rest_seconds"`
+	Repetitions           *int       `json:"reps"`
+	WeightKg              *float64   `json:"weight_kg"`
+	Duration              *int       `json:"duration_seconds"`
+	DistanceKm            *float64   `json:"distance_km"`
+	Rir                   *int       `json:"rir"`
+	Completed             *bool      `json:"completed"`
 }
 
 /* Workout Session */
@@ -359,14 +368,23 @@ func (h *WorkoutHandler) CreateWorkoutSet(c *gin.Context) {
 	}
 
 	set := &model.WorkoutSet{
-		WorkoutExerciseID: parsedExerciseID,
-		SetNumber:         req.SetNumber,
-		Repetitions:       req.Repetitions,
-		WeightKg:          req.WeightKg,
-		Duration:          req.Duration,
-		DistanceKm:        req.DistanceKm,
-		Rir:               req.Rir,
-		Completed:         req.Completed,
+		WorkoutExerciseID:     parsedExerciseID,
+		RoutineExerciseSetID:  req.RoutineExerciseSetID,
+		SetNumber:             req.SetNumber,
+		TargetRepsMin:         req.TargetRepsMin,
+		TargetRepsMax:         req.TargetRepsMax,
+		TargetRepsText:        req.TargetRepsText,
+		TargetWeightKg:        req.TargetWeightKg,
+		TargetDurationSeconds: req.TargetDurationSeconds,
+		TargetDistanceKm:      req.TargetDistanceKm,
+		TargetRir:             req.TargetRir,
+		RestSeconds:           req.RestSeconds,
+		Repetitions:           req.Repetitions,
+		WeightKg:              req.WeightKg,
+		Duration:              req.Duration,
+		DistanceKm:            req.DistanceKm,
+		Rir:                   req.Rir,
+		Completed:             req.Completed,
 	}
 
 	if err := h.service.CreateWorkoutSet(c.Request.Context(), set); err != nil {
@@ -442,19 +460,19 @@ func (h *WorkoutHandler) UpdateWorkoutSet(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid workout id",
 		})
-		c.Abort()
+		return
 	}
 	if !okExercise {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid exercise id",
 		})
-		c.Abort()
+		return
 	}
 	if !okSet {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid set id",
 		})
-		c.Abort()
+		return
 	}
 
 	var req createSetToExerciseRequest
@@ -487,6 +505,7 @@ func (h *WorkoutHandler) UpdateWorkoutSet(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "workout set not found",
 			})
+			return
 		}
 		slog.Error("failed to update set to workout set", "error", err, "workout_id", workoutID)
 		c.JSON(http.StatusInternalServerError, gin.H{

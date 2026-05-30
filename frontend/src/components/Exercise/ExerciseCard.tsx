@@ -13,22 +13,31 @@ export default function ExerciseCard({
 }: ExerciseCardProps) {
     return (
         <li
-            className={`rounded-2xl border p-4 transition ${
+            className={`relative rounded-2xl border p-4 transition ${
                 isSelected
                     ? "border-[#ea7130] bg-[#fff3df] shadow-[0_18px_45px_rgba(234,113,48,0.18)]"
                     : "border-[#1f1b16]/10 bg-[#fffaf0] hover:border-[#ea7130]/35 hover:bg-[#fff7ea]"
             }`}
             data-block="exercise-card"
         >
+            {exercise.is_official === false && (
+                <span
+                    aria-label="Ejercicio propio"
+                    className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-[#265c52] ring-4 ring-[#265c52]/10"
+                    role="img"
+                    title="Ejercicio propio"
+                />
+            )}
+
             <button
                 type="button"
                 className="w-full text-left"
                 onClick={() => onSelect?.(exercise)}
             >
-                <div className="flex items-start justify-between gap-3">
-                    <div>
+                <div>
+                    <div className="min-w-0">
                         <h3
-                            className="text-lg font-black text-[#1f1b16]"
+                            className="break-words pr-5 text-lg font-black text-[#1f1b16]"
                             data-block="exercise-name"
                         >
                             {exercise.name}
@@ -41,12 +50,6 @@ export default function ExerciseCard({
                             {exercise.muscle_group}
                         </p>
                     </div>
-
-                    {exercise.is_official === false && (
-                        <span className="rounded-full border border-[#1f1b16]/10 bg-[#265c52]/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#265c52]">
-                            Propio
-                        </span>
-                    )}
                 </div>
 
                 {exercise.exercise_type && (

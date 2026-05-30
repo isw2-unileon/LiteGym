@@ -91,7 +91,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 

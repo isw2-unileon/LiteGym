@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
@@ -94,6 +95,70 @@ func (h *ExerciseHandler) GetMetadata(c *gin.Context) {
 	c.JSON(http.StatusOK, h.service.GetMetadata())
 }
 
+// ListWorkoutSessionsByExercise returns the authenticated user's workout sessions containing an exercise.
+func (h *ExerciseHandler) ListWorkoutSessionsByExercise(c *gin.Context) {
+	exerciseID, err := uuid.Parse(c.Param("id"))
+	if err != nil || exerciseID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		return
+	}
+
+	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	userID, _ := userIDValue.(string)
+	sessions, err := h.service.ListWorkoutSessionsByExercise(c.Request.Context(), exerciseID.String(), userID, 10)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrInvalidUserInput):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		default:
+			slog.Error("failed to list workout sessions for exercise", "error", err, "exercise_id", exerciseID.String(), "user_id", userID)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve workout sessions for exercise"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, sessions)
+}
+
+// GetExerciseInsights returns performance history for the authenticated user and selected exercise.
+func (h *ExerciseHandler) GetExerciseInsights(c *gin.Context) {
+	exerciseID, err := uuid.Parse(c.Param("id"))
+	if err != nil || exerciseID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		return
+	}
+
+	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	userID, _ := userIDValue.(string)
+	insights, err := h.service.GetInsights(c.Request.Context(), exerciseID.String(), userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidExerciseInput):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+		case errors.Is(err, service.ErrInvalidUserInput):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		default:
+			slog.Error("failed to get exercise insights", "error", err, "exercise_id", exerciseID.String(), "user_id", userID)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve exercise insights"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, insights)
+}
+
 // CreateExercise creates a new exercise.
 func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 	var req createExerciseRequest
@@ -118,6 +183,23 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		SecondaryMuscleGroup: strings.Join(req.SecondaryMuscleGroups, ", "),
 		ExerciseType:         req.ExerciseType,
 		IsOfficial:           isOfficial,
+	}
+
+	if !isOfficial {
+		userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+
+		userID, _ := userIDValue.(string)
+		userID = strings.TrimSpace(userID)
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+
+		exercise.OwnerUserID = &userID
 	}
 
 	err := h.service.Create(c.Request.Context(), &exercise)
