@@ -98,7 +98,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: h.sameSiteMode(),
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
@@ -164,7 +164,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: h.sameSiteMode(),
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
@@ -206,11 +206,19 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: h.sameSiteMode(),
 		MaxAge:   -1,
 	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "session closed",
 	})
+}
+
+func (h *AuthHandler) sameSiteMode() http.SameSite {
+	if h.cookieSecure {
+		return http.SameSiteNoneMode
+	}
+
+	return http.SameSiteLaxMode
 }

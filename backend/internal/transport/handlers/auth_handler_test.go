@@ -114,6 +114,9 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 	if !cookie.HttpOnly {
 		t.Error("expected auth cookie to be HttpOnly")
 	}
+	if cookie.SameSite != http.SameSiteLaxMode {
+		t.Errorf("expected SameSite Lax for insecure cookie, got %v", cookie.SameSite)
+	}
 	if cookie.Value == "" {
 		t.Error("expected auth cookie to contain a token")
 	}
@@ -166,6 +169,9 @@ func TestRegisterSuccessCreatesUserAndSetsCookie(t *testing.T) {
 	cookies := w.Result().Cookies()
 	if len(cookies) == 0 || cookies[0].Value == "" {
 		t.Fatal("expected auth cookie to be set after registration")
+	}
+	if cookies[0].SameSite != http.SameSiteLaxMode {
+		t.Fatalf("expected SameSite Lax for insecure cookie, got %v", cookies[0].SameSite)
 	}
 }
 
@@ -310,5 +316,52 @@ func TestLogoutClearsCookie(t *testing.T) {
 	}
 	if cookie.MaxAge != -1 {
 		t.Errorf("expected MaxAge -1, got %d", cookie.MaxAge)
+	}
+}
+
+func TestLoginSecureCookieUsesSameSiteNone(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	mockRepo := &MockAuthUserRepository{
+		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
+			return &model.User{
+				ID:           "550e8400-e29b-41d4-a716-446655440000",
+				Username:     "testuser",
+				Email:        email,
+				Role:         "user",
+				PasswordHash: string(hashedPassword),
+				CreatedAt:    time.Now(),
+			}, nil
+		},
+	}
+
+	userService := service.NewUserService(mockRepo)
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", true)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, _ := json.Marshal(LoginRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	})
+	c.Request = httptest.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	authHandler.Login(c)
+
+	cookies := w.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected auth cookie to be set")
+	}
+
+	if cookies[0].SameSite != http.SameSiteNoneMode {
+		t.Fatalf("expected SameSite None for secure cookie, got %v", cookies[0].SameSite)
 	}
 }
