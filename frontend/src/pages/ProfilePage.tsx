@@ -742,10 +742,10 @@ function BodyHeatmap({ data }: { data: MuscleRadarStat[] }) {
     const key = d.muscle.toLowerCase();
     return {
       name: d.muscle,
-      muscles: (muscleMapping[key] || [key]) as unknown as string[],
+      muscles: muscleMapping[key] || [key],
       frequency: Math.ceil((d.value / maxVal) * 5),
     };
-  });
+  }) as React.ComponentProps<typeof Model>["data"];
 
   const colors = [
     "rgba(234, 113, 48, 0.2)",
