@@ -89,6 +89,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		sameSite = http.SameSiteNoneMode
 	}
 
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
@@ -136,6 +137,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		sameSite = http.SameSiteNoneMode
 	}
 
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    "",
