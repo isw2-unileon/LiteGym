@@ -53,7 +53,7 @@ describe("RegisterPage", () => {
     renderRegisterPage();
 
     await user.type(screen.getByLabelText("Nombre de usuario"), "nuevo");
-    await user.type(screen.getByLabelText("Email"), "new@example.com");
+    await user.type(screen.getByLabelText("Email"), " New@Example.com ");
     await user.type(screen.getByLabelText("Contrasena"), "password123");
     await user.type(screen.getByLabelText("Repite la contrasena"), "password123");
     await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
@@ -93,9 +93,26 @@ describe("RegisterPage", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("shows a client-side error when the email does not include user and domain", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderRegisterPage();
+
+    await user.type(screen.getByLabelText("Nombre de usuario"), "nuevo");
+    await user.type(screen.getByLabelText("Email"), "user@domain");
+    await user.type(screen.getByLabelText("Contrasena"), "password123");
+    await user.type(screen.getByLabelText("Repite la contrasena"), "password123");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+
+    expect(await screen.findAllByText("Introduce un email valido con usuario y dominio.")).toHaveLength(2);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("shows the backend error when register fails", async () => {
     const user = userEvent.setup();
-    mockFetch(jsonResponse({ error: "username or email already registered" }, { status: 409 }));
+    mockFetch(jsonResponse({ error: "email already registered" }, { status: 409 }));
 
     renderRegisterPage();
 
@@ -105,6 +122,23 @@ describe("RegisterPage", () => {
     await user.type(screen.getByLabelText("Repite la contrasena"), "password123");
     await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
 
-    expect(await screen.findByText("username or email already registered")).toBeInTheDocument();
+    expect(await screen.findByText("Ya existe un usuario con ese correo electronico.")).toBeInTheDocument();
+  });
+
+  it("shows the translated rate limit message from the backend", async () => {
+    const user = userEvent.setup();
+    mockFetch(jsonResponse({ error: "registration rate limit exceeded" }, { status: 429 }));
+
+    renderRegisterPage();
+
+    await user.type(screen.getByLabelText("Nombre de usuario"), "nuevo");
+    await user.type(screen.getByLabelText("Email"), "new@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "password123");
+    await user.type(screen.getByLabelText("Repite la contrasena"), "password123");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+
+    expect(
+      await screen.findByText("Has intentado registrarte demasiadas veces. Espera unos segundos y vuelve a intentarlo."),
+    ).toBeInTheDocument();
   });
 });

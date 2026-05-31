@@ -90,7 +90,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	query := `
 		SELECT id::text, username, email, password_hash, role::text, is_active, created_at
 		FROM users
-		WHERE email = $1
+		WHERE LOWER(email) = LOWER($1)
 	`
 
 	var user model.User

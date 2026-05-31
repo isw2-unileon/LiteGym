@@ -51,6 +51,8 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
+    await user.clear(screen.getByLabelText("Email"));
+    await user.type(screen.getByLabelText("Email"), " Raul@Example.com ");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     await waitFor(() => {
@@ -78,6 +80,32 @@ describe("LoginPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByText("invalid credentials")).toBeInTheDocument();
+    expect(await screen.findByText("El correo o la contrasena no son correctos.")).toBeInTheDocument();
+  });
+
+  it("shows the translated invalid email message from the backend", async () => {
+    const user = userEvent.setup();
+    mockFetch(jsonResponse({ error: "invalid email address" }, { status: 400 }));
+
+    renderLoginPage();
+
+    await user.clear(screen.getByLabelText("Email"));
+    await user.type(screen.getByLabelText("Email"), "user@domain");
+    await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
+
+    expect(await screen.findByText("Introduce un email valido.")).toBeInTheDocument();
+  });
+
+  it("shows the translated rate limit message from the backend", async () => {
+    const user = userEvent.setup();
+    mockFetch(jsonResponse({ error: "login rate limit exceeded" }, { status: 429 }));
+
+    renderLoginPage();
+
+    await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
+
+    expect(
+      await screen.findByText("Has intentado iniciar sesion demasiadas veces. Espera unos segundos y vuelve a intentarlo."),
+    ).toBeInTheDocument();
   });
 });

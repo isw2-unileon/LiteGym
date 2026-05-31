@@ -5,6 +5,23 @@ import { apiUrl } from "../lib/api";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function translateLoginError(message?: string | null) {
+  switch (message) {
+    case "invalid credentials":
+      return "El correo o la contraseña no son correctos.";
+    case "invalid email address":
+      return "Introduce un email valido.";
+    case "login rate limit exceeded":
+      return "Has intentado iniciar sesion demasiadas veces. Espera unos segundos y vuelve a intentarlo.";
+    default:
+      return message ?? "No se pudo iniciar sesion.";
+  }
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("raul@example.com");
@@ -17,6 +34,8 @@ export default function LoginPage() {
     setLoginStatus("loading");
     setLoginMessage("");
 
+    const normalizedEmail = normalizeEmail(email);
+
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
@@ -25,7 +44,7 @@ export default function LoginPage() {
         },
         credentials: "include",
         body: JSON.stringify({
-          email,
+          email: normalizedEmail,
           password,
         }),
       });
@@ -33,7 +52,7 @@ export default function LoginPage() {
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setLoginStatus("error");
-        setLoginMessage(payload?.error ?? "No se pudo iniciar sesion.");
+        setLoginMessage(translateLoginError(payload?.error));
         return;
       }
 
@@ -85,7 +104,7 @@ export default function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-bold text-[#3a332c]">Contrasena</span>
+                <span className="text-sm font-bold text-[#3a332c]">Contraseña</span>
                 <input
                   className="mt-2 w-full rounded-2xl border border-[#1f1b16]/15 bg-white/75 px-4 py-3 text-base outline-none ring-[#ea7130]/25 transition focus:border-[#ea7130] focus:ring-4"
                   type="password"

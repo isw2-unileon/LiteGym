@@ -5,6 +5,46 @@ import { apiUrl } from "../lib/api";
 
 type RegisterStatus = "idle" | "loading" | "success" | "error";
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isValidEmail(value: string) {
+  const email = normalizeEmail(value);
+  const parts = email.split("@");
+
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [localPart, domain] = parts;
+  if (!localPart || !domain) {
+    return false;
+  }
+
+  if (!domain.includes(".") || domain.startsWith(".") || domain.endsWith(".") || domain.includes("..")) {
+    return false;
+  }
+
+  return true;
+}
+
+function translateRegisterError(message?: string | null) {
+  switch (message) {
+    case "demasiados intentos de registro, prueba de nuevo en unos segundos":
+      return "Has intentado registrarte demasiadas veces. Espera unos segundos y vuelve a intentarlo.";
+    case "username or email already registered":
+    case "email already registered":
+      return "Ya existe un usuario con ese correo electronico.";
+    case "invalid email address":
+      return "Introduce un email valido con usuario y dominio.";
+    case "registration rate limit exceeded":
+      return "Has intentado registrarte demasiadas veces. Espera unos segundos y vuelve a intentarlo.";
+    default:
+      return message ?? "No se pudo crear la cuenta.";
+  }
+}
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
@@ -13,6 +53,8 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [registerStatus, setRegisterStatus] = useState<RegisterStatus>("idle");
   const [registerMessage, setRegisterMessage] = useState("");
+  const emailValidationMessage =
+    email.trim() !== "" && !isValidEmail(email) ? "Introduce un email valido con usuario y dominio." : "";
 
   const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,7 +66,15 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!isValidEmail(email)) {
+      setRegisterStatus("error");
+      setRegisterMessage("Introduce un email valido con usuario y dominio.");
+      return;
+    }
+
     setRegisterStatus("loading");
+
+    const normalizedEmail = normalizeEmail(email);
 
     try {
       const response = await fetch(apiUrl("/api/auth/register"), {
@@ -35,7 +85,7 @@ export default function RegisterPage() {
         credentials: "include",
         body: JSON.stringify({
           username,
-          email,
+          email: normalizedEmail,
           password,
         }),
       });
@@ -43,7 +93,7 @@ export default function RegisterPage() {
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setRegisterStatus("error");
-        setRegisterMessage(payload?.error ?? "No se pudo crear la cuenta.");
+        setRegisterMessage(translateRegisterError(payload?.error));
         return;
       }
 
@@ -101,9 +151,18 @@ export default function RegisterPage() {
                   type="email"
                   value={email}
                   autoComplete="email"
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (registerStatus === "error" && registerMessage === "Introduce un email valido con usuario y dominio.") {
+                      setRegisterMessage("");
+                      setRegisterStatus("idle");
+                    }
+                  }}
                   required
                 />
+                {emailValidationMessage && (
+                  <span className="mt-2 block text-sm font-semibold text-[#9f2f22]">{emailValidationMessage}</span>
+                )}
               </label>
 
               <label className="block">

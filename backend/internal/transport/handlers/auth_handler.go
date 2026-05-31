@@ -67,6 +67,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			return
 		}
 
+		if errors.Is(err, service.ErrInvalidEmail) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid email address",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid credentials",
@@ -129,6 +136,20 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		if errors.Is(err, service.ErrInvalidUserInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "username, email and password are required",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrInvalidEmail) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid email address",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrEmailAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "email already registered",
 			})
 			return
 		}

@@ -204,6 +204,69 @@ func TestRegisterConflictWhenUserAlreadyExists(t *testing.T) {
 	}
 }
 
+func TestRegisterConflictWhenEmailAlreadyExists(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userService := service.NewUserService(&MockAuthUserRepository{
+		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
+			return &model.User{ID: "existing-user-id", Email: email}, nil
+		},
+	})
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, _ := json.Marshal(RegisterRequest{
+		Username: "existing",
+		Email:    "existing@example.com",
+		Password: "password123",
+	})
+	c.Request = httptest.NewRequest("POST", "/api/auth/register", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	authHandler.Register(c)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d", http.StatusConflict, w.Code)
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+
+	if payload["error"] != "email already registered" {
+		t.Fatalf("expected email conflict message, got %q", payload["error"])
+	}
+}
+
+func TestRegisterRejectsInvalidEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userService := service.NewUserService(&MockAuthUserRepository{})
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, _ := json.Marshal(RegisterRequest{
+		Username: "newuser",
+		Email:    "invalid-email",
+		Password: "password123",
+	})
+	c.Request = httptest.NewRequest("POST", "/api/auth/register", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	authHandler.Register(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
 func TestLoginInvalidCredentials(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -245,6 +308,32 @@ func TestLoginInvalidCredentials(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestLoginRejectsInvalidEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userService := service.NewUserService(&MockAuthUserRepository{})
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	reqBody := LoginRequest{
+		Email:    "invalid-email",
+		Password: "password123",
+	}
+
+	body, _ := json.Marshal(reqBody)
+	c.Request = httptest.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	authHandler.Login(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
 

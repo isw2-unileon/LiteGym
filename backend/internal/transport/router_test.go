@@ -14,6 +14,7 @@ import (
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/handlers"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
+	"github.com/jackc/pgx/v5"
 )
 
 type MockDBPinger struct {
@@ -50,7 +51,7 @@ func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*model.Use
 }
 
 func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
-	return nil, service.ErrInvalidCredentials
+	return nil, pgx.ErrNoRows
 }
 
 func (m *MockUserRepository) ListAll(ctx context.Context) ([]*model.User, error) {
