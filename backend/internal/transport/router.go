@@ -29,6 +29,7 @@ func SetupRouter(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	return setupRouterInternal(
@@ -42,6 +43,7 @@ func SetupRouter(
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		corsAllowOrigin...,
 	)
 }
@@ -58,6 +60,7 @@ func SetupRouterWithRoutine(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	return setupRouterInternal(
@@ -71,6 +74,7 @@ func SetupRouterWithRoutine(
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		corsAllowOrigin...,
 	)
 }
@@ -86,6 +90,7 @@ func setupRouterInternal(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
@@ -153,6 +158,14 @@ func setupRouterInternal(
 
 	protected.GET("/users/:id", userHandler.GetUserByID)
 	protected.DELETE("/users/:id", userHandler.DeleteUser)
+
+	// Profile
+	if profileHandler != nil {
+		protected.GET("/profile/dashboard", profileHandler.GetDashboard)
+		protected.PUT("/profile/goals", profileHandler.UpdateGoals)
+		protected.POST("/profile/metrics", profileHandler.AddBodyMetric)
+		protected.POST("/profile/ai-analysis", rateLimiter.ProfileAI(), profileHandler.GetAIAnalysis)
+	}
 
 	registerExerciseRoutes(protected, heavyReads, exerciseHandler)
 

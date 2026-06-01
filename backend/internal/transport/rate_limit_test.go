@@ -44,6 +44,7 @@ func newRateLimitTestRouter() (*gin.Engine, *service.TokenService) {
 		healthHandler,
 		newTestTicketHandler(userService),
 		workoutHandler,
+		nil,
 	)
 
 	return router, tokenService

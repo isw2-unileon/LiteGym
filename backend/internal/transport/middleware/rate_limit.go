@@ -154,6 +154,17 @@ func (r *RateLimiter) AI() gin.HandlerFunc {
 	})
 }
 
+// ProfileAI returns a strict limiter for AI profile coaching analysis to prevent abuse.
+func (r *RateLimiter) ProfileAI() gin.HandlerFunc {
+	return r.middleware(rateLimitPolicy{
+		name:      "profile_ai",
+		limit:     rate.Every(60 * time.Minute), // 1 req/hour
+		burst:     1,
+		keyFunc:   authenticatedUserOrIPKey,
+		errorText: "profile ai analysis rate limit exceeded",
+	})
+}
+
 // PublicAuth returns a moderate limiter for auth-adjacent public endpoints such as logout.
 func (r *RateLimiter) PublicAuth() gin.HandlerFunc {
 	return r.middleware(rateLimitPolicy{

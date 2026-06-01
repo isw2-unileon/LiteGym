@@ -78,6 +78,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db), cfg.GeminiAPIKey, cfg.GeminiModel))
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName, userService)
 
 	r := transport.SetupRouterWithRoutine(
@@ -91,6 +92,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		cfg.CORSAllowOrigin,
 	)
 
