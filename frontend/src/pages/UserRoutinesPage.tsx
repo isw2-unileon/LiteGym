@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
 import { apiUrl } from "../lib/api";
 import AIRoutinePreviewModal, {
   type AIRoutinePreview,
@@ -60,6 +60,8 @@ type AIRoutineSaveResponse = {
   routine_id: string;
 };
 
+type AIRoutineUpgradeStatus = "idle" | "loading" | "success" | "error";
+
 type RoutineStatus = "idle" | "loading" | "success" | "error";
 
 type ExerciseListResponse = {
@@ -117,6 +119,11 @@ export default function UserRoutinesPage() {
   const [isAIPreviewOpen, setIsAIPreviewOpen] = useState(false);
   const [isAIPreviewSaving, setIsAIPreviewSaving] = useState(false);
   const [aiPreviewError, setAIPreviewError] = useState("");
+  const [isAIUpgradeOpen, setIsAIUpgradeOpen] = useState(false);
+  const [aiUpgradeMessage, setAIUpgradeMessage] = useState("");
+  const [aiUpgradeStatus, setAIUpgradeStatus] =
+    useState<AIRoutineUpgradeStatus>("idle");
+  const [aiUpgradeNotice, setAIUpgradeNotice] = useState("");
 
   const fetchRoutineDetail = useCallback(async (routineID: string) => {
     setSelectedRoutineID(routineID);
@@ -353,6 +360,42 @@ export default function UserRoutinesPage() {
     setIsAIPreviewOpen(false);
     setAIPreviewRoutine(null);
     setAIPreviewError("");
+  };
+
+  const handleOpenAIUpgrade = () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    setAIUpgradeStatus("idle");
+    setAIUpgradeNotice("");
+    setAIUpgradeMessage(
+      `Mantén ${selectedRoutine.name} y mejora el equilibrio general de la sesión.`,
+    );
+    setIsAIUpgradeOpen(true);
+  };
+
+  const handleCloseAIUpgrade = () => {
+    if (aiUpgradeStatus === "loading") {
+      return;
+    }
+
+    setIsAIUpgradeOpen(false);
+    setAIUpgradeStatus("idle");
+    setAIUpgradeNotice("");
+  };
+
+  const handleSubmitAIUpgrade = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (aiUpgradeMessage.trim() === "") {
+      setAIUpgradeStatus("error");
+      setAIUpgradeNotice("Escribe al menos una instrucción para la IA.");
+      return;
+    }
+
+    setAIUpgradeStatus("success");
+    setAIUpgradeNotice("Funcion en proceso");
   };
 
   const totalExercises = routines.reduce(
@@ -728,16 +771,28 @@ export default function UserRoutinesPage() {
           {detailStatus === "success" && selectedRoutine && (
             <div className="mt-4 space-y-4">
               <div className="rounded-2xl bg-white/60 p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-                  {selectedRoutine.source}
-                </p>
-                <h3 className="mt-2 text-2xl font-black">
-                  {selectedRoutine.name}
-                </h3>
-                <p className="mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
-                  {selectedRoutine.description?.trim() ||
-                    "Rutina sin descripcion guardada."}
-                </p>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                      {selectedRoutine.source}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-black">
+                      {selectedRoutine.name}
+                    </h3>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
+                      {selectedRoutine.description?.trim() ||
+                        "Rutina sin descripcion guardada."}
+                    </p>
+                  </div>
+
+                  <button
+                    className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[#ea7130] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(234,113,48,0.26)] transition hover:bg-[#1f1b16]"
+                    type="button"
+                    onClick={handleOpenAIUpgrade}
+                  >
+                    Mejorar con IA
+                  </button>
+                </div>
               </div>
 
               {selectedRoutine.exercises.length === 0 ? (
@@ -823,6 +878,78 @@ export default function UserRoutinesPage() {
           )}
         </aside>
       </div>
+
+      {isAIUpgradeOpen && selectedRoutine && (
+        <RoutineDialogShell
+          kicker="AI Upgrade"
+          kickerColor="#ea7130"
+          title={`Mejorar ${selectedRoutine.name}`}
+          onClose={handleCloseAIUpgrade}
+        >
+          <form className="space-y-4" onSubmit={handleSubmitAIUpgrade}>
+            <div>
+              <p className="text-sm font-semibold leading-6 text-[#5d5348]">
+                Describe qué te gustaría ajustar en esta rutina. En el siguiente
+                paso conectaremos este formulario con la propuesta de mejora y
+                su diff.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#1f1b16]/10 bg-[#fff4ea] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ea7130]">
+                Rutina seleccionada
+              </p>
+              <p className="mt-2 text-lg font-black text-[#1f1b16]">
+                {selectedRoutine.name}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-[#5d5348]">
+                {selectedRoutine.exercises.length} ejercicios cargados para
+                preparar la mejora.
+              </p>
+            </div>
+
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                Instrucciones para la IA
+              </span>
+              <textarea
+                className="mt-2 min-h-36 w-full resize-y rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-semibold leading-6 outline-none transition placeholder:font-medium focus:border-[#ea7130]"
+                placeholder="Ej. mantén Bench Press, reduce fatiga en hombro y añade más trabajo unilateral."
+                value={aiUpgradeMessage}
+                onChange={(event) => setAIUpgradeMessage(event.target.value)}
+              />
+            </label>
+
+            {aiUpgradeNotice && (
+              <p
+                className={`text-sm font-black ${
+                  aiUpgradeStatus === "error"
+                    ? "text-[#9b2d20]"
+                    : "text-[#265c52]"
+                }`}
+              >
+                {aiUpgradeNotice}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-2xl border border-[#1f1b16]/10 px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:border-[#1f1b16] hover:bg-[#1f1b16] hover:text-white"
+                type="button"
+                onClick={handleCloseAIUpgrade}
+              >
+                Cerrar
+              </button>
+              <button
+                className="rounded-2xl bg-[#ea7130] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1f1b16]"
+                type="submit"
+              >
+                Preparar mejora
+              </button>
+            </div>
+          </form>
+        </RoutineDialogShell>
+      )}
     </section>
   );
 }
@@ -851,4 +978,56 @@ function splitCommaList(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function RoutineDialogShell({
+  kicker,
+  kickerColor = "#265c52",
+  title,
+  onClose,
+  children,
+}: {
+  kicker: string;
+  kickerColor?: string;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
+      <section className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-[#1f1b16]/12 bg-[#fffaf0] shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]">
+        <header className="grid grid-cols-[1fr_auto] items-center gap-4 bg-[#1f1b16] px-6 py-5 text-[#fffaf0]">
+          <div>
+            <div
+              className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-extrabold uppercase tracking-[0.30em]"
+              style={{ color: kickerColor }}
+            >
+              {kicker}
+            </div>
+            <h3 className="mt-1 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-[28px] font-black leading-none tracking-[-0.04em]">
+              {title}
+            </h3>
+          </div>
+          <button
+            aria-label="Cerrar modal de mejora con IA"
+            className="grid h-9 w-9 place-items-center rounded-[10px] border border-[#fffaf0]/20 bg-transparent text-[#fffaf0] transition hover:rotate-90 hover:bg-[#fffaf0]/10"
+            type="button"
+            onClick={onClose}
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth={2.2}
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </header>
+        <div className="px-6 py-5">{children}</div>
+      </section>
+    </div>
+  );
 }

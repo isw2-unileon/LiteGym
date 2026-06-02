@@ -98,6 +98,62 @@ describe("UserRoutinesPage", () => {
     expect(screen.getByText("72.5 kg")).toBeInTheDocument();
   });
 
+  it("shows the AI upgrade action and opens its modal for a selected routine", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: "routine-1",
+            name: "Upper Strength",
+            description: "Trabajo principal de torso",
+            exercise_count: 2,
+            updated_at: "2026-05-24T10:00:00Z",
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "routine-1",
+          name: "Upper Strength",
+          description: "Trabajo principal de torso",
+          exercise_count: 2,
+          source: "manual",
+          created_at: "2026-05-24T10:00:00Z",
+          updated_at: "2026-05-24T10:00:00Z",
+          exercises: [
+            {
+              id: "routine-exercise-1",
+              exercise_id: "exercise-1",
+              name: "Bench Press",
+              muscle_group: "chest",
+              exercise_order: 1,
+              sets: [],
+            },
+            {
+              id: "routine-exercise-2",
+              exercise_id: "exercise-2",
+              name: "Row",
+              muscle_group: "back",
+              exercise_order: 2,
+              sets: [],
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UserRoutinesPage />);
+
+    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
+    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
+
+    expect(await screen.findByRole("heading", { name: "Mejorar Upper Strength" })).toBeInTheDocument();
+    expect(screen.getByText("2 ejercicios cargados para preparar la mejora.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preparar mejora" })).toBeInTheDocument();
+  });
+
   it("generates an AI routine preview and saves it after confirmation", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
