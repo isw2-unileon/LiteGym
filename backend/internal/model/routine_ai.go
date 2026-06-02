@@ -2,12 +2,13 @@ package model
 
 import "time"
 
-// AIRoutineGenerationRequest defines pre-generation filters selected by user.
+// AIRoutineGenerationRequest defines the user input used to guide AI routine generation.
 type AIRoutineGenerationRequest struct {
-	Objective            string   `json:"objective"`
-	TargetMuscleGroups   []string `json:"target_muscle_groups"`
-	MandatoryExerciseIDs []string `json:"mandatory_exercise_ids"`
-	DurationMinutes      int      `json:"duration_minutes"`
+	Objective          string   `json:"objective"`
+	TargetMuscleGroups []string `json:"target_muscle_groups"`
+	MandatoryExercises []string `json:"mandatory_exercises"`
+	Notes              string   `json:"notes,omitempty"`
+	DurationMinutes    int      `json:"duration_minutes"`
 }
 
 // AIRoutineUpgradeRequest defines the input required to improve an existing routine with AI.
@@ -122,9 +123,9 @@ type AIRoutineRateLimitStatus struct {
 
 // AIRoutineGenerateResponse wraps generated JSON plus rate-limit metadata.
 type AIRoutineGenerateResponse struct {
-	RoutineJSON AIRoutineJSON            `json:"routine_json"`
-	RoutineID   string                   `json:"routine_id,omitempty"`
-	RateLimit   AIRoutineRateLimitStatus `json:"rate_limit"`
+	RoutineJSON AIRoutineJSON             `json:"routine_json"`
+	RoutineID   string                    `json:"routine_id,omitempty"`
+	RateLimit   *AIRoutineRateLimitStatus `json:"rate_limit,omitempty"`
 }
 
 // AIRoutineUpgradeResponse wraps an upgraded routine proposal plus rate-limit metadata.

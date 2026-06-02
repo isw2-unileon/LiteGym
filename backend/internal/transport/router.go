@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ func SetupRouter(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	return setupRouterInternal(
@@ -41,6 +43,7 @@ func SetupRouter(
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		corsAllowOrigin...,
 	)
 }
@@ -57,6 +60,7 @@ func SetupRouterWithRoutine(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	return setupRouterInternal(
@@ -70,6 +74,7 @@ func SetupRouterWithRoutine(
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		corsAllowOrigin...,
 	)
 }
@@ -85,11 +90,13 @@ func setupRouterInternal(
 	healthHandler *handlers.HealthHandler,
 	ticketHandler *handlers.TicketHandler,
 	workoutHandler *handlers.WorkoutHandler,
+	profileHandler *handlers.ProfileHandler,
 	corsAllowOrigin ...string,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(corsMiddleware(resolveCORSAllowOrigin(corsAllowOrigin)))
+	r.Use(corsMiddleware(resolveCORSAllowOrigins(corsAllowOrigin)))
+	rateLimiter := middleware.NewRateLimiter()
 
 	// Health check
 	r.GET("/health", healthHandler.Health)
@@ -100,15 +107,23 @@ func setupRouterInternal(
 	// --------------------
 	// Public endpoints
 	// --------------------
-	api.POST("/users", userHandler.CreateUser)
-	api.POST("/auth/login", authHandler.Login)
-	api.POST("/auth/logout", authHandler.Logout)
+	api.POST("/users", rateLimiter.Register(), userHandler.CreateUser)
+	api.POST("/auth/register", rateLimiter.Register(), authHandler.Register)
+	api.POST("/auth/login", rateLimiter.Login(), authHandler.Login)
+	api.POST("/auth/logout", rateLimiter.PublicAuth(), authHandler.Logout)
 
 	// --------------------
 	// Protected endpoints
 	// --------------------
 	protected := api.Group("")
 	protected.Use(authMiddleware.RequireAuth())
+	protected.Use(rateLimiter.Protected())
+
+	heavyReads := protected.Group("")
+	heavyReads.Use(rateLimiter.ProtectedReadHeavy())
+
+	aiLimited := protected.Group("")
+	aiLimited.Use(rateLimiter.AI())
 
 	// General
 	protected.GET("/hello", func(c *gin.Context) {
@@ -145,32 +160,57 @@ func setupRouterInternal(
 	protected.GET("/users/:id", userHandler.GetUserByID)
 	protected.DELETE("/users/:id", userHandler.DeleteUser)
 
-	// Exercises
-	protected.POST("/exercises", exerciseHandler.CreateExercise)
-	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
-	protected.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
-	protected.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
-	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
-	protected.GET("/exercises", exerciseHandler.ListExercises)
-	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
-	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+	// Profile
+	if profileHandler != nil {
+		protected.GET("/profile/dashboard", profileHandler.GetDashboard)
+		protected.PUT("/profile/goals", profileHandler.UpdateGoals)
+		protected.POST("/profile/metrics", profileHandler.AddBodyMetric)
+		protected.POST("/profile/ai-analysis", rateLimiter.ProfileAI(), profileHandler.GetAIAnalysis)
+	}
+
+	registerExerciseRoutes(protected, heavyReads, exerciseHandler)
 
 	// Routines
 	if routineHandler != nil {
-		protected.GET("/routines", routineHandler.ListRoutines)
-		protected.GET("/routines/:id", routineHandler.GetRoutineByID)
-		protected.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
-		protected.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)
+		heavyReads.GET("/routines", routineHandler.ListRoutines)
+		heavyReads.GET("/routines/:id", routineHandler.GetRoutine)
+		aiLimited.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+		aiLimited.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
+		aiLimited.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)
 	}
 
 	// Dashboard
-	protected.GET("/dashboard", overviewHandler.GetOverview)
+	heavyReads.GET("/dashboard", overviewHandler.GetOverview)
 
 	// Tickets
 	protected.POST("/tickets", ticketHandler.CreateTicket)
 	protected.GET("/tickets", ticketHandler.ListTickets)
 	protected.PATCH("/tickets/:id/close", ticketHandler.CloseTicket)
 
+	registerWorkoutRoutes(protected, workoutHandler)
+
+	return r
+}
+
+func registerExerciseRoutes(
+	protected, heavyReads gin.IRoutes,
+	exerciseHandler *handlers.ExerciseHandler,
+) {
+	// Exercises
+	protected.POST("/exercises", exerciseHandler.CreateExercise)
+	protected.GET("/exercises/metadata", exerciseHandler.GetMetadata)
+	heavyReads.GET("/exercises/:id/insights", exerciseHandler.GetExerciseInsights)
+	heavyReads.GET("/exercises/:id/workout-sessions", exerciseHandler.ListWorkoutSessionsByExercise)
+	protected.GET("/exercises/:id", exerciseHandler.GetExerciseByID)
+	heavyReads.GET("/exercises", exerciseHandler.ListExercises)
+	protected.PUT("/exercises/:id", exerciseHandler.UpdateExercise)
+	protected.DELETE("/exercises/:id", exerciseHandler.DeleteExercise)
+}
+
+func registerWorkoutRoutes(
+	protected gin.IRoutes,
+	workoutHandler *handlers.WorkoutHandler,
+) {
 	// Workout
 	protected.POST("/workouts/planned", workoutHandler.CreatePlannedWorkout)
 	protected.POST("/workout/start", workoutHandler.CreateWorkout)
@@ -182,27 +222,47 @@ func setupRouterInternal(
 	protected.POST("/workout/:id/exercises/:exercise_id/set", workoutHandler.CreateWorkoutSet)
 	protected.GET("/workout/:id/exercises/:exercise_id/sets", workoutHandler.GetWorkoutSetsByExerciseID)
 	protected.POST("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.UpdateWorkoutSet)
-
-	return r
 }
 
-func resolveCORSAllowOrigin(corsAllowOrigin []string) string {
+func resolveCORSAllowOrigins(corsAllowOrigin []string) []string {
 	if len(corsAllowOrigin) == 0 || strings.TrimSpace(corsAllowOrigin[0]) == "" {
-		return "*"
+		return []string{"*"}
 	}
-	return strings.TrimSpace(corsAllowOrigin[0])
+
+	values := strings.Split(corsAllowOrigin[0], ",")
+	origins := make([]string, 0, len(values))
+	for _, value := range values {
+		origin := strings.TrimSpace(value)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
 }
 
-func corsMiddleware(allowOrigin string) gin.HandlerFunc {
+func corsMiddleware(allowOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestOrigin := c.GetHeader("Origin")
-		responseOrigin := allowOrigin
+		responseOrigin := ""
 
-		if allowOrigin == "*" && requestOrigin != "" {
+		for _, allowOrigin := range allowOrigins {
+			if allowOrigin == "*" && requestOrigin != "" {
+				responseOrigin = requestOrigin
+				break
+			}
+			if requestOrigin != "" && requestOrigin == allowOrigin {
+				responseOrigin = requestOrigin
+				break
+			}
+		}
+		if responseOrigin == "" && isLocalDevelopmentOrigin(requestOrigin) {
 			responseOrigin = requestOrigin
 		}
 
-		if requestOrigin != "" && (allowOrigin == "*" || requestOrigin == allowOrigin) {
+		if responseOrigin != "" {
 			c.Header("Access-Control-Allow-Origin", responseOrigin)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -217,4 +277,13 @@ func corsMiddleware(allowOrigin string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func isLocalDevelopmentOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	hostname := parsed.Hostname()
+	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
 }

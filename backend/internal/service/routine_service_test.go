@@ -11,7 +11,7 @@ import (
 )
 
 type routineServiceTestRepository struct {
-	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.Routine, error)
+	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
 }
 
 func (r *routineServiceTestRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
@@ -22,7 +22,7 @@ func (r *routineServiceTestRepository) ListByUser(ctx context.Context, userID st
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (r *routineServiceTestRepository) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+func (r *routineServiceTestRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 	if r.getByIDFunc != nil {
 		return r.getByIDFunc(ctx, userID, routineID)
 	}
@@ -47,8 +47,8 @@ func (r *routineServiceTestRepository) ListAvailableExercisesForAI(ctx context.C
 
 func TestRoutineServiceGetByID(t *testing.T) {
 	svc := NewRoutineService(&routineServiceTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
-			return &model.Routine{ID: routineID, UserID: userID, Name: "Push Day"}, nil
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{ID: routineID, Name: "Push Day"}, nil
 		},
 	})
 
@@ -72,7 +72,7 @@ func TestRoutineServiceGetByIDInvalidInput(t *testing.T) {
 
 func TestRoutineServiceGetByIDNotFound(t *testing.T) {
 	svc := NewRoutineService(&routineServiceTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 			return nil, pgx.ErrNoRows
 		},
 	})

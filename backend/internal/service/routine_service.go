@@ -31,7 +31,7 @@ func (s *RoutineService) ListByUser(ctx context.Context, userID string) ([]model
 }
 
 // GetByID returns one routine owned by a user with its exercises and planned sets.
-func (s *RoutineService) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+func (s *RoutineService) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 	userID = strings.TrimSpace(userID)
 	routineID = strings.TrimSpace(routineID)
 	if userID == "" || routineID == "" {

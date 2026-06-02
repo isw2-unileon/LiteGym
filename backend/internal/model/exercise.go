@@ -11,6 +11,7 @@ type Exercise struct {
 	SecondaryMuscleGroup string    `json:"secondary_muscle_group,omitempty"`
 	ExerciseType         string    `json:"exercise_type,omitempty"`
 	IsOfficial           bool      `json:"is_official"`
+	OwnerUserID          *string   `json:"owner_user_id,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 

@@ -4,7 +4,9 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -25,15 +27,14 @@ type Config struct {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
-// It prefers loading from `.env.local` first, then falls back to `.env`.
+// It prefers loading from `.env.local` first, then falls back to `.env` and `backend/.env`.
 // If neither file is present, it will use the system environment variables.
 func Load() *Config {
-	// Try to load .env.local first, then .env.
-	// godotenv.Load returns an error if none of the provided files are found.
-	if err := godotenv.Load(".env.local", ".env"); err != nil {
-		log.Println("No .env.local or .env file found, using system environment variables")
+	loadedEnvFiles := loadEnvFiles()
+	if len(loadedEnvFiles) == 0 {
+		log.Println("No .env.local, .env or backend/.env file found, using system environment variables")
 	} else {
-		log.Println("Environment variables loaded from .env.local or .env")
+		log.Printf("Environment variables loaded from %s", strings.Join(loadedEnvFiles, ", "))
 	}
 
 	return &Config{
@@ -46,8 +47,35 @@ func Load() *Config {
 		AuthCookieSecure: getEnvBool("AUTH_COOKIE_SECURE", false),
 		AuthTokenTTL:     getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
-		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-1.5-flash"),
+		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
 	}
+}
+
+func loadEnvFiles() []string {
+	candidates := envFileCandidates()
+	loaded := make([]string, 0, len(candidates))
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err != nil {
+			continue
+		}
+		if err := godotenv.Load(candidate); err != nil {
+			log.Printf("Failed to load environment file %s: %v", candidate, err)
+			continue
+		}
+		loaded = append(loaded, candidate)
+	}
+
+	return loaded
+}
+
+func envFileCandidates() []string {
+	workingDir, err := os.Getwd()
+	if err == nil && filepath.Base(workingDir) == "backend" {
+		return []string{"../.env.local", "../.env", ".env"}
+	}
+
+	return []string{".env.local", ".env", "backend/.env"}
 }
 
 func getEnv(key, fallback string) string {

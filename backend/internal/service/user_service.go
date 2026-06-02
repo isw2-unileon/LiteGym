@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"strings"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,6 +22,15 @@ var (
 
 	// ErrUserNotFound indicates that the requested user does not exist.
 	ErrUserNotFound = errors.New("user not found")
+
+	// ErrUserAlreadyExists indicates that the provided username or email is already registered.
+	ErrUserAlreadyExists = errors.New("user already exists")
+
+	// ErrEmailAlreadyExists indicates that the provided email is already registered.
+	ErrEmailAlreadyExists = errors.New("email already exists")
+
+	// ErrInvalidEmail indicates that the provided email does not have a valid format.
+	ErrInvalidEmail = errors.New("invalid email")
 )
 
 // UserService handles user-related business logic.
@@ -37,11 +48,25 @@ func NewUserService(repo repository.UserRepository) *UserService {
 // Create validates and creates a new user.
 func (s *UserService) Create(ctx context.Context, user *model.User) error {
 	user.Username = strings.TrimSpace(user.Username)
-	user.Email = strings.TrimSpace(user.Email)
 	user.PasswordHash = strings.TrimSpace(user.PasswordHash)
 
-	if user.Username == "" || user.Email == "" || user.PasswordHash == "" {
+	normalizedEmail, err := normalizeEmail(user.Email)
+	if err != nil {
+		return err
+	}
+
+	user.Email = normalizedEmail
+
+	if user.Username == "" || user.PasswordHash == "" {
 		return ErrInvalidUserInput
+	}
+
+	existingUser, err := s.repo.GetByEmail(ctx, user.Email)
+	if err == nil && existingUser != nil {
+		return ErrEmailAlreadyExists
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.PasswordHash), bcrypt.DefaultCost)
@@ -51,7 +76,15 @@ func (s *UserService) Create(ctx context.Context, user *model.User) error {
 
 	user.PasswordHash = string(hashedPassword)
 
-	return s.repo.Create(ctx, user)
+	if err := s.repo.Create(ctx, user); err != nil {
+		if isUniqueViolation(err) {
+			return ErrUserAlreadyExists
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // GetByID retrieves a user by ID.
@@ -73,14 +106,18 @@ func (s *UserService) GetByID(ctx context.Context, id string) (*model.User, erro
 
 // Authenticate validates credentials and returns the authenticated user.
 func (s *UserService) Authenticate(ctx context.Context, email, password string) (*model.User, error) {
-	email = strings.TrimSpace(email)
+	normalizedEmail, err := normalizeEmail(email)
 	password = strings.TrimSpace(password)
 
-	if email == "" || password == "" {
+	if err != nil {
+		return nil, err
+	}
+
+	if password == "" {
 		return nil, ErrInvalidUserInput
 	}
 
-	user, err := s.repo.GetByEmail(ctx, email)
+	user, err := s.repo.GetByEmail(ctx, normalizedEmail)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrInvalidCredentials
 	}
@@ -117,4 +154,32 @@ func (s *UserService) Delete(ctx context.Context, id string) error {
 		return ErrUserNotFound
 	}
 	return err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func normalizeEmail(rawEmail string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	if email == "" {
+		return "", ErrInvalidUserInput
+	}
+
+	parsedAddress, err := mail.ParseAddress(email)
+	if err != nil || parsedAddress.Address != email {
+		return "", ErrInvalidEmail
+	}
+
+	localPart, domain, found := strings.Cut(email, "@")
+	if !found || localPart == "" || domain == "" || strings.Contains(domain, "@") {
+		return "", ErrInvalidEmail
+	}
+
+	if !strings.Contains(domain, ".") || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") || strings.Contains(domain, "..") {
+		return "", ErrInvalidEmail
+	}
+
+	return email, nil
 }

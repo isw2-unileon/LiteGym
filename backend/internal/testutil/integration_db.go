@@ -32,13 +32,13 @@ func LoadIntegrationDBURL(t *testing.T) string {
 	if ok {
 		helperDir := filepath.Dir(filename)
 		repoRoot := filepath.Clean(filepath.Join(helperDir, "..", "..", ".."))
-		_ = godotenv.Load(
+		_ = godotenv.Overload(
 			filepath.Join(repoRoot, ".env.local"),
 			filepath.Join(repoRoot, ".env"),
 			filepath.Join(repoRoot, "backend", ".env"),
 		)
 	} else {
-		_ = godotenv.Load(".env.local", ".env", "backend/.env")
+		_ = godotenv.Overload(".env.local", ".env", "backend/.env")
 	}
 
 	testDBURL := strings.TrimSpace(os.Getenv("TEST_DB_URL"))

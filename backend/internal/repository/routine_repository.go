@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
 	ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error)
-	GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error)
+	GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
 	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
 	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
 	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
@@ -80,159 +81,181 @@ func (r *routineRepository) ListByUser(ctx context.Context, userID string) ([]mo
 	return scanRoutineSummaries(rows)
 }
 
-func (r *routineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
-	var routine model.Routine
-	err := r.db.QueryRow(ctx, `
-		SELECT
-			id::text,
-			user_id::text,
-			name,
-			COALESCE(description, ''),
-			source,
-			is_predefined,
-			is_public,
-			created_at,
-			updated_at
-		FROM public.routines
-		WHERE id = $1::uuid
-			AND user_id = $2::uuid
-	`, routineID, userID).Scan(
-		&routine.ID,
-		&routine.UserID,
-		&routine.Name,
-		&routine.Description,
-		&routine.Source,
-		&routine.IsPredefined,
-		&routine.IsPublic,
-		&routine.CreatedAt,
-		&routine.UpdatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *routineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT
+			r.id::text,
+			r.name,
+			COALESCE(r.description, ''),
+			r.source,
+			r.created_at,
+			r.updated_at,
 			re.id::text,
-			re.routine_id::text,
 			re.exercise_id::text,
-			e.name,
+			COALESCE(e.name, ''),
 			COALESCE(e.description, ''),
-			e.muscle_group,
+			COALESCE(e.muscle_group, ''),
+			COALESCE(
+				(
+					SELECT string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group)
+					FROM public.exercise_secondary_muscle_groups esmg
+					WHERE esmg.exercise_id = e.id
+				),
+				''
+			),
 			COALESCE(e.exercise_type, ''),
 			re.exercise_order,
 			COALESCE(re.notes, ''),
 			res.id::text,
-			res.routine_exercise_id::text,
 			res.set_number,
 			res.target_reps_min,
 			res.target_reps_max,
 			COALESCE(res.target_reps_text, ''),
-			res.target_weight_kg::float8,
+			res.target_weight_kg,
 			res.target_duration_seconds,
-			res.target_distance_km::float8,
+			res.target_distance_km,
 			res.target_rir,
 			res.rest_seconds,
-			COALESCE(res.notes, ''),
-			res.created_at
-		FROM public.routine_exercises re
-		INNER JOIN public.exercises e ON e.id = re.exercise_id
+			COALESCE(res.notes, '')
+		FROM public.routines r
+		LEFT JOIN public.routine_exercises re ON re.routine_id = r.id
+		LEFT JOIN public.exercises e ON e.id = re.exercise_id AND e.deleted_at IS NULL
 		LEFT JOIN public.routine_exercise_sets res ON res.routine_exercise_id = re.id
-		WHERE re.routine_id = $1::uuid
-		ORDER BY re.exercise_order ASC, re.created_at ASC, res.set_number ASC, res.created_at ASC
-	`, routineID)
+		WHERE r.user_id = $1::uuid
+			AND r.id = $2::uuid
+		ORDER BY re.exercise_order ASC, re.id::text ASC, res.set_number ASC, res.id::text ASC
+	`, userID, routineID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	exerciseIndexByID := make(map[string]int)
-	routine.Exercises = make([]model.RoutineExercise, 0)
+	var routine *model.RoutineDetail
+	exerciseIndex := make(map[string]int)
 
 	for rows.Next() {
 		var (
-			exercise             model.RoutineExercise
-			set                  model.RoutineSet
-			exerciseType         string
-			setID                *string
-			setRoutineExerciseID *string
-			setNumber            *int
-			setRepsMin           *int
-			setRepsMax           *int
-			setRepsText          string
-			setWeightKg          *float64
-			setDurationSeconds   *int
-			setDistanceKm        *float64
-			setRir               *int
-			setRestSeconds       *int
-			setNotes             string
-			setCreatedAt         *time.Time
+			routineIDValue        string
+			routineName           string
+			routineDescription    string
+			routineSource         string
+			routineCreatedAt      time.Time
+			routineUpdatedAt      time.Time
+			routineExerciseID     sql.NullString
+			exerciseID            sql.NullString
+			exerciseName          sql.NullString
+			exerciseDescription   sql.NullString
+			muscleGroup           sql.NullString
+			secondaryMuscleGroup  sql.NullString
+			exerciseType          sql.NullString
+			exerciseOrder         sql.NullInt64
+			exerciseNotes         sql.NullString
+			setID                 sql.NullString
+			setNumber             sql.NullInt64
+			targetRepsMin         sql.NullInt64
+			targetRepsMax         sql.NullInt64
+			targetRepsText        sql.NullString
+			targetWeightKg        sql.NullFloat64
+			targetDurationSeconds sql.NullInt64
+			targetDistanceKm      sql.NullFloat64
+			targetRir             sql.NullInt64
+			restSeconds           sql.NullInt64
+			setNotes              sql.NullString
 		)
 
 		if err := rows.Scan(
-			&exercise.ID,
-			&exercise.RoutineID,
-			&exercise.ExerciseID,
-			&exercise.ExerciseName,
-			&exercise.ExerciseDescription,
-			&exercise.MuscleGroup,
+			&routineIDValue,
+			&routineName,
+			&routineDescription,
+			&routineSource,
+			&routineCreatedAt,
+			&routineUpdatedAt,
+			&routineExerciseID,
+			&exerciseID,
+			&exerciseName,
+			&exerciseDescription,
+			&muscleGroup,
+			&secondaryMuscleGroup,
 			&exerciseType,
-			&exercise.ExerciseOrder,
-			&exercise.Notes,
+			&exerciseOrder,
+			&exerciseNotes,
 			&setID,
-			&setRoutineExerciseID,
 			&setNumber,
-			&setRepsMin,
-			&setRepsMax,
-			&setRepsText,
-			&setWeightKg,
-			&setDurationSeconds,
-			&setDistanceKm,
-			&setRir,
-			&setRestSeconds,
+			&targetRepsMin,
+			&targetRepsMax,
+			&targetRepsText,
+			&targetWeightKg,
+			&targetDurationSeconds,
+			&targetDistanceKm,
+			&targetRir,
+			&restSeconds,
 			&setNotes,
-			&setCreatedAt,
 		); err != nil {
 			return nil, err
 		}
 
-		exercise.ExerciseType = strings.TrimSpace(exerciseType)
-
-		index, exists := exerciseIndexByID[exercise.ID]
-		if !exists {
-			exercise.Sets = make([]model.RoutineSet, 0)
-			routine.Exercises = append(routine.Exercises, exercise)
-			index = len(routine.Exercises) - 1
-			exerciseIndexByID[exercise.ID] = index
+		if routine == nil {
+			routine = &model.RoutineDetail{
+				ID:          routineIDValue,
+				Name:        routineName,
+				Description: routineDescription,
+				Source:      routineSource,
+				CreatedAt:   routineCreatedAt,
+				UpdatedAt:   routineUpdatedAt,
+				Exercises:   []model.RoutineExerciseDetail{},
+			}
 		}
 
-		if setID == nil || setRoutineExerciseID == nil || setNumber == nil || setCreatedAt == nil {
+		if !routineExerciseID.Valid || strings.TrimSpace(routineExerciseID.String) == "" {
 			continue
 		}
 
-		set = model.RoutineSet{
-			ID:                    *setID,
-			RoutineExerciseID:     *setRoutineExerciseID,
-			SetNumber:             *setNumber,
-			TargetRepsMin:         setRepsMin,
-			TargetRepsMax:         setRepsMax,
-			TargetRepsText:        strings.TrimSpace(setRepsText),
-			TargetWeightKg:        setWeightKg,
-			TargetDurationSeconds: setDurationSeconds,
-			TargetDistanceKm:      setDistanceKm,
-			TargetRir:             setRir,
-			RestSeconds:           setRestSeconds,
-			Notes:                 strings.TrimSpace(setNotes),
-			CreatedAt:             *setCreatedAt,
+		index, exists := exerciseIndex[routineExerciseID.String]
+		if !exists {
+			routine.Exercises = append(routine.Exercises, model.RoutineExerciseDetail{
+				ID:                   routineExerciseID.String,
+				ExerciseID:           exerciseID.String,
+				Name:                 exerciseName.String,
+				Description:          exerciseDescription.String,
+				MuscleGroup:          muscleGroup.String,
+				SecondaryMuscleGroup: secondaryMuscleGroup.String,
+				ExerciseType:         exerciseType.String,
+				ExerciseOrder:        int(exerciseOrder.Int64),
+				Notes:                exerciseNotes.String,
+				Sets:                 []model.RoutineExerciseSetDetail{},
+			})
+			index = len(routine.Exercises) - 1
+			exerciseIndex[routineExerciseID.String] = index
 		}
-		routine.Exercises[index].Sets = append(routine.Exercises[index].Sets, set)
+
+		if !setID.Valid || strings.TrimSpace(setID.String) == "" {
+			continue
+		}
+
+		routine.Exercises[index].Sets = append(routine.Exercises[index].Sets, model.RoutineExerciseSetDetail{
+			ID:                    setID.String,
+			SetNumber:             int(setNumber.Int64),
+			TargetRepsMin:         intPointerFromNull(targetRepsMin),
+			TargetRepsMax:         intPointerFromNull(targetRepsMax),
+			TargetRepsText:        targetRepsText.String,
+			TargetWeightKg:        floatPointerFromNull(targetWeightKg),
+			TargetDurationSeconds: intPointerFromNull(targetDurationSeconds),
+			TargetDistanceKm:      floatPointerFromNull(targetDistanceKm),
+			TargetRir:             intPointerFromNull(targetRir),
+			RestSeconds:           intPointerFromNull(restSeconds),
+			Notes:                 setNotes.String,
+		})
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if routine == nil {
+		return nil, pgx.ErrNoRows
+	}
 
-	return &routine, nil
+	routine.ExerciseCount = len(routine.Exercises)
+	return routine, nil
 }
 
 func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {

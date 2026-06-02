@@ -17,13 +17,15 @@ import (
 )
 
 type routineHandlerTestRepository struct {
-	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.Routine, error)
+	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
 	countFunc   func(ctx context.Context, userID string, since time.Time) (int, error)
 }
 
 type routineHandlerTestWorkoutSessionRepository struct{}
 
 type routineHandlerTestBodyMetricRepository struct{}
+
+type routineHandlerTestExerciseRepository struct{}
 
 func (r *routineHandlerTestRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
@@ -33,7 +35,7 @@ func (r *routineHandlerTestRepository) ListByUser(ctx context.Context, userID st
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (r *routineHandlerTestRepository) GetByID(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+func (r *routineHandlerTestRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 	if r.getByIDFunc != nil {
 		return r.getByIDFunc(ctx, userID, routineID)
 	}
@@ -79,25 +81,52 @@ func (r *routineHandlerTestBodyMetricRepository) ListRecentByUser(ctx context.Co
 	return []model.OverviewBodyMetricEntry{}, nil
 }
 
+func (r *routineHandlerTestExerciseRepository) GetByID(ctx context.Context, id string) (*model.Exercise, error) {
+	return &model.Exercise{ID: id}, nil
+}
+
+func (r *routineHandlerTestExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
+	return []model.Exercise{}, 0, nil
+}
+
+func (r *routineHandlerTestExerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	return nil, nil
+}
+
+func (r *routineHandlerTestExerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	return model.ExerciseInsights{}, nil
+}
+
+func (r *routineHandlerTestExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
+	exercise.ID = "created-exercise"
+	return nil
+}
+
+func (r *routineHandlerTestExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
+	return nil
+}
+
+func (r *routineHandlerTestExerciseRepository) DeleteExercise(ctx context.Context, id string) error {
+	return nil
+}
+
 func TestGetRoutineByID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	routineService := service.NewRoutineService(&routineHandlerTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
-			return &model.Routine{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{
 				ID:          routineID,
-				UserID:      userID,
 				Name:        "Push Day",
 				Description: "Rutina de empuje",
 				Source:      "manual",
 				CreatedAt:   time.Now(),
 				UpdatedAt:   time.Now(),
-				Exercises: []model.RoutineExercise{
+				Exercises: []model.RoutineExerciseDetail{
 					{
 						ID:            "routine-exercise-1",
-						RoutineID:     routineID,
 						ExerciseID:    "exercise-1",
-						ExerciseName:  "Bench Press",
+						Name:          "Bench Press",
 						MuscleGroup:   "chest",
 						ExerciseOrder: 1,
 					},
@@ -119,14 +148,14 @@ func TestGetRoutineByID(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var routine model.Routine
+	var routine model.RoutineDetail
 	if err := json.Unmarshal(w.Body.Bytes(), &routine); err != nil {
 		t.Fatalf("failed to unmarshal response body: %v", err)
 	}
 	if routine.Name != "Push Day" {
 		t.Fatalf("expected Push Day, got %q", routine.Name)
 	}
-	if len(routine.Exercises) != 1 || routine.Exercises[0].ExerciseName != "Bench Press" {
+	if len(routine.Exercises) != 1 || routine.Exercises[0].Name != "Bench Press" {
 		t.Fatalf("unexpected exercises payload: %#v", routine.Exercises)
 	}
 }
@@ -153,7 +182,7 @@ func TestGetRoutineByIDNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	handler := NewRoutineHandler(service.NewRoutineService(&routineHandlerTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 			return nil, service.ErrRoutineNotFound
 		},
 	}), nil)
@@ -175,7 +204,7 @@ func TestGetRoutineByIDInternalError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	handler := NewRoutineHandler(service.NewRoutineService(&routineHandlerTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 			return nil, errors.New("db error")
 		},
 	}), nil)
@@ -218,7 +247,7 @@ func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 			return 2, nil
 		},
 	}
-	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
 	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
 
 	w := httptest.NewRecorder()
@@ -239,11 +268,11 @@ func TestUpgradeRoutineJSONNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &routineHandlerTestRepository{
-		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.Routine, error) {
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 			return nil, service.ErrRoutineNotFound
 		},
 	}
-	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
 	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
 
 	w := httptest.NewRecorder()
@@ -264,7 +293,7 @@ func TestUpgradeRoutineJSONInvalidInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &routineHandlerTestRepository{}
-	aiService := service.NewRoutineAIService(repo, &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
 	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
 
 	w := httptest.NewRecorder()

@@ -460,19 +460,19 @@ func (h *WorkoutHandler) UpdateWorkoutSet(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid workout id",
 		})
-		c.Abort()
+		return
 	}
 	if !okExercise {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid exercise id",
 		})
-		c.Abort()
+		return
 	}
 	if !okSet {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid set id",
 		})
-		c.Abort()
+		return
 	}
 
 	var req createSetToExerciseRequest
@@ -505,6 +505,7 @@ func (h *WorkoutHandler) UpdateWorkoutSet(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "workout set not found",
 			})
+			return
 		}
 		slog.Error("failed to update set to workout set", "error", err, "workout_id", workoutID)
 		c.JSON(http.StatusInternalServerError, gin.H{

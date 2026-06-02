@@ -185,6 +185,23 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		IsOfficial:           isOfficial,
 	}
 
+	if !isOfficial {
+		userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+
+		userID, _ := userIDValue.(string)
+		userID = strings.TrimSpace(userID)
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+
+		exercise.OwnerUserID = &userID
+	}
+
 	err := h.service.Create(c.Request.Context(), &exercise)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidExerciseInput) {

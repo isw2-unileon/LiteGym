@@ -59,6 +59,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
 	routineAIService := service.NewRoutineAIService(
 		routineRepo,
+		exerciseService,
 		workoutSessionRepo,
 		bodyMetricRepo,
 		cfg.GeminiAPIKey,
@@ -77,7 +78,8 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
+	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db), cfg.GeminiAPIKey, cfg.GeminiModel))
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName, userService)
 
 	r := transport.SetupRouterWithRoutine(
 		db,
@@ -90,6 +92,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		cfg.CORSAllowOrigin,
 	)
 
@@ -97,7 +100,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

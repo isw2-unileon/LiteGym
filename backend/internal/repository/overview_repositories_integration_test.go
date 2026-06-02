@@ -1,3 +1,5 @@
+//go:build integration
+
 package repository
 
 import (
@@ -166,7 +168,7 @@ func seedRoutineDetailRepository(t *testing.T, db *pgxpool.Pool, userID string) 
 	return routineID
 }
 
-func assertRoutineDetailRepository(t *testing.T, routine *model.Routine, routineID string) {
+func assertRoutineDetailRepository(t *testing.T, routine *model.RoutineDetail, routineID string) {
 	t.Helper()
 
 	if routine.ID != routineID {
@@ -178,8 +180,8 @@ func assertRoutineDetailRepository(t *testing.T, routine *model.Routine, routine
 	if len(routine.Exercises) != 2 {
 		t.Fatalf("se esperaban 2 ejercicios, pero se obtuvieron %d", len(routine.Exercises))
 	}
-	if routine.Exercises[0].ExerciseName != "Bench Press" {
-		t.Fatalf("se esperaba Bench Press en primer lugar, pero se obtuvo %s", routine.Exercises[0].ExerciseName)
+	if routine.Exercises[0].Name != "Bench Press" {
+		t.Fatalf("se esperaba Bench Press en primer lugar, pero se obtuvo %s", routine.Exercises[0].Name)
 	}
 	if len(routine.Exercises[0].Sets) != 2 {
 		t.Fatalf("se esperaban 2 sets para el primer ejercicio, pero se obtuvieron %d", len(routine.Exercises[0].Sets))
