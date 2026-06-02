@@ -104,7 +104,7 @@ export default function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-bold text-[#3a332c]">Contraseña</span>
+                <span className="text-sm font-bold text-[#3a332c]">Contrasena</span>
                 <input
                   className="mt-2 w-full rounded-2xl border border-[#1f1b16]/15 bg-white/75 px-4 py-3 text-base outline-none ring-[#ea7130]/25 transition focus:border-[#ea7130] focus:ring-4"
                   type="password"

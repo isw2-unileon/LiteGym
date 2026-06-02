@@ -68,8 +68,6 @@ func (r *ticketRepository) GetByID(ctx context.Context, id string) (*model.Ticke
 	query := `SELECT id::text, status::text FROM support_tickets WHERE id = $1::uuid`
 	var t model.Ticket
 	err := r.db.QueryRow(ctx, query, id).Scan(&t.ID, &t.Status)
-
-	// FIX: errorlint pide usar errors.Is
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, pgx.ErrNoRows
 	}

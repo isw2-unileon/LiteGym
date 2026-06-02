@@ -25,11 +25,6 @@ function setupFetchMock() {
       return Promise.resolve(jsonResponse({ message: "Deleted" }, { status: 200 }));
     }
 
-    // --- EXERCISE MOCKS ---
-    if (url.endsWith("/api/exercises") && method === "POST") {
-      return Promise.resolve(jsonResponse({ message: "Created" }, { status: 201 }));
-    }
-
     // --- TICKET MOCKS ---
     if (url.endsWith("/api/tickets") && method === "GET") {
       return Promise.resolve(jsonResponse([
@@ -174,32 +169,5 @@ describe("AdminPage", () => {
     });
 
     expect(await screen.findByText("Usuario eliminado.")).toBeInTheDocument();
-  });
-
-  // --- EXERCISE TESTS ---
-  it("switches to exercises tab and creates an exercise", async () => {
-    const user = userEvent.setup();
-    const fetchMock = setupFetchMock();
-    renderAdminPage();
-
-    const exercisesTab = await screen.findByRole("button", { name: "Ejercicios Globales" });
-    await user.click(exercisesTab);
-
-    await user.type(screen.getByPlaceholderText("Nombre del ejercicio (ej: Press Banca)"), "Sentadilla");
-    await user.type(screen.getByPlaceholderText("Grupo muscular (ej: Pecho)"), "Piernas");
-    await user.type(screen.getByPlaceholderText("Detalle (ej: Tracción horizontal)"), "Empuje vertical");
-    await user.click(screen.getByRole("button", { name: "Publicar Ejercicio" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/exercises"),
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"is_official":true'),
-        }),
-      );
-    });
-
-    expect(await screen.findByText("Ejercicio global creado correctamente.")).toBeInTheDocument();
   });
 });

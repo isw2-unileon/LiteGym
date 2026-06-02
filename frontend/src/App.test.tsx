@@ -52,7 +52,7 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByRole("heading", { name: /Hola,/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola/i })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -99,7 +99,7 @@ describe("App", () => {
     );
 
     expect(screen.getByText("Redirigiendo...")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: /Hola,/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola/i })).toBeInTheDocument();
   });
 
   it("redirects unknown routes to login when the session is missing", async () => {

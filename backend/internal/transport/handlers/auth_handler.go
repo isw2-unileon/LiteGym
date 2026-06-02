@@ -99,6 +99,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
@@ -179,6 +180,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
@@ -221,6 +223,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // Logout clears the authentication cookie for the current client.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    "",

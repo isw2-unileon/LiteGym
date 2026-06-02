@@ -266,7 +266,6 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 }
 
 func TestUserServiceListAllSuccess(t *testing.T) {
-	// Arrange
 	mockRepo := &mockUserRepository{
 		listAllFunc: func(ctx context.Context) ([]*model.User, error) {
 			return []*model.User{
@@ -278,9 +277,7 @@ func TestUserServiceListAllSuccess(t *testing.T) {
 
 	svc := NewUserService(mockRepo)
 
-	// Act
 	users, err := svc.ListAll(context.Background())
-	// Assert
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

@@ -80,7 +80,7 @@ describe("LoginPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByText("El correo o la contrasena no son correctos.")).toBeInTheDocument();
+    expect(await screen.findByText("El correo o la contraseña no son correctos.")).toBeInTheDocument();
   });
 
   it("shows the translated invalid email message from the backend", async () => {
