@@ -8,6 +8,7 @@ import (
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -57,6 +58,9 @@ func (m *mockUserRepository) Delete(ctx context.Context, id string) error {
 func TestUserServiceCreateHashesPassword(t *testing.T) {
 	mockRepo := &mockUserRepository{
 		createFunc: func(ctx context.Context, user *model.User) error {
+			if user.Email != "test@example.com" {
+				t.Fatalf("expected email to be normalized, got %s", user.Email)
+			}
 			if user.PasswordHash == "password123" {
 				t.Fatal("expected password to be hashed before persistence")
 			}
@@ -83,6 +87,57 @@ func TestUserServiceCreateHashesPassword(t *testing.T) {
 	}
 }
 
+func TestUserServiceCreateReturnsEmailAlreadyExistsWhenEmailIsRegistered(t *testing.T) {
+	mockRepo := &mockUserRepository{
+		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
+			return &model.User{ID: "existing-user-id", Email: email}, nil
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	err := svc.Create(context.Background(), &model.User{
+		Username:     "testuser",
+		Email:        "Test@Example.com",
+		PasswordHash: "password123",
+	})
+	if !errors.Is(err, ErrEmailAlreadyExists) {
+		t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
+	}
+}
+
+func TestUserServiceCreateRejectsInvalidEmail(t *testing.T) {
+	svc := NewUserService(&mockUserRepository{})
+
+	err := svc.Create(context.Background(), &model.User{
+		Username:     "testuser",
+		Email:        "invalid-email",
+		PasswordHash: "password123",
+	})
+	if !errors.Is(err, ErrInvalidEmail) {
+		t.Fatalf("expected ErrInvalidEmail, got %v", err)
+	}
+}
+
+func TestUserServiceCreateReturnsUserAlreadyExistsOnUniqueViolation(t *testing.T) {
+	mockRepo := &mockUserRepository{
+		createFunc: func(ctx context.Context, user *model.User) error {
+			return &pgconn.PgError{Code: "23505"}
+		},
+	}
+
+	svc := NewUserService(mockRepo)
+
+	err := svc.Create(context.Background(), &model.User{
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: "password123",
+	})
+	if !errors.Is(err, ErrUserAlreadyExists) {
+		t.Fatalf("expected ErrUserAlreadyExists, got %v", err)
+	}
+}
+
 func TestUserServiceAuthenticateSuccess(t *testing.T) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	if err != nil {
@@ -91,6 +146,9 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 
 	mockRepo := &mockUserRepository{
 		getByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
+			if email != "test@example.com" {
+				t.Fatalf("expected normalized email lookup, got %s", email)
+			}
 			return &model.User{
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
@@ -104,7 +162,7 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 
 	svc := NewUserService(mockRepo)
 
-	user, err := svc.Authenticate(context.Background(), "test@example.com", "password123")
+	user, err := svc.Authenticate(context.Background(), " Test@Example.com ", "password123")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -156,6 +214,15 @@ func TestUserServiceAuthenticateUserNotFound(t *testing.T) {
 	}
 }
 
+func TestUserServiceAuthenticateRejectsInvalidEmail(t *testing.T) {
+	svc := NewUserService(&mockUserRepository{})
+
+	_, err := svc.Authenticate(context.Background(), "invalid-email", "password123")
+	if !errors.Is(err, ErrInvalidEmail) {
+		t.Fatalf("expected ErrInvalidEmail, got %v", err)
+	}
+}
+
 func TestUserServiceGetProfileSuccess(t *testing.T) {
 	expectedTime := time.Now().UTC()
 	expectedID := "550e8400-e29b-41d4-a716-446655440000"
@@ -199,7 +266,6 @@ func TestUserServiceGetProfileSuccess(t *testing.T) {
 }
 
 func TestUserServiceListAllSuccess(t *testing.T) {
-	// Arrange
 	mockRepo := &mockUserRepository{
 		listAllFunc: func(ctx context.Context) ([]*model.User, error) {
 			return []*model.User{
@@ -211,9 +277,7 @@ func TestUserServiceListAllSuccess(t *testing.T) {
 
 	svc := NewUserService(mockRepo)
 
-	// Act
 	users, err := svc.ListAll(context.Background())
-	// Assert
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

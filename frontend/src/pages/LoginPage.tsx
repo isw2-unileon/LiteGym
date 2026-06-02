@@ -1,9 +1,26 @@
 import * as React from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function translateLoginError(message?: string | null) {
+  switch (message) {
+    case "invalid credentials":
+      return "El correo o la contraseña no son correctos.";
+    case "invalid email address":
+      return "Introduce un email valido.";
+    case "login rate limit exceeded":
+      return "Has intentado iniciar sesion demasiadas veces. Espera unos segundos y vuelve a intentarlo.";
+    default:
+      return message ?? "No se pudo iniciar sesion.";
+  }
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -17,6 +34,8 @@ export default function LoginPage() {
     setLoginStatus("loading");
     setLoginMessage("");
 
+    const normalizedEmail = normalizeEmail(email);
+
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
@@ -25,7 +44,7 @@ export default function LoginPage() {
         },
         credentials: "include",
         body: JSON.stringify({
-          email,
+          email: normalizedEmail,
           password,
         }),
       });
@@ -33,7 +52,7 @@ export default function LoginPage() {
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setLoginStatus("error");
-        setLoginMessage(payload?.error ?? "No se pudo iniciar sesion.");
+        setLoginMessage(translateLoginError(payload?.error));
         return;
       }
 
@@ -115,6 +134,13 @@ export default function LoginPage() {
                 {loginMessage}
               </p>
             )}
+
+            <p className="mt-6 text-sm font-semibold text-[#5b5347]">
+              No tienes cuenta?{" "}
+              <Link className="text-[#ea7130] underline decoration-[#ea7130]/35 underline-offset-4" to="/register">
+                Registrate
+              </Link>
+            </p>
           </div>
         </div>
       </section>

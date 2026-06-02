@@ -108,6 +108,7 @@ func setupRouterInternal(
 	// Public endpoints
 	// --------------------
 	api.POST("/users", rateLimiter.Register(), userHandler.CreateUser)
+	api.POST("/auth/register", rateLimiter.Register(), authHandler.Register)
 	api.POST("/auth/login", rateLimiter.Login(), authHandler.Login)
 	api.POST("/auth/logout", rateLimiter.PublicAuth(), authHandler.Logout)
 

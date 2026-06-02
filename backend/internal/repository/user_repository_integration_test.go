@@ -33,6 +33,7 @@ func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
 		"public.exercise_secondary_muscle_groups",
 		"public.exercises",
 		"public.body_metrics",
+		"public.user_goals",
 		"public.user_profiles",
 		"public.users",
 	}

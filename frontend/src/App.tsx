@@ -6,6 +6,7 @@ import ExercisePage from "./pages/ExercisePage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundRedirect from "./pages/NotFoundRedirect";
 import ProfilePage from "./pages/ProfilePage";
+import RegisterPage from "./pages/RegisterPage";
 import UserRoutinesPage from "./pages/UserRoutinesPage";
 import SupportPage from "./pages/SupportPage";
 
@@ -13,6 +14,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<AuthenticatedLayoutRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/exercises" element={<ExercisePage />} />

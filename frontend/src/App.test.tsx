@@ -78,6 +78,17 @@ describe("App", () => {
     });
   });
 
+  it("renders the register page route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Crea tu cuenta y empieza a entrenar con orden." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeInTheDocument();
+  });
+
   it("redirects unknown routes to dashboard when the session is valid", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: { id: "user-id" } }, { status: 200 })));
 
