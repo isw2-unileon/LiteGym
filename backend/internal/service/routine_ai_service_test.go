@@ -499,6 +499,27 @@ func assertRecentTrainingHistory(t *testing.T, userContext map[string]any) {
 	}
 }
 
+func assertUpgradeRecentTrainingHistory(t *testing.T, userContext map[string]any) {
+	t.Helper()
+
+	recentHistory := sliceField(t, userContext, "recent_training_history", 2)
+	firstSession := mapItem(t, recentHistory[0], "first upgrade history session")
+	exercises := sliceField(t, firstSession, "exercises", 1)
+	if len(exercises) != 1 {
+		t.Fatalf("expected filtered related exercises only, got %#v", firstSession["exercises"])
+	}
+	firstExercise := mapItem(t, exercises[0], "first related exercise")
+	if got := firstExercise["exercise_id"]; got != "exercise-1" {
+		t.Fatalf("expected only related exercise history, got %#v", firstExercise["exercise_id"])
+	}
+
+	secondSession := mapItem(t, recentHistory[1], "second upgrade history session")
+	secondExercises := sliceField(t, secondSession, "exercises", 1)
+	if len(secondExercises) != 1 {
+		t.Fatalf("expected filtered related exercises in second session, got %#v", secondSession["exercises"])
+	}
+}
+
 func mapField(t *testing.T, values map[string]any, key string) map[string]any {
 	t.Helper()
 
@@ -676,6 +697,23 @@ func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
 	if got := firstExercise["exercise_id"]; got != "exercise-1" {
 		t.Fatalf("expected existing routine exercise id, got %#v", got)
 	}
+	exerciseCatalog := sliceField(t, promptPayload, "exercise_catalog", 2)
+	if len(exerciseCatalog) != 2 {
+		t.Fatalf("expected full exercise catalog for upgrade, got %#v", promptPayload["exercise_catalog"])
+	}
+	userContext := mapField(t, promptPayload, "user_context")
+	assertUpgradeRecentTrainingHistory(t, userContext)
+
+	systemInstruction := decodeCapturedSystemInstruction(t, capturedPrompt)
+	if !strings.Contains(systemInstruction, "Treat existing_routine as the base plan to refine") {
+		t.Fatalf("expected refined upgrade instruction, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Respect message and feedback_message as strong user instructions") {
+		t.Fatalf("expected feedback guidance in instruction, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Never include keys such as exercise_catalog, existing_routine, user_context, message, feedback_message, or output_contract in the response") {
+		t.Fatalf("expected anti-echo guidance in instruction, got %q", systemInstruction)
+	}
 }
 
 func testRoutineForUpgrade(routineID string) *model.RoutineDetail {
@@ -718,8 +756,8 @@ func assertRoutineUpgradeResponse(t *testing.T, response model.AIRoutineUpgradeR
 	if response.RoutineJSON.Name != "Push Day 2.0" {
 		t.Fatalf("expected upgraded routine name, got %q", response.RoutineJSON.Name)
 	}
-	if response.RateLimit.Remaining != 1 {
-		t.Fatalf("expected one remaining generation, got %#v", response.RateLimit)
+	if response.RateLimit.Remaining != aiRoutineRateLimit-1 {
+		t.Fatalf("expected %d remaining generations, got %#v", aiRoutineRateLimit-1, response.RateLimit)
 	}
 	if response.Diff.Summary.AddedExercises != 1 || response.Diff.Summary.ModifiedExercises != 1 {
 		t.Fatalf("unexpected diff summary: %#v", response.Diff.Summary)
@@ -761,6 +799,117 @@ func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 	}
 	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 0 {
 		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
+	}
+}
+
+func TestUpgradeRoutineJSONRejectsEmptyRoutine(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"name\":\"Push Day Revised\",\"objective\":\"Small refinement\",\"duration_minutes\":45,\"target_muscles\":[\"chest\"],\"mandatory_count\":0,\"exercises\":[]}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Improve it a little.",
+	})
+	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
+		t.Fatalf("expected ErrAIRoutineProviderUnavailable, got %v", err)
+	}
+	if response.RoutineJSON.Name != "" || len(response.Diff.Exercises) != 0 {
+		t.Fatalf("expected empty response payload on provider error, got %#v", response)
+	}
+}
+
+func TestUpgradeRoutineJSONRejectsPromptEchoResponse(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"message\":\"Add one exercise\",\"existing_routine\":{\"name\":\"Push Day\"},\"exercise_catalog\":[{\"id\":\"exercise-1\"}],\"output_contract\":{\"name\":\"string\"}}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	_, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Add one exercise.",
+	})
+	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
+		t.Fatalf("expected ErrAIRoutineProviderUnavailable for echoed prompt, got %v", err)
 	}
 }
 
@@ -827,4 +976,27 @@ func TestBuildAIRoutineUpgradeDiff(t *testing.T) {
 	if diff.Exercises[2].ChangeType != "added" {
 		t.Fatalf("expected third entry added, got %#v", diff.Exercises[2])
 	}
+}
+
+func decodeCapturedSystemInstruction(t *testing.T, capturedPrompt map[string]any) string {
+	t.Helper()
+
+	systemInstruction, ok := capturedPrompt["system_instruction"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected system_instruction object, got %#v", capturedPrompt["system_instruction"])
+	}
+	parts, ok := systemInstruction["parts"].([]any)
+	if !ok || len(parts) == 0 {
+		t.Fatalf("expected system_instruction parts, got %#v", systemInstruction["parts"])
+	}
+	firstPart, ok := parts[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first system instruction part, got %#v", parts[0])
+	}
+	text, ok := firstPart["text"].(string)
+	if !ok {
+		t.Fatalf("expected system instruction text, got %#v", firstPart["text"])
+	}
+
+	return text
 }

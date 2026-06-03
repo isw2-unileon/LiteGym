@@ -37,8 +37,7 @@ CREATE TABLE public.user_goals (
   user_id UUID PRIMARY KEY,
   short_term TEXT,
   long_term TEXT,
-  target_days_per_week INTEGER NOT NULL DEFAULT 0 CHECK (target_days_per_week >= 0),
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  target_days_per_week INTEGER,
   updated_at TIMESTAMP NOT NULL DEFAULT now(),
   CONSTRAINT user_goals_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
