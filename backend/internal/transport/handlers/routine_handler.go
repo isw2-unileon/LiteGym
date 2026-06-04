@@ -24,6 +24,12 @@ type aiRoutineSaveRequest struct {
 	RoutineJSON model.AIRoutineJSON `json:"routine_json"`
 }
 
+type aiRoutineOverwriteRequest struct {
+	RoutineJSON model.AIRoutineJSON `json:"routine_json"`
+}
+
+type aiRoutinePersistFunc func(ctx *gin.Context, userID, routineID string, routine model.AIRoutineJSON) (model.AIRoutineGenerateResponse, error)
+
 // NewRoutineHandler creates a new RoutineHandler.
 func NewRoutineHandler(svc *service.RoutineService, aiService *service.RoutineAIService) *RoutineHandler {
 	return &RoutineHandler{service: svc, aiService: aiService}
@@ -264,6 +270,63 @@ func (h *RoutineHandler) UpgradeRoutineJSON(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upgrade ai routine"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// SaveUpgradedRoutineAsNew persists one upgrade proposal as a new routine.
+func (h *RoutineHandler) SaveUpgradedRoutineAsNew(c *gin.Context) {
+	h.persistUpgradedRoutine(c, "failed to save upgraded routine", func(ctx *gin.Context, userID, routineID string, routine model.AIRoutineJSON) (model.AIRoutineGenerateResponse, error) {
+		return h.aiService.SaveUpgradedRoutineAsNew(ctx.Request.Context(), userID, routineID, routine)
+	})
+}
+
+// OverwriteRoutineWithAI replaces one routine with the upgraded proposal.
+func (h *RoutineHandler) OverwriteRoutineWithAI(c *gin.Context) {
+	h.persistUpgradedRoutine(c, "failed to overwrite upgraded routine", func(ctx *gin.Context, userID, routineID string, routine model.AIRoutineJSON) (model.AIRoutineGenerateResponse, error) {
+		return h.aiService.OverwriteRoutineWithGeneratedJSON(ctx.Request.Context(), userID, routineID, routine)
+	})
+}
+
+func (h *RoutineHandler) persistUpgradedRoutine(
+	c *gin.Context,
+	internalErrorMessage string,
+	persist aiRoutinePersistFunc,
+) {
+	userID, ok := authenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	routineID := c.Param("id")
+	var req aiRoutineOverwriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	response, err := persist(c, userID, routineID, req.RoutineJSON)
+	if err != nil {
+		if errors.Is(err, service.ErrAIRoutineInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid routine preview"})
+			return
+		}
+		if errors.Is(err, service.ErrRoutineNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "routine not found"})
+			return
+		}
+		if errors.Is(err, service.ErrAIRoutineProviderUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":  "ai provider unavailable",
+				"detail": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": internalErrorMessage})
 		return
 	}
 

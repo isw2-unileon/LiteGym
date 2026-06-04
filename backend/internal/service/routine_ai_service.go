@@ -15,6 +15,7 @@ import (
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
+	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -29,7 +30,7 @@ var (
 )
 
 const (
-	aiRoutineRateLimit = 2
+	aiRoutineRateLimit = 20
 )
 
 var aiRoutineRateWindow = time.Hour
@@ -152,6 +153,73 @@ func (s *RoutineAIService) SaveGeneratedRoutineJSON(
 
 	routineID, err := s.saveGeneratedRoutine(ctx, userID, generated)
 	if err != nil {
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	return model.AIRoutineGenerateResponse{
+		RoutineJSON: generated,
+		RoutineID:   routineID,
+	}, nil
+}
+
+// SaveUpgradedRoutineAsNew persists an upgrade proposal as a brand new routine.
+func (s *RoutineAIService) SaveUpgradedRoutineAsNew(
+	ctx context.Context,
+	userID, baseRoutineID string,
+	generated model.AIRoutineJSON,
+) (model.AIRoutineGenerateResponse, error) {
+	userID = strings.TrimSpace(userID)
+	baseRoutineID = strings.TrimSpace(baseRoutineID)
+	if userID == "" || baseRoutineID == "" || s.exerciseService == nil {
+		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
+	}
+
+	if _, err := s.repo.GetByID(ctx, userID, baseRoutineID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
+		}
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	routineID, err := s.saveGeneratedRoutine(ctx, userID, generated)
+	if err != nil {
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	return model.AIRoutineGenerateResponse{
+		RoutineJSON: generated,
+		RoutineID:   routineID,
+	}, nil
+}
+
+// OverwriteRoutineWithGeneratedJSON replaces one existing routine with the upgraded proposal.
+func (s *RoutineAIService) OverwriteRoutineWithGeneratedJSON(
+	ctx context.Context,
+	userID, routineID string,
+	generated model.AIRoutineJSON,
+) (model.AIRoutineGenerateResponse, error) {
+	userID = strings.TrimSpace(userID)
+	routineID = strings.TrimSpace(routineID)
+	if userID == "" || routineID == "" || s.exerciseService == nil {
+		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
+	}
+
+	if _, err := s.repo.GetByID(ctx, userID, routineID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
+		}
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	routineToSave, err := s.buildGeneratedRoutineToSave(ctx, userID, generated)
+	if err != nil {
+		return model.AIRoutineGenerateResponse{}, err
+	}
+
+	if err := s.repo.OverwriteGeneratedAIRoutine(ctx, routineID, userID, routineToSave); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
+		}
 		return model.AIRoutineGenerateResponse{}, err
 	}
 
@@ -491,12 +559,25 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 	userID string,
 	generated model.AIRoutineJSON,
 ) (string, error) {
+	routineToSave, err := s.buildGeneratedRoutineToSave(ctx, userID, generated)
+	if err != nil {
+		return "", err
+	}
+
+	return s.repo.SaveGeneratedAIRoutine(ctx, routineToSave)
+}
+
+func (s *RoutineAIService) buildGeneratedRoutineToSave(
+	ctx context.Context,
+	userID string,
+	generated model.AIRoutineJSON,
+) (model.AIRoutineToSave, error) {
 	seenExerciseIDs := make(map[string]struct{}, len(generated.Exercises))
 	exercisesToSave := make([]model.AIRoutineExerciseToSave, 0, len(generated.Exercises))
 	for _, exercise := range generated.Exercises {
 		exerciseID, err := s.resolveOrCreateGeneratedAIRoutineExerciseID(ctx, userID, exercise)
 		if err != nil {
-			return "", err
+			return model.AIRoutineToSave{}, err
 		}
 		if exerciseID == "" {
 			continue
@@ -514,7 +595,7 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 		seenExerciseIDs[exerciseID] = struct{}{}
 	}
 	if len(exercisesToSave) == 0 {
-		return "", ErrAIRoutineProviderUnavailable
+		return model.AIRoutineToSave{}, ErrAIRoutineProviderUnavailable
 	}
 
 	routineName := strings.TrimSpace(generated.Name)
@@ -522,12 +603,12 @@ func (s *RoutineAIService) saveGeneratedRoutine(
 		routineName = "AI generated routine"
 	}
 
-	return s.repo.SaveGeneratedAIRoutine(ctx, model.AIRoutineToSave{
+	return model.AIRoutineToSave{
 		UserID:      userID,
 		Name:        routineName,
 		Description: buildAIRoutineDescription(generated),
 		Exercises:   exercisesToSave,
-	})
+	}, nil
 }
 
 func (s *RoutineAIService) buildExercisesToSave(

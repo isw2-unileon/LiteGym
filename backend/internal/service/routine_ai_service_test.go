@@ -22,10 +22,12 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type routineAITestRoutineRepository struct {
-	savedRoutine *model.AIRoutineToSave
-	getByIDFunc  func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
-	countFunc    func(ctx context.Context, userID string, since time.Time) (int, error)
-	loggedCount  int
+	savedRoutine      *model.AIRoutineToSave
+	overwritten       *model.AIRoutineToSave
+	overwrittenID     string
+	getByIDFunc       func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	countFunc         func(ctx context.Context, userID string, since time.Time) (int, error)
+	loggedCount       int
 }
 
 type routineAITestExerciseRepository struct {
@@ -61,6 +63,12 @@ func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.
 func (r *routineAITestRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
 	r.savedRoutine = &routine
 	return "saved-routine-1", nil
+}
+
+func (r *routineAITestRoutineRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	r.overwrittenID = routineID
+	r.overwritten = &routine
+	return nil
 }
 
 func (r *routineAITestRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
@@ -913,6 +921,107 @@ func TestUpgradeRoutineJSONRejectsPromptEchoResponse(t *testing.T) {
 	}
 }
 
+func TestSaveUpgradedRoutineAsNew(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	generated := model.AIRoutineJSON{
+		Name:            "Push Day Plus",
+		Objective:       "Refined push day",
+		DurationMinutes: 45,
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				IsMandatory:  true,
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsMin: intPtr(6), TargetRepsMax: intPtr(8)},
+				},
+			},
+		},
+	}
+
+	response, err := svc.SaveUpgradedRoutineAsNew(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", generated)
+	if err != nil {
+		t.Fatalf("unexpected error saving upgraded routine as new: %v", err)
+	}
+	if response.RoutineID != "saved-routine-1" {
+		t.Fatalf("expected saved routine id, got %#v", response)
+	}
+	if routineRepo.savedRoutine == nil || routineRepo.savedRoutine.Name != "Push Day Plus" {
+		t.Fatalf("expected saved routine payload, got %#v", routineRepo.savedRoutine)
+	}
+}
+
+func TestOverwriteRoutineWithGeneratedJSON(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	generated := model.AIRoutineJSON{
+		Name:            "Push Day Reworked",
+		Objective:       "Refined push day",
+		DurationMinutes: 45,
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				IsMandatory:  true,
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsMin: intPtr(5), TargetRepsMax: intPtr(7)},
+				},
+			},
+		},
+	}
+
+	response, err := svc.OverwriteRoutineWithGeneratedJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", generated)
+	if err != nil {
+		t.Fatalf("unexpected error overwriting routine: %v", err)
+	}
+	if response.RoutineID != "routine-1" {
+		t.Fatalf("expected overwritten routine id, got %#v", response)
+	}
+	if routineRepo.overwritten == nil || routineRepo.overwrittenID != "routine-1" {
+		t.Fatalf("expected overwrite payload, got %#v / %q", routineRepo.overwritten, routineRepo.overwrittenID)
+	}
+}
+
 func TestBuildAIRoutineUpgradeDiff(t *testing.T) {
 	before := model.AIRoutineJSON{
 		Exercises: []model.AIRoutineExercise{
@@ -999,4 +1108,8 @@ func decodeCapturedSystemInstruction(t *testing.T, capturedPrompt map[string]any
 	}
 
 	return text
+}
+
+func intPtr(value int) *int {
+	return &value
 }

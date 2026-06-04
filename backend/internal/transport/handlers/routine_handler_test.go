@@ -17,8 +17,10 @@ import (
 )
 
 type routineHandlerTestRepository struct {
-	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
-	countFunc   func(ctx context.Context, userID string, since time.Time) (int, error)
+	getByIDFunc     func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	saveFunc        func(ctx context.Context, routine model.AIRoutineToSave) (string, error)
+	overwriteFunc   func(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error
+	countFunc       func(ctx context.Context, userID string, since time.Time) (int, error)
 }
 
 type routineHandlerTestWorkoutSessionRepository struct{}
@@ -43,7 +45,17 @@ func (r *routineHandlerTestRepository) GetByID(ctx context.Context, userID, rout
 }
 
 func (r *routineHandlerTestRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	if r.saveFunc != nil {
+		return r.saveFunc(ctx, routine)
+	}
 	return "", nil
+}
+
+func (r *routineHandlerTestRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	if r.overwriteFunc != nil {
+		return r.overwriteFunc(ctx, routineID, userID, routine)
+	}
+	return nil
 }
 
 func (r *routineHandlerTestRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
@@ -244,7 +256,10 @@ func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 
 	repo := &routineHandlerTestRepository{
 		countFunc: func(ctx context.Context, userID string, since time.Time) (int, error) {
-			return 2, nil
+			return 20, nil
+		},
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{ID: routineID, Name: "Fallback"}, nil
 		},
 	}
 	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
@@ -307,5 +322,63 @@ func TestUpgradeRoutineJSONInvalidInput(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestSaveUpgradedRoutineAsNew(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{ID: routineID, Name: "Push Day"}, nil
+		},
+		saveFunc: func(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+			return "new-routine-1", nil
+		},
+	}
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	body := `{"routine_json":{"name":"Push Day 2.0","objective":"Refined","duration_minutes":45,"target_muscles":["chest"],"mandatory_count":1,"generated_at":"2026-06-04T10:00:00Z","generation_source":"gemini","exercises":[{"exercise_id":"exercise-1","name":"Bench Press","muscle_group":"chest","exercise_type":"strength","is_mandatory":true,"sets":[{"set_number":1,"target_reps_min":6,"target_reps_max":8}]}]}}`
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("POST", "/api/routines/550e8400-e29b-41d4-a716-446655440000/ai/save-as-new", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.SaveUpgradedRoutineAsNew(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
+func TestOverwriteRoutineWithAI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{ID: routineID, Name: "Push Day"}, nil
+		},
+		overwriteFunc: func(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+			return nil
+		},
+	}
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	body := `{"routine_json":{"name":"Push Day 2.0","objective":"Refined","duration_minutes":45,"target_muscles":["chest"],"mandatory_count":1,"generated_at":"2026-06-04T10:00:00Z","generation_source":"gemini","exercises":[{"exercise_id":"exercise-1","name":"Bench Press","muscle_group":"chest","exercise_type":"strength","is_mandatory":true,"sets":[{"set_number":1,"target_reps_min":6,"target_reps_max":8}]}]}}`
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Request = httptest.NewRequest("PUT", "/api/routines/550e8400-e29b-41d4-a716-446655440000/ai/overwrite", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.OverwriteRoutineWithAI(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }

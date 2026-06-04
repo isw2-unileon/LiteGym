@@ -104,6 +104,7 @@ type AIRoutineUpgradeResponse = {
 };
 
 type AIRoutineUpgradeStatus = "idle" | "loading" | "success" | "error";
+type AIRoutineUpgradePersistAction = "idle" | "save_as_new" | "overwrite";
 
 type RoutineStatus = "idle" | "loading" | "success" | "error";
 
@@ -171,6 +172,8 @@ export default function UserRoutinesPage() {
   const [aiUpgradeResult, setAIUpgradeResult] =
     useState<AIRoutineUpgradeResponse | null>(null);
   const [isAIUpgradeResultOpen, setIsAIUpgradeResultOpen] = useState(false);
+  const [aiUpgradePersistAction, setAIUpgradePersistAction] =
+    useState<AIRoutineUpgradePersistAction>("idle");
 
   const fetchRoutineDetail = useCallback(async (routineID: string) => {
     setSelectedRoutineID(routineID);
@@ -499,6 +502,10 @@ export default function UserRoutinesPage() {
   };
 
   const handleCloseAIUpgradeResult = () => {
+    if (aiUpgradePersistAction !== "idle") {
+      return;
+    }
+
     setIsAIUpgradeResultOpen(false);
     setAIUpgradeResult(null);
     setAIUpgradeFeedback("");
@@ -563,6 +570,110 @@ export default function UserRoutinesPage() {
     } catch {
       setAIUpgradeStatus("error");
       setAIUpgradeNotice("No se pudo conectar con el servicio.");
+    }
+  };
+
+  const handleSaveUpgradedRoutineAsNew = async () => {
+    if (selectedRoutine == null || aiUpgradeResult == null) {
+      return;
+    }
+
+    setAIUpgradePersistAction("save_as_new");
+    setAIUpgradeNotice("");
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/routines/${selectedRoutine.id}/ai/save-as-new`),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            routine_json: aiUpgradeResult.routine_json,
+          }),
+        },
+      );
+
+      const payload = (await response.json()) as AIRoutineSaveResponse & {
+        error?: string;
+        detail?: string;
+      };
+
+      if (!response.ok) {
+        setAIUpgradeNotice(
+          payload.detail ||
+            payload.error ||
+            "No se pudo guardar la propuesta como nueva rutina.",
+        );
+        return;
+      }
+
+      setAIUpgradeNotice("");
+      setIsAIUpgradeResultOpen(false);
+      setAIUpgradeResult(null);
+      setAIUpgradeFeedback("");
+      setAIMessage("Rutina guardada como nueva.");
+      await fetchRoutines();
+      if (payload.routine_id) {
+        await fetchRoutineDetail(payload.routine_id);
+      }
+    } catch {
+      setAIUpgradeNotice("No se pudo conectar con el servicio.");
+    } finally {
+      setAIUpgradePersistAction("idle");
+    }
+  };
+
+  const handleOverwriteRoutineWithUpgrade = async () => {
+    if (selectedRoutine == null || aiUpgradeResult == null) {
+      return;
+    }
+
+    setAIUpgradePersistAction("overwrite");
+    setAIUpgradeNotice("");
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/routines/${selectedRoutine.id}/ai/overwrite`),
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            routine_json: aiUpgradeResult.routine_json,
+          }),
+        },
+      );
+
+      const payload = (await response.json()) as AIRoutineSaveResponse & {
+        error?: string;
+        detail?: string;
+      };
+
+      if (!response.ok) {
+        setAIUpgradeNotice(
+          payload.detail ||
+            payload.error ||
+            "No se pudo sobrescribir la rutina actual.",
+        );
+        return;
+      }
+
+      setAIUpgradeNotice("");
+      setIsAIUpgradeResultOpen(false);
+      setAIUpgradeResult(null);
+      setAIUpgradeFeedback("");
+      setAIMessage("Rutina actualizada.");
+      await fetchRoutines();
+      await fetchRoutineDetail(selectedRoutine.id);
+    } catch {
+      setAIUpgradeNotice("No se pudo conectar con el servicio.");
+    } finally {
+      setAIUpgradePersistAction("idle");
     }
   };
 
@@ -1334,7 +1445,7 @@ export default function UserRoutinesPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
                 className="rounded-2xl border border-[#ea7130]/20 bg-[#fff4ea] px-5 py-3 text-sm font-black text-[#8a4519] transition hover:border-[#ea7130] hover:bg-[#ffe7d7] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={aiUpgradeStatus === "loading"}
+                disabled={aiUpgradeStatus === "loading" || aiUpgradePersistAction !== "idle"}
                 type="button"
                 onClick={() => void handleRegenerateAIUpgrade()}
               >
@@ -1343,7 +1454,28 @@ export default function UserRoutinesPage() {
                   : "Regenerar propuesta"}
               </button>
               <button
+                className="rounded-2xl border border-[#265c52]/20 bg-[#ecf5ef] px-5 py-3 text-sm font-black text-[#265c52] transition hover:border-[#265c52] hover:bg-[#dcefe4] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={aiUpgradeStatus === "loading" || aiUpgradePersistAction !== "idle"}
+                type="button"
+                onClick={() => void handleSaveUpgradedRoutineAsNew()}
+              >
+                {aiUpgradePersistAction === "save_as_new"
+                  ? "Guardando..."
+                  : "Guardar como nueva"}
+              </button>
+              <button
+                className="rounded-2xl bg-[#ea7130] px-5 py-3 text-sm font-black text-white transition hover:bg-[#c95d24] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={aiUpgradeStatus === "loading" || aiUpgradePersistAction !== "idle"}
+                type="button"
+                onClick={() => void handleOverwriteRoutineWithUpgrade()}
+              >
+                {aiUpgradePersistAction === "overwrite"
+                  ? "Sobrescribiendo..."
+                  : "Sobrescribir rutina"}
+              </button>
+              <button
                 className="rounded-2xl bg-[#1f1b16] px-5 py-3 text-sm font-black text-white transition hover:bg-[#265c52]"
+                disabled={aiUpgradePersistAction !== "idle"}
                 type="button"
                 onClick={handleCloseAIUpgradeResult}
               >

@@ -33,6 +33,10 @@ func (r *routineServiceTestRepository) SaveGeneratedAIRoutine(ctx context.Contex
 	return "", nil
 }
 
+func (r *routineServiceTestRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	return nil
+}
+
 func (r *routineServiceTestRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
 	return 0, nil
 }

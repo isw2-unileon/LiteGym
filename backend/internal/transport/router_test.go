@@ -145,6 +145,10 @@ func (m *MockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, rout
 	return "", nil
 }
 
+func (m *MockRoutineRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	return nil
+}
+
 func (m *MockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
 	return nil
 }

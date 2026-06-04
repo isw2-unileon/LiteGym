@@ -17,6 +17,7 @@ type RoutineRepository interface {
 	ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error)
 	GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
 	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
+	OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error
 	CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error)
 	LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error
 	ListAvailableExercisesForAI(
@@ -276,62 +277,8 @@ func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine 
 		return "", err
 	}
 
-	batch := &pgx.Batch{}
-	plannedSetCount := 0
-	for _, exercise := range routine.Exercises {
-		var routineExerciseID string
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
-			VALUES ($1::uuid, $2::uuid, $3, $4)
-			RETURNING id::text
-		`, routineID, exercise.ExerciseID, exercise.Order, exercise.Notes).Scan(&routineExerciseID); err != nil {
-			return "", err
-		}
-
-		for _, set := range exercise.Sets {
-			batch.Queue(`
-				INSERT INTO public.routine_exercise_sets (
-					routine_exercise_id,
-					set_number,
-					target_reps_min,
-					target_reps_max,
-					target_reps_text,
-					target_weight_kg,
-					target_duration_seconds,
-					target_distance_km,
-					target_rir,
-					rest_seconds,
-					notes
-				)
-				VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			`,
-				routineExerciseID,
-				set.SetNumber,
-				set.TargetRepsMin,
-				set.TargetRepsMax,
-				set.TargetRepsText,
-				set.TargetWeightKg,
-				set.TargetDurationSeconds,
-				set.TargetDistanceKm,
-				set.TargetRir,
-				set.RestSeconds,
-				set.Notes,
-			)
-			plannedSetCount++
-		}
-	}
-
-	if plannedSetCount > 0 {
-		results := tx.SendBatch(ctx, batch)
-		for range plannedSetCount {
-			if _, err := results.Exec(); err != nil {
-				_ = results.Close()
-				return "", err
-			}
-		}
-		if err := results.Close(); err != nil {
-			return "", err
-		}
+	if err := insertRoutineExercisesAndSets(ctx, tx, routineID, routine.Exercises); err != nil {
+		return "", err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -339,6 +286,50 @@ func (r *routineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine 
 	}
 
 	return routineID, nil
+}
+
+func (r *routineRepository) OverwriteGeneratedAIRoutine(
+	ctx context.Context,
+	routineID, userID string,
+	routine model.AIRoutineToSave,
+) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE public.routines
+		SET
+			name = $1,
+			description = $2,
+			source = 'ai',
+			updated_at = now()
+		WHERE id = $3::uuid
+			AND user_id = $4::uuid
+	`, routine.Name, routine.Description, routineID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM public.routine_exercises
+		WHERE routine_id = $1::uuid
+	`, routineID); err != nil {
+		return err
+	}
+
+	if err := insertRoutineExercisesAndSets(ctx, tx, routineID, routine.Exercises); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *routineRepository) CountAIGenerationsInWindow(
@@ -441,6 +432,71 @@ func scanRoutineSummaries(rows pgx.Rows) ([]model.OverviewRoutineSummary, error)
 	}
 
 	return routines, rows.Err()
+}
+
+func insertRoutineExercisesAndSets(
+	ctx context.Context,
+	tx pgx.Tx,
+	routineID string,
+	exercises []model.AIRoutineExerciseToSave,
+) error {
+	batch := &pgx.Batch{}
+	plannedSetCount := 0
+	for _, exercise := range exercises {
+		var routineExerciseID string
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO public.routine_exercises (routine_id, exercise_id, exercise_order, notes)
+			VALUES ($1::uuid, $2::uuid, $3, $4)
+			RETURNING id::text
+		`, routineID, exercise.ExerciseID, exercise.Order, exercise.Notes).Scan(&routineExerciseID); err != nil {
+			return err
+		}
+
+		for _, set := range exercise.Sets {
+			batch.Queue(`
+				INSERT INTO public.routine_exercise_sets (
+					routine_exercise_id,
+					set_number,
+					target_reps_min,
+					target_reps_max,
+					target_reps_text,
+					target_weight_kg,
+					target_duration_seconds,
+					target_distance_km,
+					target_rir,
+					rest_seconds,
+					notes
+				)
+				VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			`,
+				routineExerciseID,
+				set.SetNumber,
+				set.TargetRepsMin,
+				set.TargetRepsMax,
+				set.TargetRepsText,
+				set.TargetWeightKg,
+				set.TargetDurationSeconds,
+				set.TargetDistanceKm,
+				set.TargetRir,
+				set.RestSeconds,
+				set.Notes,
+			)
+			plannedSetCount++
+		}
+	}
+
+	if plannedSetCount == 0 {
+		return nil
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	for range plannedSetCount {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return err
+		}
+	}
+	return results.Close()
 }
 
 func normalizeStringList(items []string) []string {

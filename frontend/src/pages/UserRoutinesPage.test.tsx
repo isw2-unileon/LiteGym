@@ -453,6 +453,153 @@ describe("UserRoutinesPage", () => {
     );
   });
 
+  it("saves an upgraded routine as a new routine", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: "routine-1",
+            name: "Upper Strength",
+            description: "Trabajo principal de torso",
+            exercise_count: 2,
+            updated_at: "2026-05-24T10:00:00Z",
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "routine-1",
+          name: "Upper Strength",
+          description: "Trabajo principal de torso",
+          exercise_count: 2,
+          source: "manual",
+          created_at: "2026-05-24T10:00:00Z",
+          updated_at: "2026-05-24T10:00:00Z",
+          exercises: [
+            {
+              id: "routine-exercise-1",
+              exercise_id: "exercise-1",
+              name: "Bench Press",
+              muscle_group: "chest",
+              exercise_order: 1,
+              sets: [],
+            },
+            {
+              id: "routine-exercise-2",
+              exercise_id: "exercise-2",
+              name: "Row",
+              muscle_group: "back",
+              exercise_order: 2,
+              sets: [],
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          routine_json: {
+            name: "Upper Strength Plus",
+            objective: "Equilibrar la sesion y subir intensidad",
+            duration_minutes: 50,
+            target_muscles: ["chest", "back", "shoulders"],
+            mandatory_count: 1,
+            generated_at: "2026-05-24T10:00:00Z",
+            generation_source: "gemini",
+            exercises: [
+              {
+                exercise_id: "exercise-1",
+                name: "Bench Press",
+                muscle_group: "chest",
+                exercise_type: "strength",
+                is_mandatory: true,
+                sets: [],
+              },
+            ],
+          },
+          diff: {
+            summary: {
+              added_exercises: 0,
+              removed_exercises: 0,
+              modified_exercises: 1,
+              unchanged_exercises: 0,
+            },
+            exercises: [],
+          },
+          rate_limit: {
+            remaining: 1,
+            reset_at: "2026-05-24T11:00:00Z",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          routine_id: "routine-new-1",
+          routine_json: {
+            name: "Upper Strength Plus",
+            objective: "Equilibrar la sesion y subir intensidad",
+            duration_minutes: 50,
+            target_muscles: ["chest", "back", "shoulders"],
+            mandatory_count: 1,
+            generated_at: "2026-05-24T10:00:00Z",
+            generation_source: "gemini",
+            exercises: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: "routine-new-1",
+            name: "Upper Strength Plus",
+            description: "Generated routine",
+            exercise_count: 1,
+            updated_at: "2026-05-24T10:00:00Z",
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "routine-new-1",
+          name: "Upper Strength Plus",
+          description: "Generated routine",
+          exercise_count: 1,
+          source: "ai",
+          created_at: "2026-05-24T10:00:00Z",
+          updated_at: "2026-05-24T10:00:00Z",
+          exercises: [
+            {
+              id: "routine-exercise-ai-1",
+              exercise_id: "exercise-1",
+              name: "Bench Press",
+              muscle_group: "chest",
+              exercise_order: 1,
+              sets: [],
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UserRoutinesPage />);
+
+    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
+    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
+    await user.clear(screen.getByLabelText("Instrucciones para la IA"));
+    await user.type(screen.getByLabelText("Instrucciones para la IA"), "Añade más intensidad.");
+    await user.click(screen.getByRole("button", { name: "Preparar mejora" }));
+    await user.click(await screen.findByRole("button", { name: "Guardar como nueva" }));
+
+    expect(await screen.findByRole("heading", { name: "Bench Press" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/routines/routine-1/ai/save-as-new"),
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+  });
+
   it("generates an AI routine preview and saves it after confirmation", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
