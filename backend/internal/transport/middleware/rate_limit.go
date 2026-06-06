@@ -148,7 +148,7 @@ func (r *RateLimiter) AI() gin.HandlerFunc {
 	return r.middleware(rateLimitPolicy{
 		name:      "routine_ai",
 		limit:     rate.Every(30 * time.Minute), // 2 req/hour
-		burst:     1,
+		burst:     2,
 		keyFunc:   authenticatedUserOrIPKey,
 		errorText: "ai generation rate limit exceeded",
 	})
