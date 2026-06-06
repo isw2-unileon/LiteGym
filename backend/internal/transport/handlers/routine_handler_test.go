@@ -17,10 +17,10 @@ import (
 )
 
 type routineHandlerTestRepository struct {
-	getByIDFunc     func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
-	saveFunc        func(ctx context.Context, routine model.AIRoutineToSave) (string, error)
-	overwriteFunc   func(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error
-	countFunc       func(ctx context.Context, userID string, since time.Time) (int, error)
+	getByIDFunc   func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	saveFunc      func(ctx context.Context, routine model.AIRoutineToSave) (string, error)
+	overwriteFunc func(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error
+	countFunc     func(ctx context.Context, userID string, since time.Time) (int, error)
 }
 
 type routineHandlerTestWorkoutSessionRepository struct{}
@@ -273,6 +273,30 @@ func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	handler.UpgradeRoutineJSON(c)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, w.Code)
+	}
+}
+
+func TestGenerateRoutineJSONRateLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &routineHandlerTestRepository{
+		countFunc: func(ctx context.Context, userID string, since time.Time) (int, error) {
+			return 20, nil
+		},
+	}
+	aiService := service.NewRoutineAIService(repo, service.NewExerciseService(&routineHandlerTestExerciseRepository{}), &routineHandlerTestWorkoutSessionRepository{}, &routineHandlerTestBodyMetricRepository{}, "test-key", "gemini-2.5-flash")
+	handler := NewRoutineHandler(service.NewRoutineService(repo), aiService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
+	c.Request = httptest.NewRequest("POST", "/api/routines/ai/generate", bytes.NewBufferString(`{"objective":"Strength","duration_minutes":45}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.GenerateRoutineJSON(c)
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, w.Code)

@@ -145,6 +145,14 @@ func (h *RoutineHandler) GenerateRoutineJSON(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "objective and duration_minutes are required"})
 			return
 		}
+		if errors.Is(err, service.ErrAIRoutineRateLimited) {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       "ai generation rate limit exceeded (max 2 per hour)",
+				"rate_limit":  response.RateLimit,
+				"retry_after": int(time.Until(response.RateLimit.ResetAt).Seconds()),
+			})
+			return
+		}
 		if errors.Is(err, service.ErrAIRoutineProviderUnavailable) {
 			slog.Error("ai routine provider unavailable", "error", err, "user_id", userID)
 			c.JSON(http.StatusServiceUnavailable, gin.H{
