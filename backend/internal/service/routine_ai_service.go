@@ -1,15 +1,12 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -92,7 +89,7 @@ func NewRoutineAIService(
 	return svc
 }
 
-// GenerateRoutineJSON builds user context, calls Gemini, and returns the generated JSON for preview.
+// GenerateRoutineJSON builds user context, calls the generation strategy, and returns the generated JSON for preview.
 func (s *RoutineAIService) GenerateRoutineJSON(
 	ctx context.Context,
 	userID string,
@@ -149,266 +146,6 @@ func (s *RoutineAIService) UpgradeRoutineJSON(
 	req model.AIRoutineUpgradeRequest,
 ) (model.AIRoutineUpgradeResponse, error) {
 	return s.upgradeStrategy.Upgrade(ctx, userID, routineID, req)
-}
-
-func (s *RoutineAIService) generateWithGemini(
-	ctx context.Context,
-	req model.AIRoutineGenerationRequest,
-	exercises []model.Exercise,
-	userContext routineAIUserContext,
-	now time.Time,
-) (model.AIRoutineJSON, error) {
-	if s.apiKey == "" {
-		return model.AIRoutineJSON{}, ErrAIRoutineMissingAPIKey
-	}
-
-	systemInstruction := "You are a workout planner. Use user_context, especially recent_training_history, as the main history signal. Respect user_notes and mandatory_exercises as strong instructions from the user. Build the most complete and sensible routine possible for the available time, choosing the exercise count freely based on the objective, time available, and user requests. Do not force a one-to-one mapping between target muscle groups and exercises, and do not use a fixed exercise count. Prefer the best coverage and exercise selection for the routine as a whole. If mandatory_exercises is empty, do not split exercises into optional vs mandatory; treat every exercise in the routine as required. If mandatory_exercises is not empty, mark the requested exercises as mandatory and keep the rest as non-mandatory. Return only valid JSON matching output_contract. Put planned sets in exercises[].sets. Use target_weight_kg only when recent history supports it; otherwise use null or omit it. Do not include markdown."
-	requestBody, err := buildGeminiRoutineRequestBody(
-		systemInstruction,
-		req,
-		exercises,
-		userContext,
-	)
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-
-	bodyBytes, err := json.Marshal(requestBody)
-	if err != nil {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-	endpoint := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
-		url.PathEscape(s.model),
-		url.QueryEscape(s.apiKey),
-	)
-
-	requestStartedAt := time.Now()
-	slog.Info("ai routine gemini request started",
-		"model", s.model,
-		"exercise_catalog_count", len(exercises),
-		"mandatory_exercises_count", len(normalizeTextList(req.MandatoryExercises)),
-		"notes_present", strings.TrimSpace(req.Notes) != "",
-		"user_context_recent_workouts", len(userContext.RecentWorkouts),
-		"user_context_recent_training_sessions", len(userContext.RecentTrainingHistory),
-		"user_context_recent_routines", len(userContext.RecentRoutines),
-	)
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	httpResp, err := s.httpClient.Do(httpReq)
-	if err != nil {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-	defer httpResp.Body.Close()
-
-	responseBody, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-	slog.Info("ai routine gemini response received",
-		"model", s.model,
-		"status_code", httpResp.StatusCode,
-		"duration_ms", time.Since(requestStartedAt).Milliseconds(),
-		"response_bytes", len(responseBody),
-	)
-
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		slog.Error("ai routine gemini response status error",
-			"model", s.model,
-			"status_code", httpResp.StatusCode,
-			"response_snippet", truncateProviderError(responseBody),
-		)
-		return model.AIRoutineJSON{}, fmt.Errorf(
-			"%w: gemini status %d: %s",
-			ErrAIRoutineProviderUnavailable,
-			httpResp.StatusCode,
-			truncateProviderError(responseBody),
-		)
-	}
-
-	var geminiResp geminiGenerateContentResponse
-	if err := json.Unmarshal(responseBody, &geminiResp); err != nil {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-
-	jsonText := extractGeminiText(geminiResp)
-	if strings.TrimSpace(jsonText) == "" {
-		slog.Error("ai routine gemini response missing text", "model", s.model)
-		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
-	}
-
-	generated, err := finalizeGeneratedAIRoutine(jsonText, req, now)
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-	slog.Info("ai routine gemini response parsed",
-		"model", s.model,
-		"exercise_count", len(generated.Exercises),
-		"duration_minutes", generated.DurationMinutes,
-	)
-
-	return generated, nil
-}
-
-func (s *RoutineAIService) generateUpgradeWithGemini(
-	ctx context.Context,
-	routine model.Routine,
-	req model.AIRoutineUpgradeRequest,
-	exercises []model.Exercise,
-	userContext routineAIUserContext,
-	now time.Time,
-) (model.AIRoutineJSON, error) {
-	if s.apiKey == "" {
-		return model.AIRoutineJSON{}, ErrAIRoutineMissingAPIKey
-	}
-
-	inputPayload := map[string]any{
-		"message":          req.Message,
-		"feedback_message": req.FeedbackMessage,
-		"user_context":     userContext,
-		"existing_routine": buildAIRoutineJSONFromRoutine(routine, now),
-		"exercise_catalog": buildAIExerciseCatalog(exercises),
-		"output_contract": map[string]any{
-			"name":              "string",
-			"objective":         "string",
-			"duration_minutes":  "number",
-			"target_muscles":    []string{},
-			"mandatory_count":   "number",
-			"generated_at":      "RFC3339 datetime string",
-			"generation_source": "string",
-			"exercises": []map[string]string{
-				{
-					"exercise_id":   "string",
-					"name":          "string",
-					"muscle_group":  "string",
-					"exercise_type": "string",
-					"is_mandatory":  "boolean",
-					"sets":          "array of planned sets with set_number, target_reps_min, target_reps_max, target_reps_text, target_weight_kg, target_rir, rest_seconds, notes",
-				},
-			},
-		},
-	}
-
-	systemInstruction := "You are a workout planner improving an existing routine. Use user_context, especially recent_training_history, as the main history signal. Treat existing_routine as the base plan to refine, not to discard without a good reason. Respect message and feedback_message as strong user instructions. Keep the response fully compatible with the existing routine format. Preserve exercises that are already working unless user guidance or training context suggests a meaningful change. Prefer targeted improvements in exercise selection, order, set structure, fatigue management, and muscle balance over random rewrites. Prefer the provided exercise_catalog and avoid inventing unsupported exercises. Return only valid JSON matching output_contract. Return only the upgraded routine object itself. Never return or repeat the input payload. Never include keys such as exercise_catalog, existing_routine, user_context, message, feedback_message, or output_contract in the response. Put planned sets in exercises[].sets. Use target_weight_kg only when recent history supports it; otherwise use null or omit it. Do not include markdown."
-
-	generated, err := s.callGeminiForRoutineJSON(ctx, inputPayload, systemInstruction, now)
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-
-	if strings.TrimSpace(generated.Objective) == "" {
-		generated.Objective = fmt.Sprintf("Upgrade of %s", strings.TrimSpace(routine.Name))
-	}
-	if generated.DurationMinutes <= 0 {
-		generated.DurationMinutes = estimateRoutineDurationMinutes(routine)
-	}
-	if len(generated.TargetMuscles) == 0 {
-		generated.TargetMuscles = extractRoutineTargetMuscles(&routine)
-	}
-	if len(generated.Exercises) == 0 {
-		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
-	}
-	generated.MandatoryCount = countMandatoryExercises(generated.Exercises)
-
-	return generated, nil
-}
-
-func (s *RoutineAIService) callGeminiForRoutineJSON(
-	ctx context.Context,
-	inputPayload map[string]any,
-	systemInstruction string,
-	now time.Time,
-) (model.AIRoutineJSON, error) {
-	if s.apiKey == "" {
-		return model.AIRoutineJSON{}, ErrAIRoutineMissingAPIKey
-	}
-
-	userPromptBytes, _ := json.Marshal(inputPayload)
-
-	requestBody := map[string]any{
-		"system_instruction": map[string]any{
-			"parts": []map[string]string{
-				{"text": systemInstruction},
-			},
-		},
-		"contents": []map[string]any{
-			{
-				"parts": []map[string]string{
-					{"text": string(userPromptBytes)},
-				},
-			},
-		},
-		"generationConfig": map[string]any{
-			"temperature":      0.3,
-			"responseMimeType": "application/json",
-		},
-	}
-
-	bodyBytes, _ := json.Marshal(requestBody)
-	endpoint := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
-		url.PathEscape(s.model),
-		url.QueryEscape(s.apiKey),
-	)
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	httpResp, err := s.httpClient.Do(httpReq)
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-	defer httpResp.Body.Close()
-
-	responseBody, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return model.AIRoutineJSON{}, fmt.Errorf("%w: gemini status %d", ErrAIRoutineProviderUnavailable, httpResp.StatusCode)
-	}
-
-	var geminiResp geminiGenerateContentResponse
-	if err := json.Unmarshal(responseBody, &geminiResp); err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-
-	jsonText := extractGeminiText(geminiResp)
-	if strings.TrimSpace(jsonText) == "" {
-		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
-	}
-
-	if prettyJSON := prettyJSONForLog(jsonText); prettyJSON != "" {
-		slog.Info("ai routine gemini raw response",
-			"response", truncateLogValue(prettyJSON, 8000),
-		)
-	}
-
-	if looksLikePromptEcho(jsonText) {
-		slog.Error("ai routine gemini response echoed input payload")
-		return model.AIRoutineJSON{}, ErrAIRoutineProviderUnavailable
-	}
-
-	var generated model.AIRoutineJSON
-	if err := json.Unmarshal([]byte(jsonText), &generated); err != nil {
-		return model.AIRoutineJSON{}, err
-	}
-
-	generated.GeneratedAt = now
-	if strings.TrimSpace(generated.GenerationSource) == "" {
-		generated.GenerationSource = "gemini"
-	}
-
-	return generated, nil
 }
 
 func (s *RoutineAIService) saveGeneratedRoutine(
@@ -746,76 +483,6 @@ func normalizeTextList(values []string) []string {
 		seen[key] = struct{}{}
 	}
 	return normalized
-}
-
-func buildGeminiRoutineRequestBody(
-	systemInstruction string,
-	req model.AIRoutineGenerationRequest,
-	exercises []model.Exercise,
-	userContext routineAIUserContext,
-) (map[string]any, error) {
-	exerciseCatalog := make([]map[string]string, 0, len(exercises))
-	for _, exercise := range exercises {
-		exerciseCatalog = append(exerciseCatalog, map[string]string{
-			"id":            exercise.ID,
-			"name":          exercise.Name,
-			"muscle_group":  exercise.MuscleGroup,
-			"exercise_type": exercise.ExerciseType,
-		})
-	}
-
-	inputPayload := map[string]any{
-		"objective":            req.Objective,
-		"duration_minutes":     req.DurationMinutes,
-		"target_muscle_groups": normalizeTextList(req.TargetMuscleGroups),
-		"mandatory_exercises":  normalizeTextList(req.MandatoryExercises),
-		"user_notes":           strings.TrimSpace(req.Notes),
-		"user_context":         userContext,
-		"exercise_catalog":     exerciseCatalog,
-		"output_contract": map[string]any{
-			"name":              "string",
-			"objective":         "string",
-			"duration_minutes":  "number",
-			"target_muscles":    []string{},
-			"mandatory_count":   "number",
-			"generated_at":      "RFC3339 datetime string",
-			"generation_source": "string",
-			"exercises": []map[string]string{
-				{
-					"exercise_id":   "string",
-					"name":          "string",
-					"muscle_group":  "string",
-					"exercise_type": "string",
-					"is_mandatory":  "boolean",
-					"sets":          "array of planned sets with set_number, target_reps_min, target_reps_max, target_reps_text, target_weight_kg, target_rir, rest_seconds, notes",
-				},
-			},
-		},
-	}
-
-	userPromptBytes, err := json.Marshal(inputPayload)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
-	}
-
-	return map[string]any{
-		"system_instruction": map[string]any{
-			"parts": []map[string]string{
-				{"text": systemInstruction},
-			},
-		},
-		"contents": []map[string]any{
-			{
-				"parts": []map[string]string{
-					{"text": string(userPromptBytes)},
-				},
-			},
-		},
-		"generationConfig": map[string]any{
-			"temperature":      0.3,
-			"responseMimeType": "application/json",
-		},
-	}, nil
 }
 
 func finalizeGeneratedAIRoutine(jsonText string, req model.AIRoutineGenerationRequest, now time.Time) (model.AIRoutineJSON, error) {
@@ -1202,25 +869,6 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func (s *RoutineAIService) enforceAIRoutineRateLimit(
-	ctx context.Context,
-	userID string,
-	now time.Time,
-) (int, time.Time, error) {
-	since := now.Add(-aiRoutineRateWindow)
-	used, err := s.repo.CountAIGenerationsInWindow(ctx, userID, since)
-	if err != nil {
-		return 0, time.Time{}, err
-	}
-
-	resetAt := now.Add(aiRoutineRateWindow)
-	if used >= aiRoutineRateLimit {
-		return used, resetAt, ErrAIRoutineRateLimited
-	}
-
-	return used, resetAt, nil
 }
 
 func buildAIRoutineRateLimitStatus(used int, resetAt time.Time) model.AIRoutineRateLimitStatus {

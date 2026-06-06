@@ -8,10 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type routineAICommand interface {
-	Execute(ctx context.Context) (model.AIRoutineGenerateResponse, error)
-}
-
 type saveGeneratedRoutineCommand struct {
 	service   *RoutineAIService
 	userID    string
