@@ -45,10 +45,12 @@ type MuscleRadarStat struct {
 
 // CalendarActivity represents an activity in the user's calendar.
 type CalendarActivity struct {
-	Date        string `json:"date"`
-	WorkoutName string `json:"workout_name"`
-	Duration    int    `json:"duration"`
-	IsPlanned   bool   `json:"is_planned"`
+	ID            string `json:"id"`
+	Date          string `json:"date"`
+	WorkoutName   string `json:"workout_name"`
+	Duration      int    `json:"duration"`
+	ExerciseCount int    `json:"exercise_count"`
+	IsPlanned     bool   `json:"is_planned"`
 }
 
 // ProfileStats representa los datos del dashboard

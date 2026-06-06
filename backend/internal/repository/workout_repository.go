@@ -458,9 +458,10 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 	if err != nil {
 		return err
 	}
-
-	exercises := make([]routineExercisePrescription, 0)
-
+	// Materialize the cursor before running the nested inserts below: pgx shares a
+	// single connection within the transaction, so issuing other queries while this
+	// cursor is still open fails with "conn busy".
+	var prescriptions []routineExercisePrescription
 	for rows.Next() {
 		var prescription routineExercisePrescription
 		if err := rows.Scan(
@@ -474,16 +475,14 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 			rows.Close()
 			return err
 		}
-		exercises = append(exercises, prescription)
-	}
-
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
+		prescriptions = append(prescriptions, prescription)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
-	for _, prescription := range exercises {
+	for _, prescription := range prescriptions {
 		var workoutExerciseID uuid.UUID
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO public.workout_exercises (
@@ -545,9 +544,9 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 	if err != nil {
 		return err
 	}
-
-	prescriptions := make([]routineSetPrescription, 0)
-
+	// Materialize the cursor before inserting the workout sets below to avoid a
+	// "conn busy" error from running nested queries on the same transaction.
+	var prescriptions []routineSetPrescription
 	for rows.Next() {
 		var prescription routineSetPrescription
 		if err := rows.Scan(
@@ -567,12 +566,10 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 		}
 		prescriptions = append(prescriptions, prescription)
 	}
-
+	rows.Close()
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return err
 	}
-	rows.Close()
 
 	for _, prescription := range prescriptions {
 		completed := false

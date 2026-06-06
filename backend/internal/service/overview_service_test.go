@@ -149,7 +149,10 @@ func newOverviewServiceTestSubject(referenceDate time.Time) (*OverviewService, f
 }
 
 func overviewMuscleDistributionFixture(from time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
-	if from.Month() == time.April && from.Day() == 1 {
+	// The month range is anchored to the first day of the month in Madrid time,
+	// which the service then queries as the equivalent UTC instant.
+	fromMadrid := from.In(madridLocation)
+	if fromMadrid.Month() == time.April && fromMadrid.Day() == 1 {
 		return []model.OverviewMuscleGroupShare{
 			{Name: "back", Count: 2, Percentage: 67},
 			{Name: "chest", Count: 1, Percentage: 33},
