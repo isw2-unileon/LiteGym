@@ -33,7 +33,7 @@ func newRateLimitTestRouter() (*gin.Engine, *service.TokenService) {
 	healthHandler := handlers.NewHealthHandler()
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
 
-	router := SetupRouter(
+	router := SetupRouterWithRoutine(
 		mockDB,
 		userHandler,
 		authHandler,
@@ -161,5 +161,37 @@ func TestProtectedRateLimitByUserID(t *testing.T) {
 
 	if w.Code == http.StatusTooManyRequests {
 		t.Fatalf("expected a different user to have its own protected budget, got %d", w.Code)
+	}
+}
+
+func TestAIRoutineSaveDoesNotUseGenerationRateLimit(t *testing.T) {
+	router, tokenService := newRateLimitTestRouter()
+	userID := "550e8400-e29b-41d4-a716-446655440000"
+
+	generateReq := httptest.NewRequest("POST", "/api/routines/ai/generate", strings.NewReader("{"))
+	generateReq.RemoteAddr = "203.0.113.40:1234"
+	generateReq.Header.Set("Content-Type", "application/json")
+	addAuthCookieForUserID(t, generateReq, tokenService, userID)
+
+	generateW := httptest.NewRecorder()
+	router.ServeHTTP(generateW, generateReq)
+
+	if generateW.Code != http.StatusBadRequest {
+		t.Fatalf("expected initial generate request to reach handler with status %d, got %d", http.StatusBadRequest, generateW.Code)
+	}
+
+	saveReq := httptest.NewRequest("POST", "/api/routines/ai/save", strings.NewReader("{"))
+	saveReq.RemoteAddr = "203.0.113.40:1234"
+	saveReq.Header.Set("Content-Type", "application/json")
+	addAuthCookieForUserID(t, saveReq, tokenService, userID)
+
+	saveW := httptest.NewRecorder()
+	router.ServeHTTP(saveW, saveReq)
+
+	if saveW.Code == http.StatusTooManyRequests {
+		t.Fatalf("expected save request not to use AI generation rate limit, got %d", saveW.Code)
+	}
+	if saveW.Code != http.StatusBadRequest {
+		t.Fatalf("expected save request to reach handler with status %d, got %d", http.StatusBadRequest, saveW.Code)
 	}
 }
