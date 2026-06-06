@@ -48,11 +48,17 @@ export function CardHeader({
     onDark?: boolean;
 }) {
     return (
-        <header className="relative z-[2] flex flex-wrap items-end justify-between gap-3">
+        <header
+            className={[
+                "relative z-[2] flex flex-wrap justify-between gap-3",
+                title ? "items-end" : "items-center",
+            ].join(" ")}
+        >
             <div>
                 <div
                     className={[
-                        "mb-1.5 flex items-center gap-2 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.22em]",
+                        "flex items-center gap-2 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.22em]",
+                        title ? "mb-1.5" : "",
                         onDark ? "text-[#f1a45b]" : "text-[#265c52]",
                     ].join(" ")}
                 >
@@ -62,14 +68,16 @@ export function CardHeader({
           />
                     {kicker}
                 </div>
-                <h3
-                    className={[
-                        "m-0 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-[1.05] tracking-[-0.035em]",
-                        onDark ? "text-[#fffaf0]" : "text-[#1f1b16]",
-                    ].join(" ")}
-                >
-                    {title}
-                </h3>
+                {title && (
+                    <h3
+                        className={[
+                            "m-0 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-[1.05] tracking-[-0.035em]",
+                            onDark ? "text-[#fffaf0]" : "text-[#1f1b16]",
+                        ].join(" ")}
+                    >
+                        {title}
+                    </h3>
+                )}
                 {rightChip && (
                     <div
                         className={[
