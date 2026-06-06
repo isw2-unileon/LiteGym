@@ -30,7 +30,7 @@ var (
 )
 
 const (
-	aiRoutineRateLimit = 20
+	aiRoutineRateLimit = 2
 )
 
 var aiRoutineRateWindow = time.Hour
