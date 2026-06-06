@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-const legalLinks = [
+export const legalLinks = [
   { to: "/legal/aviso-legal", label: "Aviso legal" },
   { to: "/legal/privacidad", label: "Privacidad" },
   { to: "/legal/cookies", label: "Cookies" },

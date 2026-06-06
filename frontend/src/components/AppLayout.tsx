@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import { legalLinks } from "./LegalLinks";
 
 export type LayoutUser = {
   id: string;
@@ -18,7 +19,7 @@ const navigationItems = [
   {label: "Mis rutinas", to: "/routines"},
   {label: "Mis ejercicios", to: "/exercises"},
   {label: "Soporte Técnico", to: "/support"},
-  {label: "Perfil", to: "/profile"}
+  {label: "Perfil", to: "/profile"},
 ]
 
 const pageBackground =
@@ -33,6 +34,8 @@ export default function AppLayout({ user }: AppLayoutProps) {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const legalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -48,6 +51,21 @@ export default function AppLayout({ user }: AppLayoutProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isLegalOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (legalRef.current && !legalRef.current.contains(event.target as Node)) {
+        setIsLegalOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isLegalOpen]);
 
   const handleLogout = async () => {
     try {
@@ -101,6 +119,33 @@ export default function AppLayout({ user }: AppLayoutProps) {
                     Panel administrativo
                   </NavLink>
               )}
+
+              <div ref={legalRef} className="relative">
+                <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={isLegalOpen}
+                    onClick={() => setIsLegalOpen((open) => !open)}
+                    className="flex items-center justify-center text-center rounded-[14px] px-3 py-2 text-sm font-bold text-[#1f1b16]/80 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+                >
+                  Legal
+                </button>
+
+                {isLegalOpen && (
+                    <div className="absolute left-0 top-[calc(100%+0.625rem)] z-40 w-48 overflow-hidden rounded-[14px] border border-[#1f1b16]/10 bg-[#fffaf0] backdrop-blur-md shadow-[0_10px_30px_rgba(31,27,22,0.10)]">
+                      {legalLinks.map((link) => (
+                          <NavLink
+                              key={link.to}
+                              to={link.to}
+                              onClick={() => setIsLegalOpen(false)}
+                              className="block px-4 py-3 text-sm font-bold text-[#1f1b16]/80 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+                          >
+                            {link.label}
+                          </NavLink>
+                      ))}
+                    </div>
+                )}
+              </div>
             </nav>
             <div ref={menuRef} className="relative flex items-center gap-2.5 justify-self-end self-stretch">
               <span className="text-sm font-bold">{displayName}</span>
