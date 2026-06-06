@@ -73,7 +73,7 @@ export default function AdminUsers() {
 
   return (
     <div className="grid gap-[24px] lg:grid-cols-[1fr_1.8fr] items-start h-[46vh]">
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[38vh]">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[44vh]">
         <CardHeader kicker={"NUEVO REGISTRO"} title={"Introduzca los datos de un nuevo usuario"} />
         <form onSubmit={handleCreateUser} className="relative mt-4 z-[2] flex flex-col gap-4">
           <div className="flex flex-col">
@@ -140,9 +140,9 @@ export default function AdminUsers() {
           </button>
         </form>
       </Card>
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[38vh]">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[44vh]">
         <CardHeader kicker={"DIRECTORIO ACTIVO"} title={`Usuarios Registrados (${users.length})`} />
-        <div className="relative z-[2] mt-4 overflow-y-auto pr-1 flex flex-col gap-3 h-[30vh]">
+        <div className="relative z-[2] mt-4 overflow-y-auto pr-1 flex flex-col gap-3 h-[36vh]">
           {users.map((item) => (
               <div
                   key={item.id}
