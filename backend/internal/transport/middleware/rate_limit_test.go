@@ -61,3 +61,32 @@ func TestRateLimiter_ProfileAI(t *testing.T) {
 		t.Fatalf("expected status 429 for second request, got %d", w2.Code)
 	}
 }
+
+func TestRateLimiter_AIAllowsTwoImmediateRequests(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	limiter := NewRateLimiter()
+
+	r := gin.New()
+	r.Use(limiter.AI())
+	r.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	for i := 1; i <= 2; i++ {
+		req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.2:1234"
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 for request %d, got %d", i, w.Code)
+		}
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.2:1234"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status 429 for third request, got %d", w.Code)
+	}
+}
