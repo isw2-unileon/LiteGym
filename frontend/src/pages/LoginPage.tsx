@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import LegalLinks from "../components/LegalLinks";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
@@ -142,6 +143,13 @@ export default function LoginPage() {
                 Registrate
               </Link>
             </p>
+
+            <div className="mt-6 border-t border-[#1f1b16]/10 pt-6">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">
+                Información legal
+              </p>
+              <LegalLinks />
+            </div>
           </div>
         </div>
       </section>
