@@ -36,7 +36,7 @@ describe("LoginPage", () => {
   it("renders the login form", () => {
     renderLoginPage();
 
-    expect(screen.getByText("Grupo 16 Fitness")).toBeInTheDocument();
+    expect(screen.getByText("LiteGym")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entra, entrena y controla tu progreso." })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Contrasena")).toBeInTheDocument();
@@ -53,6 +53,7 @@ describe("LoginPage", () => {
 
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), " Raul@Example.com ");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     await waitFor(() => {
@@ -63,7 +64,7 @@ describe("LoginPage", () => {
           credentials: "include",
           body: JSON.stringify({
             email: "raul@example.com",
-            password: "123456",
+            password: "secret123",
           }),
         }),
       );
@@ -78,6 +79,8 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
+    await user.type(screen.getByLabelText("Email"), "raul@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByText("El correo o la contraseña no son correctos.")).toBeInTheDocument();
@@ -91,6 +94,7 @@ describe("LoginPage", () => {
 
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), "user@domain");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByText("Introduce un email valido.")).toBeInTheDocument();
@@ -102,6 +106,8 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
+    await user.type(screen.getByLabelText("Email"), "raul@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(

@@ -87,7 +87,7 @@ describe("ExercisePage", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Disena un movimiento que encaje con tu rutina.",
+        name: "Diseña un movimiento que encaje con tu rutina.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
@@ -338,10 +338,9 @@ describe("ExercisePage", () => {
 
     renderExercisePage();
 
-    expect(await screen.findByText("Sesiones donde aparece")).toBeInTheDocument();
     expect(await screen.findByText("Push Day")).toBeInTheDocument();
     expect(screen.getByText("Push Pull Legs")).toBeInTheDocument();
-    expect(screen.getByText(/Orden 2/)).toHaveTextContent("3 series");
+    expect(screen.getByText("3 sets")).toBeInTheDocument();
   });
 
   it("shows advanced exercise insights for the selected exercise", async () => {

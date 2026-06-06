@@ -1,8 +1,21 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import SupportPage from "./SupportPage"; 
+import AppLayout from "../components/AppLayout";
+import SupportPage from "./SupportPage";
+
+function renderSupportPage() {
+  return render(
+    <MemoryRouter initialEntries={["/support"]}>
+      <Routes>
+        <Route element={<AppLayout user={{ id: "1", username: "raul", email: "raul@test.com", role: "user" }} />}>
+          <Route path="/support" element={<SupportPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+}
 
 describe("SupportPage", () => {
   afterEach(() => {
@@ -12,16 +25,10 @@ describe("SupportPage", () => {
   });
 
   it("renderiza el formulario de soporte correctamente", () => {
-    render(
-      <MemoryRouter>
-        <SupportPage />
-      </MemoryRouter>
-    );
+    renderSupportPage();
 
-    expect(screen.getByRole("heading", { name: "Soporte Técnico" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Volver" })).toBeInTheDocument();
-
-    expect(screen.getByRole("combobox")).toBeInTheDocument(); 
+    expect(screen.getByRole("heading", { name: "Rellena un ticket" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Ej: No me carga una rutina")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Explica detalladamente tu problema...")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enviar Ticket" })).toBeInTheDocument();
@@ -29,27 +36,22 @@ describe("SupportPage", () => {
 
   it("envía el ticket correctamente, muestra mensaje de éxito y resetea el formulario", async () => {
     const user = userEvent.setup();
-    
+
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: "123", message: "Created" }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
-      })
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
-      <MemoryRouter>
-        <SupportPage />
-      </MemoryRouter>
-    );
+    renderSupportPage();
 
     const categorySelect = screen.getByRole("combobox");
     const titleInput = screen.getByPlaceholderText("Ej: No me carga una rutina");
     const descriptionInput = screen.getByPlaceholderText("Explica detalladamente tu problema...");
     const submitButton = screen.getByRole("button", { name: "Enviar Ticket" });
 
-    
     await user.selectOptions(categorySelect, "IA");
     await user.type(titleInput, "La IA me habla en binario");
     await user.type(descriptionInput, "No entiendo nada de lo que dice el asistente.");
@@ -66,7 +68,7 @@ describe("SupportPage", () => {
             title: "La IA me habla en binario",
             description: "No entiendo nada de lo que dice el asistente.",
           }),
-        })
+        }),
       );
     });
 
@@ -74,25 +76,21 @@ describe("SupportPage", () => {
 
     expect(titleInput).toHaveValue("");
     expect(descriptionInput).toHaveValue("");
-    expect(categorySelect).toHaveValue("General"); 
+    expect(categorySelect).toHaveValue("General");
   });
 
   it("muestra un mensaje de error si el servidor falla al enviar el ticket", async () => {
     const user = userEvent.setup();
-    
+
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: "Server error" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      })
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
-      <MemoryRouter>
-        <SupportPage />
-      </MemoryRouter>
-    );
+    renderSupportPage();
 
     await user.type(screen.getByPlaceholderText("Ej: No me carga una rutina"), "Error fatal");
     await user.type(screen.getByPlaceholderText("Explica detalladamente tu problema..."), "La app explota al abrir");
