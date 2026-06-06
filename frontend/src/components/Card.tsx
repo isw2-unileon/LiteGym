@@ -1,6 +1,6 @@
 import type {CSSProperties, ReactNode} from "react";
 
-export function Card({children, accent = "#ea7130", dark}: {
+export function Card({children, accent = "#ea7130", dark, className}: {
     children: ReactNode;
     accent?: string;
     dark?: boolean;
@@ -14,7 +14,8 @@ export function Card({children, accent = "#ea7130", dark}: {
                 dark
                     ? "border-[#1f1b16] bg-[#1f1b16] text-[#fffaf0]"
                     : "border-[#1f1b16]/12 bg-[#fffaf0]/85",
-            ].join(" ")}
+                className,
+            ].filter(Boolean).join(" ")}
         >
             {!dark && (
                 <span
