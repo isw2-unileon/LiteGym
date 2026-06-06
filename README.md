@@ -1,66 +1,100 @@
 # LiteGym
 
-LiteGym is a full-stack fitness application for managing routines, tracking workouts, reviewing performance history, and generating AI-assisted training plans. The project is organized as a monorepo with a Go backend, a React frontend, a PostgreSQL database, and a Playwright E2E test package.
+LiteGym is a full-stack fitness app for routines, workouts, progress tracking, and AI-assisted training plans. The repository is a monorepo with a Go API, a React frontend, PostgreSQL, and end-to-end tests.
 
-The application currently focuses on these product areas:
+## What It Covers
 
-- authentication and session-based access control
+- authentication and session cookies
 - exercise catalog management with official and user-owned exercises
-- routine browsing, routine detail, and AI-generated routine preview/save flows
-- workout session execution with exercises and sets
-- dashboard and exercise insights
-- support tickets and basic admin views
+- routine browsing, routine detail, and AI preview/save flows
+- workout sessions with exercises and sets
+- dashboard insights and support tickets
+- basic admin views
 
-## Repository map
+## Requirements
 
-```text
-.
-|-- backend/                 Go API server
-|   |-- cmd/server/          bootstrap entry point
-|   `-- internal/            config, model, repository, service, transport
-|-- frontend/                React + TypeScript + Vite application
-|-- e2e/                     Playwright end-to-end tests
-|-- postgress-local/         local PostgreSQL image, schema, seed data
-|-- docs/                    project documentation
-|-- compose.yaml             full local stack
-`-- Makefile                 common developer commands
+- Go `1.25.0`
+- Node.js and npm; the repo does not pin a specific Node version, so use a current LTS release compatible with Vite 6
+- Docker or Podman with compose support
+- `make` and `curl`
+
+## Local Setup
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd LiteGym
+   ```
+2. Create a local environment override file from the example:
+   ```bash
+   cp .env.example .env.local
+   ```
+3. Set `DATABASE_URL` in `.env.local` to match how you will run PostgreSQL.
+4. Install dependencies:
+   ```bash
+   make install
+   ```
+5. Start PostgreSQL:
+   ```bash
+   make start-postgres-db
+   ```
+6. Run the backend and frontend in separate terminals:
+   ```bash
+   make run-backend
+   make run-frontend
+   ```
+
+If you run the backend on your host machine, use this `DATABASE_URL` in `.env.local`:
+
+```env
+DATABASE_URL=postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
 ```
 
-## Main stack
+If you run the whole stack with compose, the backend can keep the container-based database URL from `backend/.env`.
 
-- Backend: Go, Gin, pgx, PostgreSQL
-- Frontend: React 19, TypeScript, React Router, Vite
-- Styling: CSS utility-first approach with Tailwind tooling in the frontend stack
-- Testing: Go unit/integration tests, Vitest, Playwright
-- AI: Gemini API for AI-generated routines
+The usual local URLs are:
 
-## Quick start
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:8080`
 
-### Prerequisites
+## Tests
 
-- Go
-- Node.js and npm
-- Docker or Podman with compose support
-
-### Local setup
-
-1. Copy the example environment file and fill in the values you need.
-2. Start the local database.
-3. Run backend and frontend in separate terminals.
-
-Typical commands:
+Run all standard tests:
 
 ```bash
-make start-postgres-db
-make run-backend
-make run-frontend
+make test
 ```
 
-Frontend runs on `http://localhost:5173` and the backend on `http://localhost:8080`.
+Run backend integration tests against the local PostgreSQL stack:
+
+```bash
+make test-integration
+```
+
+Run linters:
+
+```bash
+make lint
+```
+
+Run E2E tests:
+
+```bash
+make e2e
+```
+
+## Contributing
+
+- Branch names: use short, descriptive branches such as `feature/...`, `fix/...`, or `chore/...`.
+- Commit messages: keep them imperative and specific, for example `fix ai routine save rate limit`.
+- Pull requests: include a concise summary, the relevant test output, and screenshots or API examples when the change affects UI or payloads.
+- Before opening a PR, run the relevant backend, frontend, and integration tests for the area you changed.
+
+See the technical documentation in [`docs/index.md`](docs/index.md).
 
 ## Documentation
 
-The detailed project documentation lives in [`docs/`](docs/index.md).
+The detailed project documentation lives in [`docs/`](docs/index.md):
 
 - [Documentation index](docs/index.md)
 - [Getting started](docs/getting-started.md)
@@ -72,34 +106,20 @@ The detailed project documentation lives in [`docs/`](docs/index.md).
 - [Database guide](docs/database.md)
 - [AI integration](docs/ai-integration.md)
 - [Testing guide](docs/testing.md)
+- [Contributing guide](docs/contributing.md)
 
-## Development commands
-
-Common commands are exposed through the root `Makefile`:
+## Useful Commands
 
 ```bash
-make install
-make run-backend
-make run-frontend
 make build-backend
 make build-frontend
-make test
-make test-integration
-make lint
-make e2e
-```
-
-There are also stack management targets for the local database and the full application snapshot:
-
-```bash
-make start-postgres-db
-make reset-postgres-db
 make start-app-snapshot
 make down-app-snapshot
+make reset-postgres-db
 ```
 
-## Current notes
+## Notes
 
-- AI routine generation currently uses a preview-and-confirm flow.
-- The AI service creates user-owned exercises automatically when Gemini proposes a valid new exercise that does not already exist in the catalog.
-- AI routine endpoints are rate-limited by an in-memory transport middleware (see `RateLimiter.AI()`); the older DB-backed limiter in the AI service is currently disabled.
+- AI routine generation uses a preview-and-confirm flow.
+- The AI service can create user-owned exercises automatically when Gemini proposes a valid exercise that does not already exist.
+- AI routine endpoints are rate-limited in transport middleware.

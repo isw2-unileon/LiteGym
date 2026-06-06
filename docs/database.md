@@ -1,13 +1,13 @@
 # Database guide
 
-LiteGym uses PostgreSQL as its main persistence layer. The canonical local schema and demo dataset live in `postgress-local/initdb/`.
+LiteGym uses PostgreSQL as its main persistence layer. The local schema and demo data live in `postgress-local/initdb/`.
 
 ## Schema source
 
 - `postgress-local/initdb/01-schema.sql`
 - `postgress-local/initdb/02-seed.sql`
 
-The local database image mounts these scripts into `/docker-entrypoint-initdb.d`, so they are executed when the database volume is created from scratch.
+The local database image mounts these scripts into `/docker-entrypoint-initdb.d`, so they run when the database volume is created from scratch.
 
 ## Main schema design
 
@@ -200,8 +200,8 @@ If you want the current schema and seed to be replayed, use:
 make reset-postgres-db
 ```
 
-## Current design observations
+## Design notes
 
-- the schema separates planned routine sets from performed workout sets, which is a good fit for comparing prescription versus execution
-- user-owned exercises enable personalized AI routine persistence without polluting the official catalog
-- the `deleted_at` pattern is used on exercises instead of hard deletes from business logic
+- the schema separates planned routine sets from performed workout sets, which makes prescription versus execution easy to compare
+- user-owned exercises let AI save personalized routines without cluttering the official catalog
+- exercises use a `deleted_at` pattern instead of hard deletes in business logic
