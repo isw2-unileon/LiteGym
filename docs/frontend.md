@@ -1,6 +1,6 @@
 # Frontend guide
 
-The frontend is a React 19 application built with TypeScript and Vite. It uses route-based navigation, cookie-backed authenticated requests, and page-specific components for each domain area.
+The frontend is a React 19 app built with TypeScript and Vite. It uses route-based navigation, cookie-backed authenticated requests, and page-specific components for each domain area.
 
 ## Frontend structure
 
@@ -37,7 +37,7 @@ Any unknown route falls back through `NotFoundRedirect`.
 
 ## Authenticated application shell
 
-Two components define the authenticated user experience:
+Two components shape the authenticated experience:
 
 - `frontend/src/components/AuthenticatedLayoutRoute.tsx`
 - `frontend/src/components/AppLayout.tsx`

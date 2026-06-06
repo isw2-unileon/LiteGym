@@ -1,14 +1,15 @@
 # Getting started
 
-This guide explains how to boot LiteGym locally and what each part of the repository is responsible for.
+This guide walks through the local setup and gives you a map of the parts that matter when you first open the repo.
 
 ## Prerequisites
 
 You should have the following tools available:
 
-- Go
-- Node.js and npm
+- Go `1.25.0`
+- Node.js and npm; the repo does not pin an exact Node version, so use a current LTS release compatible with Vite 6
 - Docker or Podman with compose support
+- `make` and `curl`
 
 The root `Makefile` automatically prefers `docker compose`, and falls back to `podman compose` if Docker is not available.
 
@@ -24,7 +25,7 @@ docs/             project documentation
 
 ## Environment files
 
-There are two environment stories in this project:
+There are two environment layers in this project:
 
 - backend runtime variables
 - frontend Vite variables
@@ -40,6 +41,8 @@ For day-to-day local work, these are the most relevant files:
 - `frontend/.env`
 
 Detailed variable behavior is documented in [configuration.md](configuration.md).
+
+If you run the backend on your host machine, point the database URL at `localhost:5432`. The root [`README.md`](../README.md) shows the exact override.
 
 ## First-time setup
 
@@ -79,7 +82,7 @@ make logs-postgres-db
 
 ## Run backend and frontend
 
-Open two terminals.
+Use two terminals.
 
 Terminal 1:
 
@@ -93,14 +96,14 @@ Terminal 2:
 make run-frontend
 ```
 
-The usual local URLs are:
+You should see the app at:
 
 - frontend: `http://localhost:5173`
 - backend: `http://localhost:8080`
 
 ## Full stack with compose
 
-If you want to run the complete application snapshot, including backend, frontend, and PostgreSQL through one compose file:
+If you want everything in one go, including backend, frontend, and PostgreSQL through a single compose file:
 
 ```bash
 make start-app-snapshot
@@ -113,7 +116,7 @@ make down-app-snapshot
 make delete-app-snapshot
 ```
 
-The full stack compose definition is in:
+The full-stack compose file is:
 
 - `compose.yaml`
 

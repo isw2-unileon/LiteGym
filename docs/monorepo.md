@@ -1,6 +1,6 @@
 # Why a Monorepo?
 
-A monorepo keeps backend and frontend code in a single repository. This is a deliberate choice over separate repositories (polyrepo).
+LiteGym keeps backend and frontend code in the same repository on purpose. That makes it easier to change both sides together without juggling separate repos.
 
 ## Benefits
 

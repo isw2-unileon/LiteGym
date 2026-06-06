@@ -1,10 +1,10 @@
 # LiteGym documentation
 
-This directory contains the main project documentation for LiteGym. Each document is focused on a specific area of the system so the codebase is easier to understand, run, extend, and debug.
+This folder holds the main project docs for LiteGym. Each file stays focused on one part of the system so it is easier to understand, run, extend, and debug.
 
 ## Reading order
 
-If you are new to the project, this order works well:
+If you are new to the project, this order is the easiest way in:
 
 1. [Getting started](getting-started.md)
 2. [Architecture](architecture.md)
@@ -16,6 +16,7 @@ If you are new to the project, this order works well:
 8. [AI integration](ai-integration.md)
 9. [Testing guide](testing.md)
 10. [Troubleshooting](troubleshooting.md)
+11. [Contributing guide](contributing.md)
 
 ## Reference documents
 
@@ -37,3 +38,4 @@ If you are new to the project, this order works well:
 - `ai-integration.md`: Gemini integration, request flow, preview/save flow
 - `testing.md`: unit, integration, frontend, and E2E testing strategy
 - `troubleshooting.md`: common local failures and how to diagnose them
+- `contributing.md`: branch, commit, PR, and local verification guidance

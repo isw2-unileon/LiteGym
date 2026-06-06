@@ -71,6 +71,7 @@ export default function ExercisePage() {
   const [isInsightsModalOpen, setIsInsightsModalOpen] = React.useState(false);
 
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
   const [muscleFilter, setMuscleFilter] = React.useState("");
   const [exerciseTypeOptions, setExerciseTypeOptions] = React.useState<
@@ -133,6 +134,22 @@ export default function ExercisePage() {
     void fetchExerciseMetadata();
   }, []);
 
+  React.useEffect(() => {
+    if (search === debouncedSearch) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [search, debouncedSearch]);
+
+  const isSearchDebouncing = search !== debouncedSearch;
+
   const fetchExercises = React.useCallback(async () => {
     setStatus("loading");
     setMessage("");
@@ -140,8 +157,8 @@ export default function ExercisePage() {
     try {
       const params = new URLSearchParams();
 
-      if (search.trim() !== "") {
-        params.set("search", search.trim());
+      if (debouncedSearch.trim() !== "") {
+        params.set("search", debouncedSearch.trim());
       }
 
       if (typeFilter !== "") {
@@ -200,11 +217,15 @@ export default function ExercisePage() {
       );
       setStatus("error");
     }
-  }, [search, typeFilter, muscleFilter, page, limit]);
+  }, [debouncedSearch, typeFilter, muscleFilter, page, limit]);
 
   React.useEffect(() => {
+    if (isSearchDebouncing) {
+      return;
+    }
+
     void fetchExercises();
-  }, [fetchExercises]);
+  }, [fetchExercises, isSearchDebouncing]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);

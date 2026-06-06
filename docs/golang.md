@@ -1,6 +1,6 @@
 # Go Best Practices
 
-Guidelines and conventions we follow in the backend codebase.
+These are the conventions we follow in the backend codebase.
 
 ## Project Layout
 
@@ -19,7 +19,7 @@ Reference: [Standard Go Project Layout](https://github.com/golang-standards/proj
 ## Key Principles
 
 - **Keep it simple** -- Prefer clear, boring code over clever abstractions.
-- **Handle errors explicitly** -- Always check and return errors. Wrap with context using `fmt.Errorf("doing X: %w", err)`.
+- **Handle errors explicitly** -- Always check and return errors. Wrap them with context using `fmt.Errorf("doing X: %w", err)`.
 - **Use interfaces at the consumer** -- Define small interfaces where they are used, not where they are implemented.
 - **Avoid globals** -- Pass dependencies explicitly through constructors.
 - **Use `context.Context`** -- Thread it through for cancellation, timeouts, and request-scoped values.

@@ -1,6 +1,6 @@
 # Configuration
 
-This document explains how configuration is loaded in LiteGym and which environment variables matter for each runtime.
+This page shows how LiteGym loads configuration and which environment variables actually matter.
 
 ## Backend configuration loading
 
@@ -8,7 +8,7 @@ Backend configuration is loaded in:
 
 - `backend/internal/config/config.go`
 
-The loader tries environment files in this order:
+The loader checks environment files in this order:
 
 When the process is launched from the repository root:
 
@@ -22,11 +22,11 @@ When the process is launched from inside the `backend/` directory:
 2. `../.env`
 3. `.env`
 
-After loading files, values are read through `os.Getenv(...)` wrappers.
+After that, values are read through `os.Getenv(...)` wrappers.
 
 ## Backend variables
 
-The backend `Config` struct currently includes:
+The backend `Config` struct includes:
 
 - `PORT`
 - `GIN_MODE`
@@ -126,11 +126,11 @@ Important rule:
 
 - only variables prefixed with `VITE_` are exposed to the browser bundle
 
-The frontend currently falls back to relative URLs when `VITE_API_BASE_URL` is not set, which works well with the dev proxy in `frontend/vite.config.ts`.
+If `VITE_API_BASE_URL` is not set, the frontend falls back to relative URLs, which works well with the dev proxy in `frontend/vite.config.ts`.
 
 ## Compose configuration
 
-Environment files are also referenced by compose definitions.
+Compose files also reference environment files.
 
 ### `compose.yaml`
 
@@ -142,7 +142,7 @@ Uses:
 
 ### `postgress-local/docker-compose.yml`
 
-Uses inline Postgres credentials for the local test database container.
+It uses inline Postgres credentials for the local test database container.
 
 ## Practical recommendations
 

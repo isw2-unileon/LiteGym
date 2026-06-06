@@ -1,6 +1,6 @@
 # Architecture
 
-LiteGym is a layered monorepo application built around a Go backend and a React frontend. The repository structure favors explicit module boundaries and a service-oriented backend rather than direct handler-to-database coupling.
+LiteGym is a layered monorepo built around a Go backend and a React frontend. The codebase keeps its boundaries explicit, so handlers do not talk to the database directly and the service layer stays in the middle.
 
 ## High-level architecture
 
@@ -30,13 +30,13 @@ docs/             project documentation
 
 ## Backend layering
 
-The backend follows a clear internal layering pattern:
+The backend is split into the usual layers:
 
 ```text
 transport/ -> service/ -> repository/ -> database
 ```
 
-Each layer has a distinct purpose:
+Each layer does one job:
 
 - `transport`: HTTP router, middleware, and request handlers
 - `service`: business logic, validation, orchestration, cross-repository flows
@@ -46,7 +46,7 @@ Each layer has a distinct purpose:
 
 ## Frontend structure
 
-The frontend is route-driven and centered around authenticated application pages:
+The frontend is route-driven and mostly lives behind authentication:
 
 - `/` login
 - `/dashboard`
@@ -67,7 +67,7 @@ Server startup happens in:
 
 - `backend/cmd/server/main.go`
 
-Bootstrap flow:
+Bootstrap looks like this:
 
 1. load environment configuration
 2. create PostgreSQL pool
@@ -80,7 +80,7 @@ Bootstrap flow:
 
 ## Request lifecycle
 
-Most authenticated requests flow like this:
+Most authenticated requests follow this path:
 
 1. browser sends a request with cookie credentials
 2. Gin router receives the request
@@ -92,7 +92,7 @@ Most authenticated requests flow like this:
 
 ## AI generation lifecycle
 
-The AI routine flow is slightly richer:
+The AI routine flow has a few extra steps:
 
 1. frontend submits AI generation request
 2. backend validates auth and payload
@@ -106,7 +106,7 @@ The AI routine flow is slightly richer:
 
 ## Core domains
 
-The system revolves around these domains:
+The system centers on these domains:
 
 - users and user profiles
 - exercises
@@ -118,9 +118,9 @@ The system revolves around these domains:
 
 ## Storage model
 
-The database is relational and normalized around user-owned and official content.
+The database is relational and built around user-owned and official content.
 
-Important design choices:
+The key design choices are:
 
 - official exercises have `owner_user_id = NULL`
 - private exercises must have a non-null `owner_user_id`
