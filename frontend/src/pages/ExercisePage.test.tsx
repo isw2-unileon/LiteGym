@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +61,7 @@ function renderExercisePage() {
 describe("ExercisePage", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -94,6 +95,41 @@ describe("ExercisePage", () => {
     expect(screen.getByLabelText("Grupo muscular")).toBeInTheDocument();
     expect(screen.getByText("Anadir musculo secundario")).toBeInTheDocument();
     expect(screen.getByText("Marcar como ejercicio oficial")).toBeInTheDocument();
+  });
+
+  it("debounces exercise search requests", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { user: { id: "2", email: "user@example.com", username: "user", role: "user" } },
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(exerciseMetadataResponse(), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(exerciseListResponse([]), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(exerciseListResponse([]), { status: 200 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderExercisePage();
+
+    const searchInput = screen.getByPlaceholderText(
+      "Buscar por nombre...",
+    );
+
+    fireEvent.change(searchInput, { target: { value: "bench" } });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/exercises?search=bench&page=1&limit=200"),
+      expect.objectContaining({
+        credentials: "include",
+      }),
+    );
   });
 
   it("submits a new exercise to the backend", async () => {
