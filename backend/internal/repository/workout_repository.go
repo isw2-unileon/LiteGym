@@ -458,7 +458,8 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+
+	exercises := make([]routineExercisePrescription, 0)
 
 	for rows.Next() {
 		var prescription routineExercisePrescription
@@ -470,9 +471,19 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 			&prescription.ExerciseOrder,
 			&prescription.Notes,
 		); err != nil {
+			rows.Close()
 			return err
 		}
+		exercises = append(exercises, prescription)
+	}
 
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	for _, prescription := range exercises {
 		var workoutExerciseID uuid.UUID
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO public.workout_exercises (
@@ -499,7 +510,7 @@ func (wr *workoutRepository) copyRoutineToWorkout(
 		}
 	}
 
-	return rows.Err()
+	return nil
 }
 
 func (wr *workoutRepository) copyRoutineSetsToWorkout(
@@ -534,7 +545,8 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+
+	prescriptions := make([]routineSetPrescription, 0)
 
 	for rows.Next() {
 		var prescription routineSetPrescription
@@ -550,9 +562,19 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 			&prescription.TargetRir,
 			&prescription.RestSeconds,
 		); err != nil {
+			rows.Close()
 			return err
 		}
+		prescriptions = append(prescriptions, prescription)
+	}
 
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	for _, prescription := range prescriptions {
 		completed := false
 		targetWeightKg := calculateDynamicTargetWeight(exercise, prescription, recentSets)
 		var workoutSetID uuid.UUID
@@ -591,7 +613,7 @@ func (wr *workoutRepository) copyRoutineSetsToWorkout(
 		}
 	}
 
-	return rows.Err()
+	return nil
 }
 
 func (wr *workoutRepository) listLatestExercisePerformance(
