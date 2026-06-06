@@ -6,7 +6,7 @@ type ExerciseProgressChartProps = {
 };
 
 const metricLabels = {
-  max_weight_kg: "Peso maximo",
+  max_weight_kg: "Peso máximo",
   max_reps: "Repeticiones",
   volume_kg: "Volumen",
 };

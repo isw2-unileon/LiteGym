@@ -68,17 +68,19 @@ export default function ExerciseInsightPanel({
       {status === "success" && insights && insights.summary.session_count > 0 && (
         <div className="mt-4 grid gap-4">
           <details open className="group">
-            <summary className="cursor-pointer list-none text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
               Resumen
+              <SectionChevron />
             </summary>
             <div className="mt-3">
               <ExerciseStatsCards insights={insights} />
             </div>
           </details>
 
-          <details className="group">
-            <summary className="cursor-pointer list-none text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
-              Progresion
+          <details open className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
+              Progresión
+              <SectionChevron />
             </summary>
             <div className="mt-3 grid gap-3">
               <ExerciseProgressChart
@@ -93,8 +95,9 @@ export default function ExerciseInsightPanel({
           </details>
 
           <details className="group">
-            <summary className="cursor-pointer list-none text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#265c52]">
               Historial
+              <SectionChevron />
             </summary>
             <div className="mt-3">
               <ExerciseSessionHistory history={insights.history} />
@@ -103,5 +106,22 @@ export default function ExerciseInsightPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function SectionChevron() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
   );
 }

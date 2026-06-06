@@ -109,8 +109,8 @@ describe("ProfilePage", () => {
     renderProfilePage();
 
     expect(await screen.findByRole("heading", { name: /Hola,\s*atleta_pro/i })).toBeInTheDocument();
-    expect(screen.getByText("atleta@test.com")).toBeInTheDocument();
-    expect(screen.getByText("user")).toBeInTheDocument();
+    expect(screen.getByText(/atleta@test\.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/Rol:/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mes anterior" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mes siguiente" })).toBeInTheDocument();
   });
@@ -142,7 +142,7 @@ describe("ProfilePage", () => {
     renderProfilePage();
 
     expect(await screen.findByRole("heading", { name: /Hola,\s*super_admin/i })).toBeInTheDocument();
-    expect(screen.getByText("admin")).toBeInTheDocument();
+    expect(screen.getByText("Rol: admin")).toBeInTheDocument();
   });
 
   it("shows rate limit message when AI analysis returns 429", async () => {
