@@ -134,7 +134,7 @@ func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID string) (
 }
 
 func (m *MockRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
-	return nil, nil
+	return &model.RoutineDetail{ID: routineID, Name: "Routine"}, nil
 }
 
 func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
@@ -143,6 +143,10 @@ func (m *MockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, 
 
 func (m *MockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
 	return "", nil
+}
+
+func (m *MockRoutineRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	return nil
 }
 
 func (m *MockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {

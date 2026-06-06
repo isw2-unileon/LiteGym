@@ -10,9 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ErrRoutineNotFound indicates that the requested routine does not exist or is not accessible.
-var ErrRoutineNotFound = errors.New("routine not found")
-
 // RoutineService provides business logic for routines.
 type RoutineService struct {
 	repo repository.RoutineRepository
@@ -33,12 +30,12 @@ func (s *RoutineService) ListByUser(ctx context.Context, userID string) ([]model
 	return s.repo.ListByUser(ctx, userID)
 }
 
-// GetByID returns one routine with its exercises and planned sets.
+// GetByID returns one routine owned by a user with its exercises and planned sets.
 func (s *RoutineService) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
 	userID = strings.TrimSpace(userID)
 	routineID = strings.TrimSpace(routineID)
 	if userID == "" || routineID == "" {
-		return nil, ErrInvalidUserInput
+		return nil, ErrInvalidRoutineInput
 	}
 
 	routine, err := s.repo.GetByID(ctx, userID, routineID)

@@ -22,7 +22,12 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type routineAITestRoutineRepository struct {
-	savedRoutine *model.AIRoutineToSave
+	savedRoutine      *model.AIRoutineToSave
+	overwritten       *model.AIRoutineToSave
+	overwrittenID     string
+	getByIDFunc       func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	countFunc         func(ctx context.Context, userID string, since time.Time) (int, error)
+	loggedCount       int
 }
 
 type routineAITestExerciseRepository struct {
@@ -42,10 +47,16 @@ func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID 
 }
 
 func (r *routineAITestRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+	if r.getByIDFunc != nil {
+		return r.getByIDFunc(ctx, userID, routineID)
+	}
 	return nil, nil
 }
 
 func (r *routineAITestRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	if r.countFunc != nil {
+		return r.countFunc(ctx, userID, since)
+	}
 	return 0, nil
 }
 
@@ -54,7 +65,14 @@ func (r *routineAITestRoutineRepository) SaveGeneratedAIRoutine(ctx context.Cont
 	return "saved-routine-1", nil
 }
 
+func (r *routineAITestRoutineRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	r.overwrittenID = routineID
+	r.overwritten = &routine
+	return nil
+}
+
 func (r *routineAITestRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	r.loggedCount++
 	return nil
 }
 
@@ -489,6 +507,27 @@ func assertRecentTrainingHistory(t *testing.T, userContext map[string]any) {
 	}
 }
 
+func assertUpgradeRecentTrainingHistory(t *testing.T, userContext map[string]any) {
+	t.Helper()
+
+	recentHistory := sliceField(t, userContext, "recent_training_history", 2)
+	firstSession := mapItem(t, recentHistory[0], "first upgrade history session")
+	exercises := sliceField(t, firstSession, "exercises", 1)
+	if len(exercises) != 1 {
+		t.Fatalf("expected filtered related exercises only, got %#v", firstSession["exercises"])
+	}
+	firstExercise := mapItem(t, exercises[0], "first related exercise")
+	if got := firstExercise["exercise_id"]; got != "exercise-1" {
+		t.Fatalf("expected only related exercise history, got %#v", firstExercise["exercise_id"])
+	}
+
+	secondSession := mapItem(t, recentHistory[1], "second upgrade history session")
+	secondExercises := sliceField(t, secondSession, "exercises", 1)
+	if len(secondExercises) != 1 {
+		t.Fatalf("expected filtered related exercises in second session, got %#v", secondSession["exercises"])
+	}
+}
+
 func mapField(t *testing.T, values map[string]any, key string) map[string]any {
 	t.Helper()
 
@@ -577,4 +616,500 @@ func TestGenerateRoutineJSONTreatsMalformedGeminiResponseAsProviderUnavailable(t
 	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
 		t.Fatalf("expected provider unavailable error, got %v", err)
 	}
+}
+
+func TestUpgradeRoutineJSONIncludesExistingRoutineAndFeedback(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	var capturedPrompt map[string]any
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(body, &capturedPrompt); err != nil {
+				return nil, err
+			}
+
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"name\":\"Push Day 2.0\",\"objective\":\"More balanced push session\",\"duration_minutes\":45,\"target_muscles\":[\"chest\",\"shoulders\"],\"mandatory_count\":1,\"exercises\":[{\"exercise_id\":\"exercise-1\",\"name\":\"Bench Press\",\"muscle_group\":\"chest\",\"exercise_type\":\"compound\",\"is_mandatory\":true,\"sets\":[{\"set_number\":1,\"target_reps_min\":5,\"target_reps_max\":7,\"target_weight_kg\":77.5,\"target_rir\":2,\"rest_seconds\":150}]},{\"exercise_id\":\"exercise-2\",\"name\":\"Squat\",\"muscle_group\":\"legs\",\"exercise_type\":\"compound\",\"is_mandatory\":false,\"sets\":[{\"set_number\":1,\"target_reps_min\":8,\"target_reps_max\":10,\"rest_seconds\":90}]}]}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message:         "Make it more balanced and slightly harder.",
+		FeedbackMessage: "Keep Bench Press but raise intensity.",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error upgrading routine: %v", err)
+	}
+
+	assertRoutineUpgradeResponse(t, response)
+	if routineRepo.savedRoutine != nil {
+		t.Fatal("did not expect upgrade flow to persist the routine")
+	}
+	if routineRepo.loggedCount != 1 {
+		t.Fatalf("expected one generation log, got %d", routineRepo.loggedCount)
+	}
+
+	promptPayload := decodeCapturedPromptPayload(t, capturedPrompt)
+	if got := promptPayload["message"]; got != "Make it more balanced and slightly harder." {
+		t.Fatalf("expected message in prompt, got %#v", got)
+	}
+	if got := promptPayload["feedback_message"]; got != "Keep Bench Press but raise intensity." {
+		t.Fatalf("expected feedback_message in prompt, got %#v", got)
+	}
+	existingRoutine := mapField(t, promptPayload, "existing_routine")
+	if got := existingRoutine["name"]; got != "Push Day" {
+		t.Fatalf("expected existing routine name in prompt, got %#v", got)
+	}
+	existingExercises := sliceField(t, existingRoutine, "exercises", 1)
+	firstExercise := mapItem(t, existingExercises[0], "existing routine first exercise")
+	if got := firstExercise["exercise_id"]; got != "exercise-1" {
+		t.Fatalf("expected existing routine exercise id, got %#v", got)
+	}
+	exerciseCatalog := sliceField(t, promptPayload, "exercise_catalog", 2)
+	if len(exerciseCatalog) != 2 {
+		t.Fatalf("expected full exercise catalog for upgrade, got %#v", promptPayload["exercise_catalog"])
+	}
+	userContext := mapField(t, promptPayload, "user_context")
+	assertUpgradeRecentTrainingHistory(t, userContext)
+
+	systemInstruction := decodeCapturedSystemInstruction(t, capturedPrompt)
+	if !strings.Contains(systemInstruction, "Treat existing_routine as the base plan to refine") {
+		t.Fatalf("expected refined upgrade instruction, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Respect message and feedback_message as strong user instructions") {
+		t.Fatalf("expected feedback guidance in instruction, got %q", systemInstruction)
+	}
+	if !strings.Contains(systemInstruction, "Never include keys such as exercise_catalog, existing_routine, user_context, message, feedback_message, or output_contract in the response") {
+		t.Fatalf("expected anti-echo guidance in instruction, got %q", systemInstruction)
+	}
+}
+
+func testRoutineForUpgrade(routineID string) *model.RoutineDetail {
+	repsMin := 6
+	repsMax := 8
+	weight := 70.0
+	rest := 120
+
+	return &model.RoutineDetail{
+		ID:          routineID,
+		Name:        "Push Day",
+		Description: "Improve upper body strength",
+		Source:      "manual",
+		Exercises: []model.RoutineExerciseDetail{
+			{
+				ID:            "re-1",
+				ExerciseID:    "exercise-1",
+				Name:          "Bench Press",
+				MuscleGroup:   "chest",
+				ExerciseType:  "compound",
+				ExerciseOrder: 1,
+				Sets: []model.RoutineExerciseSetDetail{
+					{
+						ID:             "set-1",
+						SetNumber:      1,
+						TargetRepsMin:  &repsMin,
+						TargetRepsMax:  &repsMax,
+						TargetWeightKg: &weight,
+						RestSeconds:    &rest,
+					},
+				},
+			},
+		},
+	}
+}
+
+func assertRoutineUpgradeResponse(t *testing.T, response model.AIRoutineUpgradeResponse) {
+	t.Helper()
+
+	if response.RoutineJSON.Name != "Push Day 2.0" {
+		t.Fatalf("expected upgraded routine name, got %q", response.RoutineJSON.Name)
+	}
+	if response.RateLimit.Remaining != aiRoutineRateLimit-1 {
+		t.Fatalf("expected %d remaining generations, got %#v", aiRoutineRateLimit-1, response.RateLimit)
+	}
+	if response.Diff.Summary.AddedExercises != 1 || response.Diff.Summary.ModifiedExercises != 1 {
+		t.Fatalf("unexpected diff summary: %#v", response.Diff.Summary)
+	}
+	if len(response.Diff.Exercises) != 2 {
+		t.Fatalf("expected two diff exercise entries, got %#v", response.Diff.Exercises)
+	}
+	if response.Diff.Exercises[0].ChangeType != "modified" {
+		t.Fatalf("expected first exercise diff to be modified, got %#v", response.Diff.Exercises[0])
+	}
+	if len(response.Diff.Exercises[0].Sets) != 1 || response.Diff.Exercises[0].Sets[0].ChangeType != "modified" {
+		t.Fatalf("expected first exercise set diff to be modified, got %#v", response.Diff.Exercises[0].Sets)
+	}
+	if response.Diff.Exercises[1].ChangeType != "added" {
+		t.Fatalf("expected second exercise diff to be added, got %#v", response.Diff.Exercises[1])
+	}
+}
+
+func TestUpgradeRoutineJSONRateLimited(t *testing.T) {
+	exerciseRepo := &routineAITestExerciseRepository{}
+	svc := NewRoutineAIService(
+		&routineAITestRoutineRepository{
+			countFunc: func(ctx context.Context, userID string, since time.Time) (int, error) {
+				return aiRoutineRateLimit, nil
+			},
+		},
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Improve it",
+	})
+	if !errors.Is(err, ErrAIRoutineRateLimited) {
+		t.Fatalf("expected ErrAIRoutineRateLimited, got %v", err)
+	}
+	if response.RateLimit.Limit != aiRoutineRateLimit || response.RateLimit.Remaining != 0 {
+		t.Fatalf("unexpected rate limit payload: %#v", response.RateLimit)
+	}
+}
+
+func TestUpgradeRoutineJSONRejectsEmptyRoutine(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"name\":\"Push Day Revised\",\"objective\":\"Small refinement\",\"duration_minutes\":45,\"target_muscles\":[\"chest\"],\"mandatory_count\":0,\"exercises\":[]}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Improve it a little.",
+	})
+	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
+		t.Fatalf("expected ErrAIRoutineProviderUnavailable, got %v", err)
+	}
+	if response.RoutineJSON.Name != "" || len(response.Diff.Exercises) != 0 {
+		t.Fatalf("expected empty response payload on provider error, got %#v", response)
+	}
+}
+
+func TestUpgradeRoutineJSONRejectsPromptEchoResponse(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	svc.httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			responseJSON := `{
+				"candidates": [
+					{
+						"content": {
+							"parts": [
+								{
+									"text": "{\"message\":\"Add one exercise\",\"existing_routine\":{\"name\":\"Push Day\"},\"exercise_catalog\":[{\"id\":\"exercise-1\"}],\"output_contract\":{\"name\":\"string\"}}"
+								}
+							]
+						}
+					}
+				]
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(responseJSON)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	_, err := svc.UpgradeRoutineJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", model.AIRoutineUpgradeRequest{
+		Message: "Add one exercise.",
+	})
+	if !errors.Is(err, ErrAIRoutineProviderUnavailable) {
+		t.Fatalf("expected ErrAIRoutineProviderUnavailable for echoed prompt, got %v", err)
+	}
+}
+
+func TestSaveUpgradedRoutineAsNew(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+			{ID: "exercise-2", Name: "Squat", MuscleGroup: "legs", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	generated := model.AIRoutineJSON{
+		Name:            "Push Day Plus",
+		Objective:       "Refined push day",
+		DurationMinutes: 45,
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				IsMandatory:  true,
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsMin: intPtr(6), TargetRepsMax: intPtr(8)},
+				},
+			},
+		},
+	}
+
+	response, err := svc.SaveUpgradedRoutineAsNew(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", generated)
+	if err != nil {
+		t.Fatalf("unexpected error saving upgraded routine as new: %v", err)
+	}
+	if response.RoutineID != "saved-routine-1" {
+		t.Fatalf("expected saved routine id, got %#v", response)
+	}
+	if routineRepo.savedRoutine == nil || routineRepo.savedRoutine.Name != "Push Day Plus" {
+		t.Fatalf("expected saved routine payload, got %#v", routineRepo.savedRoutine)
+	}
+}
+
+func TestOverwriteRoutineWithGeneratedJSON(t *testing.T) {
+	routineRepo := &routineAITestRoutineRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return testRoutineForUpgrade(routineID), nil
+		},
+	}
+	exerciseRepo := &routineAITestExerciseRepository{
+		exercises: []model.Exercise{
+			{ID: "exercise-1", Name: "Bench Press", MuscleGroup: "chest", ExerciseType: "compound", IsOfficial: true},
+		},
+	}
+	svc := NewRoutineAIService(
+		routineRepo,
+		NewExerciseService(exerciseRepo),
+		&routineAITestWorkoutSessionRepository{},
+		&routineAITestBodyMetricRepository{},
+		"test-key",
+		"gemini-2.5-flash",
+	)
+
+	generated := model.AIRoutineJSON{
+		Name:            "Push Day Reworked",
+		Objective:       "Refined push day",
+		DurationMinutes: 45,
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				IsMandatory:  true,
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsMin: intPtr(5), TargetRepsMax: intPtr(7)},
+				},
+			},
+		},
+	}
+
+	response, err := svc.OverwriteRoutineWithGeneratedJSON(context.Background(), "550e8400-e29b-41d4-a716-446655440000", "routine-1", generated)
+	if err != nil {
+		t.Fatalf("unexpected error overwriting routine: %v", err)
+	}
+	if response.RoutineID != "routine-1" {
+		t.Fatalf("expected overwritten routine id, got %#v", response)
+	}
+	if routineRepo.overwritten == nil || routineRepo.overwrittenID != "routine-1" {
+		t.Fatalf("expected overwrite payload, got %#v / %q", routineRepo.overwritten, routineRepo.overwrittenID)
+	}
+}
+
+func TestBuildAIRoutineUpgradeDiff(t *testing.T) {
+	before := model.AIRoutineJSON{
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsText: "6-8"},
+				},
+			},
+			{
+				ExerciseID:   "exercise-2",
+				Name:         "Row",
+				MuscleGroup:  "back",
+				ExerciseType: "compound",
+			},
+		},
+	}
+	after := model.AIRoutineJSON{
+		Exercises: []model.AIRoutineExercise{
+			{
+				ExerciseID:   "exercise-1",
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "compound",
+				Sets: []model.AIRoutineExerciseSet{
+					{SetNumber: 1, TargetRepsText: "5-7"},
+				},
+			},
+			{
+				ExerciseID:   "exercise-3",
+				Name:         "Shoulder Press",
+				MuscleGroup:  "shoulders",
+				ExerciseType: "compound",
+			},
+		},
+	}
+
+	diff := buildAIRoutineUpgradeDiff(before, after)
+
+	if diff.Summary.AddedExercises != 1 {
+		t.Fatalf("expected one added exercise, got %#v", diff.Summary)
+	}
+	if diff.Summary.RemovedExercises != 1 {
+		t.Fatalf("expected one removed exercise, got %#v", diff.Summary)
+	}
+	if diff.Summary.ModifiedExercises != 1 {
+		t.Fatalf("expected one modified exercise, got %#v", diff.Summary)
+	}
+	if len(diff.Exercises) != 3 {
+		t.Fatalf("expected three exercise diff entries, got %#v", diff.Exercises)
+	}
+	if diff.Exercises[0].ChangeType != "modified" || diff.Exercises[0].Sets[0].ChangeType != "modified" {
+		t.Fatalf("expected first entry to be modified with modified set, got %#v", diff.Exercises[0])
+	}
+	if diff.Exercises[1].ChangeType != "removed" {
+		t.Fatalf("expected second entry removed, got %#v", diff.Exercises[1])
+	}
+	if diff.Exercises[2].ChangeType != "added" {
+		t.Fatalf("expected third entry added, got %#v", diff.Exercises[2])
+	}
+}
+
+func decodeCapturedSystemInstruction(t *testing.T, capturedPrompt map[string]any) string {
+	t.Helper()
+
+	systemInstruction, ok := capturedPrompt["system_instruction"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected system_instruction object, got %#v", capturedPrompt["system_instruction"])
+	}
+	parts, ok := systemInstruction["parts"].([]any)
+	if !ok || len(parts) == 0 {
+		t.Fatalf("expected system_instruction parts, got %#v", systemInstruction["parts"])
+	}
+	firstPart, ok := parts[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first system instruction part, got %#v", parts[0])
+	}
+	text, ok := firstPart["text"].(string)
+	if !ok {
+		t.Fatalf("expected system instruction text, got %#v", firstPart["text"])
+	}
+
+	return text
+}
+
+func intPtr(value int) *int {
+	return &value
 }
