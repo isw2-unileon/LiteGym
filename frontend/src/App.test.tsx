@@ -13,20 +13,32 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-function exerciseMetadataResponse() {
+function dashboardResponse() {
   return {
-    exercise_types: [{ value: "strength", label: "Fuerza" }],
-    muscle_groups: [{ value: "chest", label: "Pecho" }],
-  };
-}
-
-function exerciseListResponse(items: unknown[]) {
-  return {
-    items,
-    page: 1,
-    limit: 20,
-    total: items.length,
-    total_pages: items.length > 0 ? 1 : 0,
+    calendar: {
+      month: "2026-04",
+      trained_days: [],
+      planned_days: [],
+      calendar_workouts: [],
+      sessions_count: 0,
+      current_streak: 0,
+      weekly_goal: 2,
+      next_objective: "",
+    },
+    recent_routines: [],
+    recent_workouts: [],
+    progress: {
+      last_recorded_at: null,
+      weight_kg: { current: null, previous: null, delta: null },
+      body_fat_percentage: { current: null, previous: null, delta: null },
+      muscle_mass_kg: { current: null, previous: null, delta: null },
+    },
+    muscle_distribution: {
+      year: [],
+      month: [],
+      year_exercise_count: 0,
+      month_exercise_count: 0,
+    },
   };
 }
 
@@ -38,10 +50,27 @@ describe("App", () => {
 
   it("redirects to the dashboard after login", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 }))
-      .mockResolvedValueOnce(jsonResponse([], { status: 200 }));
+    let isLoggedIn = false;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/auth/login")) {
+        isLoggedIn = true;
+        return Promise.resolve(jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 }));
+      }
+
+      if (url.includes("/api/auth/me")) {
+        return Promise.resolve(
+          isLoggedIn
+            ? jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 })
+            : jsonResponse({ error: "authentication required" }, { status: 401 }),
+        );
+      }
+
+      if (url.includes("/api/dashboard")) {
+        return Promise.resolve(jsonResponse(dashboardResponse(), { status: 200 }));
+      }
+
+      return Promise.resolve(jsonResponse([], { status: 200 }));
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(
@@ -50,6 +79,8 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
+    await user.type(await screen.findByLabelText("Email"), "raul@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByRole("heading", { name: /Hola/i })).toBeInTheDocument();
@@ -79,13 +110,17 @@ describe("App", () => {
   });
 
   it("renders the register page route", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: "authentication required" }, { status: 401 })));
+
     render(
       <MemoryRouter initialEntries={["/register"]}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Crea tu cuenta y empieza a entrenar con orden." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Crea tu cuenta y empieza a entrenar con orden." }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeInTheDocument();
   });
 
@@ -123,12 +158,8 @@ describe("App", () => {
           return Promise.resolve(jsonResponse({ user: { id: "user-id", role: "user" } }, { status: 200 }));
         }
 
-        if (url.includes("/api/exercises/metadata")) {
-          return Promise.resolve(jsonResponse(exerciseMetadataResponse(), { status: 200 }));
-        }
-
-        if (url.includes("/api/exercises")) {
-          return Promise.resolve(jsonResponse(exerciseListResponse([]), { status: 200 }));
+        if (url.includes("/api/dashboard")) {
+          return Promise.resolve(jsonResponse(dashboardResponse(), { status: 200 }));
         }
 
         return Promise.resolve(jsonResponse({}, { status: 200 }));
@@ -141,7 +172,7 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("button", { name: "Crear nuevo ejercicio" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Panel admin" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "CENTRO DE MANDO" })).not.toBeInTheDocument();
   });
 });

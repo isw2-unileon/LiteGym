@@ -124,26 +124,30 @@ func (r *profileRepository) GetStats(ctx context.Context, userID string, timeRan
 
 	// 5. Streak days with extra info for the calendar
 	streakQuery := `
-		SELECT 
+		SELECT
+			id::text as id,
 			TO_CHAR(COALESCE(performed_at, planned_at), 'YYYY-MM-DD') as date_str,
 			COALESCE(name, 'Entrenamiento Libre') as name,
 			COALESCE(duration_minutes, 0) as duration,
+			(SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_session_id = workout_sessions.id)::int as exercise_count,
 			(performed_at IS NULL AND planned_at IS NOT NULL) as is_planned
-		FROM workout_sessions 
+		FROM workout_sessions
 		WHERE user_id = $1::uuid AND (performed_at IS NOT NULL OR planned_at IS NOT NULL)
 	`
 	rows4, _ := r.db.Query(ctx, streakQuery, userID)
 	for rows4.Next() {
-		var dateStr, name string
-		var duration int
+		var id, dateStr, name string
+		var duration, exerciseCount int
 		var isPlanned bool
-		if err := rows4.Scan(&dateStr, &name, &duration, &isPlanned); err == nil {
+		if err := rows4.Scan(&id, &dateStr, &name, &duration, &exerciseCount, &isPlanned); err == nil {
 			stats.StreakDays = append(stats.StreakDays, dateStr)
 			stats.StreakActivities = append(stats.StreakActivities, model.CalendarActivity{
-				Date:        dateStr,
-				WorkoutName: name,
-				Duration:    duration,
-				IsPlanned:   isPlanned,
+				ID:            id,
+				Date:          dateStr,
+				WorkoutName:   name,
+				Duration:      duration,
+				ExerciseCount: exerciseCount,
+				IsPlanned:     isPlanned,
 			})
 		}
 	}

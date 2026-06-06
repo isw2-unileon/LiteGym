@@ -71,11 +71,11 @@ describe("AdminPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("redirects to exercises if user is not an admin", async () => {
+  it("redirects to dashboard if user is not an admin", async () => {
     setupFetchMock();
     renderAdminPage("user");
 
-    expect(await screen.findByText("Exercises Page Mock")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard Page Mock")).toBeInTheDocument();
   });
 
   // --- TICKET TESTS ---
@@ -84,13 +84,13 @@ describe("AdminPage", () => {
     const fetchMock = setupFetchMock();
     renderAdminPage();
 
-    expect(await screen.findByRole("heading", { name: "Centro de Mando" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "CENTRO DE MANDO" })).toBeInTheDocument();
     
     // Verify that the tickets tab is active and shows the mocked ticket
     expect(await screen.findByText("[General] Problema app")).toBeInTheDocument();
     
     // Verificamos que funciona el botón de cerrar
-    const closeButton = screen.getByRole("button", { name: "Marcar como resuelto" });
+    const closeButton = screen.getByRole("button", { name: "Resolver ticket" });
     await user.click(closeButton);
 
     await waitFor(() => {
@@ -125,7 +125,7 @@ describe("AdminPage", () => {
 
     await user.type(screen.getByPlaceholderText("Nombre de usuario"), "newcomer");
     await user.type(screen.getByPlaceholderText("Correo electrónico"), "new@test.com");
-    await user.type(screen.getByPlaceholderText("Contraseña"), "pass123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "pass123");
     await user.click(screen.getByRole("button", { name: "Crear Usuario" }));
 
     await waitFor(() => {

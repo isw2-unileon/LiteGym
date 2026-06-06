@@ -32,24 +32,24 @@ func (r *overviewWorkoutRepository) ListRecentByUser(ctx context.Context, userID
 
 func (r *overviewWorkoutRepository) ListTrainingDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	return r.listDatesInRange(ctx, userID, from, to, `
-		SELECT DISTINCT DATE(ws.performed_at)
+		SELECT DISTINCT DATE(ws.performed_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Madrid')
 		FROM public.workout_sessions ws
 		WHERE ws.user_id = $1::uuid
 			AND ws.performed_at >= $2
 			AND ws.performed_at < $3
-		ORDER BY DATE(ws.performed_at) DESC
+		ORDER BY DATE(ws.performed_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Madrid') DESC
 	`)
 }
 
 func (r *overviewWorkoutRepository) ListPlannedDatesInRange(ctx context.Context, userID string, from, to time.Time) ([]time.Time, error) {
 	return r.listDatesInRange(ctx, userID, from, to, `
-		SELECT DISTINCT DATE(ws.planned_at)
+		SELECT DISTINCT DATE(ws.planned_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Madrid')
 		FROM public.workout_sessions ws
 		WHERE ws.user_id = $1::uuid
 			AND ws.planned_at >= $2
 			AND ws.planned_at < $3
 			AND ws.performed_at IS NULL
-		ORDER BY DATE(ws.planned_at) DESC
+		ORDER BY DATE(ws.planned_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Madrid') DESC
 	`)
 }
 

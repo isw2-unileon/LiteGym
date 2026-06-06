@@ -36,7 +36,7 @@ describe("RegisterPage", () => {
   it("renders the register form", () => {
     renderRegisterPage();
 
-    expect(screen.getByText("Grupo 16 Fitness")).toBeInTheDocument();
+    expect(screen.getByText("LiteGym")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Crea tu cuenta y empieza a entrenar con orden." })).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre de usuario")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();

@@ -20,7 +20,7 @@ export default function ExerciseStatsCards({ insights }: ExerciseStatsCardsProps
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <InsightStatCard
-        label="Peso maximo"
+        label="Peso máximo"
         value={formatOptionalNumber(summary.max_weight_kg, " kg")}
       />
       <InsightStatCard

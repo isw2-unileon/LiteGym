@@ -1,4 +1,5 @@
 import type { Exercise } from "../../types/exercise";
+import { exerciseTypeLabel, muscleGroupLabel } from "../../lib/exerciseLabels";
 
 type ExerciseCardProps = {
     exercise: Exercise;
@@ -23,7 +24,7 @@ export default function ExerciseCard({
             {exercise.is_official === false && (
                 <span
                     aria-label="Ejercicio propio"
-                    className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-[#265c52] ring-4 ring-[#265c52]/10"
+                    className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-[#ea7130] ring-4 ring-[#265c52]/10"
                     role="img"
                     title="Ejercicio propio"
                 />
@@ -47,7 +48,7 @@ export default function ExerciseCard({
                             className="mt-1 text-sm font-semibold text-[#265c52]"
                             data-block="exercise-muscle-group"
                         >
-                            {exercise.muscle_group}
+                            {muscleGroupLabel(exercise.muscle_group)}
                         </p>
                     </div>
                 </div>
@@ -57,7 +58,7 @@ export default function ExerciseCard({
                         className="mt-3 text-sm text-[#5d5348]"
                         data-block="exercise-type"
                     >
-                        Tipo: {exercise.exercise_type}
+                        Tipo: {exerciseTypeLabel(exercise.exercise_type)}
                     </p>
                 )}
 
