@@ -15,7 +15,6 @@ import (
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
-	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -44,6 +43,8 @@ type RoutineAIService struct {
 	apiKey             string
 	model              string
 	httpClient         *http.Client
+	generationStrategy routineGenerationStrategy
+	upgradeStrategy    routineUpgradeStrategy
 }
 
 // NewRoutineAIService creates a service that generates and persists AI routines.
@@ -59,7 +60,7 @@ func NewRoutineAIService(
 		model = "gemini-2.5-flash"
 	}
 
-	return &RoutineAIService{
+	svc := &RoutineAIService{
 		repo:               repo,
 		exerciseService:    exerciseService,
 		workoutSessionRepo: workoutSessionRepo,
@@ -68,6 +69,27 @@ func NewRoutineAIService(
 		model:              model,
 		httpClient:         &http.Client{Timeout: 25 * time.Second},
 	}
+
+	provider := newGeminiRoutineAIProvider(svc.model, svc.apiKey, func() *http.Client {
+		return svc.httpClient
+	})
+	limiter := repositoryRoutineAIRateLimiter{repo: repo}
+	svc.generationStrategy = &rateLimitedRoutineGenerationStrategy{
+		inner: &geminiRoutineGenerationStrategy{
+			service:  svc,
+			provider: provider,
+		},
+		limiter: limiter,
+	}
+	svc.upgradeStrategy = &rateLimitedRoutineUpgradeStrategy{
+		inner: &geminiRoutineUpgradeStrategy{
+			service:  svc,
+			provider: provider,
+		},
+		limiter: limiter,
+	}
+
+	return svc
 }
 
 // GenerateRoutineJSON builds user context, calls Gemini, and returns the generated JSON for preview.
@@ -76,68 +98,7 @@ func (s *RoutineAIService) GenerateRoutineJSON(
 	userID string,
 	req model.AIRoutineGenerationRequest,
 ) (model.AIRoutineGenerateResponse, error) {
-	userID = strings.TrimSpace(userID)
-	if userID == "" {
-		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	req.Objective = strings.TrimSpace(req.Objective)
-	if req.Objective == "" || req.DurationMinutes <= 0 {
-		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	now := time.Now().UTC()
-	used, resetAt, err := s.enforceAIRoutineRateLimit(ctx, userID, now)
-	if err != nil {
-		if errors.Is(err, ErrAIRoutineRateLimited) {
-			rateLimit := buildAIRoutineRateLimitStatus(used, resetAt)
-			return model.AIRoutineGenerateResponse{
-				RateLimit: &rateLimit,
-			}, err
-		}
-		return model.AIRoutineGenerateResponse{}, err
-	}
-	slog.Info("ai routine generation started",
-		"user_id", userID,
-		"objective", req.Objective,
-		"duration_minutes", req.DurationMinutes,
-		"target_muscle_groups", normalizeTextList(req.TargetMuscleGroups),
-		"mandatory_exercises_count", len(normalizeTextList(req.MandatoryExercises)),
-		"notes_present", strings.TrimSpace(req.Notes) != "",
-	)
-
-	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, req.TargetMuscleGroups, 200)
-	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	userContext, err := s.buildUserContext(ctx, userID, now)
-	if err != nil {
-		slog.Error("ai routine user context build failed", "user_id", userID, "error", err)
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	generated, err := s.generateWithGemini(ctx, req, exercises, userContext, now)
-	if err != nil {
-		slog.Error("ai routine generation failed", "user_id", userID, "error", err)
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	if err := s.repo.LogAIGeneration(ctx, userID, now); err != nil {
-		slog.Warn("ai routine generation log skipped", "user_id", userID, "error", err)
-	}
-
-	slog.Info("ai routine generation finished",
-		"user_id", userID,
-		"exercise_count", len(generated.Exercises),
-		"source", generated.GenerationSource,
-		"objective", generated.Objective,
-	)
-
-	return model.AIRoutineGenerateResponse{
-		RoutineJSON: generated,
-		RateLimit:   rateLimitStatusPointer(buildAIRoutineRateLimitStatus(used+1, resetAt)),
-	}, nil
+	return s.generationStrategy.Generate(ctx, userID, req)
 }
 
 // SaveGeneratedRoutineJSON resolves or creates exercises from a generated preview and persists the routine.
@@ -146,20 +107,11 @@ func (s *RoutineAIService) SaveGeneratedRoutineJSON(
 	userID string,
 	generated model.AIRoutineJSON,
 ) (model.AIRoutineGenerateResponse, error) {
-	userID = strings.TrimSpace(userID)
-	if userID == "" || s.exerciseService == nil {
-		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	routineID, err := s.saveGeneratedRoutine(ctx, userID, generated)
-	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	return model.AIRoutineGenerateResponse{
-		RoutineJSON: generated,
-		RoutineID:   routineID,
-	}, nil
+	return saveGeneratedRoutineCommand{
+		service:   s,
+		userID:    userID,
+		generated: generated,
+	}.Execute(ctx)
 }
 
 // SaveUpgradedRoutineAsNew persists an upgrade proposal as a brand new routine.
@@ -168,28 +120,12 @@ func (s *RoutineAIService) SaveUpgradedRoutineAsNew(
 	userID, baseRoutineID string,
 	generated model.AIRoutineJSON,
 ) (model.AIRoutineGenerateResponse, error) {
-	userID = strings.TrimSpace(userID)
-	baseRoutineID = strings.TrimSpace(baseRoutineID)
-	if userID == "" || baseRoutineID == "" || s.exerciseService == nil {
-		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	if _, err := s.repo.GetByID(ctx, userID, baseRoutineID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
-		}
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	routineID, err := s.saveGeneratedRoutine(ctx, userID, generated)
-	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	return model.AIRoutineGenerateResponse{
-		RoutineJSON: generated,
-		RoutineID:   routineID,
-	}, nil
+	return saveUpgradedRoutineAsNewCommand{
+		service:     s,
+		userID:      userID,
+		baseRoutine: baseRoutineID,
+		generated:   generated,
+	}.Execute(ctx)
 }
 
 // OverwriteRoutineWithGeneratedJSON replaces one existing routine with the upgraded proposal.
@@ -198,35 +134,12 @@ func (s *RoutineAIService) OverwriteRoutineWithGeneratedJSON(
 	userID, routineID string,
 	generated model.AIRoutineJSON,
 ) (model.AIRoutineGenerateResponse, error) {
-	userID = strings.TrimSpace(userID)
-	routineID = strings.TrimSpace(routineID)
-	if userID == "" || routineID == "" || s.exerciseService == nil {
-		return model.AIRoutineGenerateResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	if _, err := s.repo.GetByID(ctx, userID, routineID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
-		}
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	routineToSave, err := s.buildGeneratedRoutineToSave(ctx, userID, generated)
-	if err != nil {
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	if err := s.repo.OverwriteGeneratedAIRoutine(ctx, routineID, userID, routineToSave); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return model.AIRoutineGenerateResponse{}, ErrRoutineNotFound
-		}
-		return model.AIRoutineGenerateResponse{}, err
-	}
-
-	return model.AIRoutineGenerateResponse{
-		RoutineJSON: generated,
-		RoutineID:   routineID,
-	}, nil
+	return overwriteRoutineWithAICommand{
+		service:   s,
+		userID:    userID,
+		routineID: routineID,
+		generated: generated,
+	}.Execute(ctx)
 }
 
 // UpgradeRoutineJSON builds a proposed upgrade for one existing routine without persisting it.
@@ -235,63 +148,7 @@ func (s *RoutineAIService) UpgradeRoutineJSON(
 	userID, routineID string,
 	req model.AIRoutineUpgradeRequest,
 ) (model.AIRoutineUpgradeResponse, error) {
-	userID = strings.TrimSpace(userID)
-	routineID = strings.TrimSpace(routineID)
-	req.Message = strings.TrimSpace(req.Message)
-	req.FeedbackMessage = strings.TrimSpace(req.FeedbackMessage)
-
-	if userID == "" || routineID == "" || (req.Message == "" && req.FeedbackMessage == "") {
-		return model.AIRoutineUpgradeResponse{}, ErrAIRoutineInvalidInput
-	}
-
-	now := time.Now().UTC()
-	used, resetAt, err := s.enforceAIRoutineRateLimit(ctx, userID, now)
-	if err != nil {
-		if errors.Is(err, ErrAIRoutineRateLimited) {
-			return model.AIRoutineUpgradeResponse{
-				RateLimit: buildAIRoutineRateLimitStatus(used, resetAt),
-			}, err
-		}
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	routine, err := s.repo.GetByID(ctx, userID, routineID)
-	if err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-	legacyRoutine := routineDetailToRoutine(*routine, userID)
-
-	exercises, err := s.repo.ListAvailableExercisesForAI(ctx, userID, nil, 200)
-	if err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	userContext, err := s.buildUpgradeUserContext(ctx, userID, legacyRoutine, now)
-	if err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	generated, err := s.generateUpgradeWithGemini(ctx, legacyRoutine, req, exercises, userContext, now)
-	if err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	if _, err := s.buildExercisesToSave(generated, exercises); err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	originalRoutineJSON := buildAIRoutineJSONFromRoutine(legacyRoutine, now)
-	diff := buildAIRoutineUpgradeDiff(originalRoutineJSON, generated)
-
-	if err := s.repo.LogAIGeneration(ctx, userID, now); err != nil {
-		return model.AIRoutineUpgradeResponse{}, err
-	}
-
-	return model.AIRoutineUpgradeResponse{
-		RoutineJSON: generated,
-		Diff:        diff,
-		RateLimit:   buildAIRoutineRateLimitStatus(used+1, resetAt),
-	}, nil
+	return s.upgradeStrategy.Upgrade(ctx, userID, routineID, req)
 }
 
 func (s *RoutineAIService) generateWithGemini(
@@ -973,21 +830,9 @@ func finalizeGeneratedAIRoutine(jsonText string, req model.AIRoutineGenerationRe
 		return model.AIRoutineJSON{}, fmt.Errorf("%w: %w", ErrAIRoutineProviderUnavailable, err)
 	}
 
-	if strings.TrimSpace(generated.Objective) == "" {
-		generated.Objective = req.Objective
-	}
-	if generated.DurationMinutes <= 0 {
-		generated.DurationMinutes = req.DurationMinutes
-	}
-	if len(generated.TargetMuscles) == 0 {
-		generated.TargetMuscles = normalizeTextList(req.TargetMuscleGroups)
-	}
-	normalizeGeneratedRoutineMandatoryFlags(&generated, req.MandatoryExercises)
-	generated.GeneratedAt = now
-	generated.GenerationSource = "gemini"
-	generated.MandatoryCount = countMandatoryExercises(generated.Exercises)
-
-	return generated, nil
+	builder := newRoutineJSONBuilder(generated)
+	builder.withGenerationDefaults(req, now)
+	return builder.build(), nil
 }
 
 func prettyJSONForLog(jsonText string) string {

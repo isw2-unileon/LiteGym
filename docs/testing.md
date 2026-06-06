@@ -1,6 +1,6 @@
 # Testing guide
 
-LiteGym uses several testing layers so backend logic, frontend behavior, persistence integration, and browser-level flows can be validated independently.
+LiteGym uses a few testing layers so backend logic, frontend behavior, persistence, and browser-level flows can be checked independently.
 
 ## Test layers
 
@@ -19,7 +19,7 @@ Backend tests are spread across:
 - `backend/internal/transport/handlers/*_test.go`
 - `backend/internal/transport/router_test.go`
 
-### Typical backend focuses
+### What backend tests usually cover
 
 - service validation and business rules
 - repository query correctness
@@ -91,7 +91,7 @@ Run with:
 make e2e
 ```
 
-The backend and frontend should already be running when you execute E2E tests.
+Make sure the backend and frontend are already running before you execute E2E tests.
 
 ## Useful commands
 
@@ -127,7 +127,7 @@ The real Gemini integration test is intentionally cautious because external prov
 - it can skip when the key is missing
 - it can skip when Gemini quota is exhausted
 
-This keeps the suite useful without making the entire test run flaky because of third-party quotas.
+That keeps the suite useful without making the whole run flaky because of third-party quotas.
 
 ## Suggested testing workflow for feature work
 

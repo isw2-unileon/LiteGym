@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This guide collects the most common local issues encountered while running or extending LiteGym.
+This guide collects the local issues you are most likely to hit while running or extending LiteGym.
 
 ## Backend does not start
 
@@ -45,7 +45,7 @@ Useful places to inspect:
 
 ## Gemini responds with `429`
 
-This is a provider-side quota issue, not necessarily an application bug.
+This is usually a provider-side quota issue, not an application bug.
 
 Check:
 
@@ -53,7 +53,7 @@ Check:
 - whether the model is available for your plan
 - whether your free-tier quota has been exhausted
 
-If a real integration test fails because Gemini quota is exhausted, the handler integration test is already designed to skip in that case.
+If a real integration test fails because Gemini quota is exhausted, the handler integration test is already designed to skip that case.
 
 ## Frontend shows proxy or socket errors during AI generation
 
@@ -63,7 +63,7 @@ Check:
 - Vite proxy configuration in `frontend/vite.config.ts`
 - backend `WriteTimeout` is large enough for slow AI responses
 
-The current project already includes proxy and timeout tuning specifically for slower AI requests.
+The project already includes proxy and timeout tuning for slower AI requests.
 
 ## Seed changes are not visible in the database
 
@@ -90,7 +90,7 @@ make start-postgres-db
 
 ## Routine AI save fails because an exercise does not exist
 
-The current save flow is designed to be tolerant:
+The current save flow is designed to be forgiving:
 
 - reuse existing exercise id when valid
 - search by normalized name and domain fields

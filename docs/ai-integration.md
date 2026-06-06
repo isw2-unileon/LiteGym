@@ -1,6 +1,6 @@
 # AI integration
 
-This document describes the current Gemini-based AI routine generation flow in LiteGym.
+This page explains the Gemini-based routine flow in LiteGym.
 
 ## Current feature scope
 
@@ -11,7 +11,7 @@ The AI integration currently covers:
 - resolving existing exercises during save
 - creating missing user-owned exercises when needed
 
-The AI feature is exposed through the routines area of the application.
+You will find the AI feature in the routines area of the app.
 
 ## Entry points
 
@@ -44,7 +44,7 @@ Important behavior:
 - if `GEMINI_API_KEY` is missing, generation fails with `503`
 - if `GEMINI_MODEL` is empty when it reaches the AI service, the service falls back to `gemini-2.5-flash`
 
-## Current request contract
+## Request contract
 
 Generation request fields:
 
@@ -59,9 +59,9 @@ This is intentionally user-friendly:
 - mandatory exercises are sent by name, not by raw id
 - notes let the user add free-text instructions such as preferences or restrictions
 
-## High-level generation flow
+## Generation flow
 
-### Step 1: preview generation
+### Step 1: generate a preview
 
 When a request hits `POST /api/routines/ai/generate`, the backend:
 
@@ -74,7 +74,7 @@ When a request hits `POST /api/routines/ai/generate`, the backend:
 7. parses and normalizes the returned JSON
 8. returns a preview payload to the frontend
 
-### Step 2: explicit save
+### Step 2: save it after confirmation
 
 When the user confirms the preview through `POST /api/routines/ai/save`, the backend:
 
@@ -86,7 +86,7 @@ When the user confirms the preview through `POST /api/routines/ai/save`, the bac
 
 ## What is sent to Gemini
 
-The backend sends a structured JSON prompt rather than a natural-language-only prompt.
+The backend sends a structured JSON prompt instead of relying only on free-form text.
 
 Main blocks:
 
@@ -101,7 +101,7 @@ Main blocks:
 
 ### `user_context`
 
-The context is compact and intentionally token-aware. It includes:
+The context is kept compact so the prompt stays token-friendly. It includes:
 
 - `training_days_30d`
 - `current_streak_days`
@@ -120,7 +120,7 @@ Gemini also receives a filtered exercise catalog with:
 - `muscle_group`
 - `exercise_type`
 
-This helps constrain the model toward valid exercises known by the application.
+This keeps the model focused on exercises the application actually knows about.
 
 ## Prompt behavior
 
@@ -133,7 +133,7 @@ The current system instruction tells Gemini to:
 - avoid a fixed one-to-one mapping between target muscle groups and exercises
 - return valid JSON only
 
-This was added to avoid a simplistic pattern where the model returned one exercise per selected target muscle.
+This was added to avoid the simple one-exercise-per-target pattern.
 
 ## Exercise resolution strategy
 
@@ -180,7 +180,7 @@ The frontend page responsible for AI routine generation is:
 
 - `frontend/src/pages/UserRoutinesPage.tsx`
 
-Current UX behavior:
+Current UX flow:
 
 - user opens the AI form
 - user sets objective and duration
@@ -192,7 +192,7 @@ Current UX behavior:
 
 ## Testing
 
-AI-related testing exists at multiple levels:
+AI-related testing exists at a few levels:
 
 - service tests in `backend/internal/service/routine_ai_service_test.go`
 - integration-style handler test in `backend/internal/transport/handlers/routine_handler_integration_test.go`

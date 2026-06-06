@@ -1,6 +1,6 @@
 # Backend guide
 
-The backend is a Go application using Gin for HTTP transport, pgx for PostgreSQL access, and a service/repository architecture for domain logic.
+The backend is a Go application built with Gin, pgx, and a service/repository split for the domain logic.
 
 ## Directory structure
 
@@ -19,11 +19,11 @@ backend/
 
 ## Bootstrap
 
-Bootstrap happens in:
+Bootstrap lives in:
 
 - `backend/cmd/server/main.go`
 
-It wires:
+It wires together:
 
 - config loading
 - database pool
@@ -36,7 +36,7 @@ It wires:
 
 ## Repositories
 
-Repositories encapsulate persistence logic per domain.
+Repositories keep the persistence logic for each domain in one place.
 
 Main repository files:
 
@@ -60,7 +60,7 @@ Typical responsibilities:
 
 ## Services
 
-Services enforce application rules and orchestrate repositories.
+Services enforce application rules and coordinate the repositories.
 
 Main service files:
 
@@ -83,7 +83,7 @@ Responsible for user lifecycle operations and lookup by id.
 
 ### `ExerciseService`
 
-Responsible for:
+It handles:
 
 - validation
 - domain normalization
@@ -131,7 +131,7 @@ Responsible for dashboard aggregates such as:
 
 ## Transport layer
 
-The transport layer is centered in:
+The transport layer starts in:
 
 - `backend/internal/transport/router.go`
 
@@ -170,7 +170,7 @@ Important handlers:
 - `workout_handler.go`
 - `health_handler.go`
 
-Each handler keeps HTTP-specific concerns:
+Each handler stays focused on HTTP-specific concerns:
 
 - reading request params
 - request body binding
@@ -181,7 +181,7 @@ Each handler keeps HTTP-specific concerns:
 
 The backend currently uses structured logging with `log/slog`.
 
-Examples of useful logging areas:
+Places where logging helps:
 
 - server startup and shutdown
 - AI generation flow
@@ -190,16 +190,16 @@ Examples of useful logging areas:
 
 ## Timeouts
 
-The HTTP server currently uses:
+The HTTP server uses:
 
 - `ReadTimeout: 10s`
 - `WriteTimeout: 60s`
 
-The longer write timeout is especially relevant for AI generation endpoints, which can take several seconds depending on Gemini response time.
+The longer write timeout matters most for AI generation endpoints, which can take several seconds depending on Gemini.
 
 ## Backend extension guidelines
 
-When adding a new feature:
+When you add a new feature:
 
 1. add or update models if needed
 2. add repository operations
