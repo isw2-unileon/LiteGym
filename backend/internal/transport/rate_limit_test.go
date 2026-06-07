@@ -56,7 +56,7 @@ func TestLoginRateLimitAllowsBurstThenBlocks(t *testing.T) {
 func TestRegisterRateLimitAllowsBurstThenBlocks(t *testing.T) {
 	engine := newRateLimitTestEngine(middleware.NewRateLimitMiddleware().Register())
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		resp := performRateLimitRequest(t, engine, "1.2.3.4:1234")
 		if resp.Code != http.StatusOK {
 			t.Fatalf("expected request %d to pass, got %d", i+1, resp.Code)

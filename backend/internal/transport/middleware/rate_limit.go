@@ -25,7 +25,7 @@ func NewRateLimitMiddleware() *RateLimitMiddleware {
 	return &RateLimitMiddleware{
 		requests:   make(map[string]*rate.Limiter),
 		login:      rate.NewLimiter(rate.Every(6*time.Second), 5),         // 10 req/min
-		register:   rate.NewLimiter(rate.Every(10*time.Second), 3),        // 6 req/min
+		register:   rate.NewLimiter(rate.Every(3*time.Second), 5),         // 20 req/min
 		protected:  rate.NewLimiter(rate.Every(500*time.Millisecond), 40), // 120 req/min
 		heavyRead:  rate.NewLimiter(rate.Every(time.Second), 20),          // 60 req/min
 		publicAuth: rate.NewLimiter(rate.Every(3*time.Second), 10),        // 20 req/min
