@@ -46,6 +46,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	userRepo := repository.NewUserRepository(db)
 	exerciseRepo := repository.NewExerciseRepository(db)
 	routineRepo := repository.NewRoutineRepository(db)
+	manualRoutineRepo := repository.NewManualRoutineRepository(db)
 	overviewWorkoutRepo := repository.NewOverviewWorkoutRepository(db)
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
 	ticketRepo := repository.NewTicketRepository(db)
@@ -66,6 +67,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 		cfg.GeminiModel,
 	)
 	routineService := service.NewRoutineService(routineRepo)
+	manualRoutineService := service.NewManualRoutineService(manualRoutineRepo)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
@@ -73,7 +75,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	userHandler := handlers.NewUserHandler(userService)
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-	routineHandler := handlers.NewRoutineHandler(routineService, routineAIService)
+	routineHandler := handlers.NewRoutineHandler(routineService, routineAIService, manualRoutineService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)

@@ -14,7 +14,7 @@ import (
 // RoutineRepository defines the persistence operations for routines.
 type RoutineRepository interface {
 	ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error)
-	ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error)
+	ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error)
 	GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
 	SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error)
 	OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error
@@ -43,12 +43,15 @@ func (r *routineRepository) ListRecentByUser(ctx context.Context, userID string,
 			r.id::text,
 			r.name,
 			COALESCE(r.description, ''),
+			r.source,
+			r.is_predefined,
+			r.routine_type::text,
 			COUNT(re.id)::int,
 			r.updated_at
 		FROM public.routines r
 		LEFT JOIN public.routine_exercises re ON re.routine_id = r.id
-		WHERE r.user_id = $1::uuid
-		GROUP BY r.id, r.name, r.description, r.updated_at, r.created_at
+		WHERE r.user_id = $1::uuid OR r.is_predefined = true
+		GROUP BY r.id, r.name, r.description, r.source, r.is_predefined, r.routine_type, r.updated_at, r.created_at
 		ORDER BY r.updated_at DESC, r.created_at DESC, r.id::text DESC
 		LIMIT $2
 	`, userID, limit)
@@ -60,20 +63,29 @@ func (r *routineRepository) ListRecentByUser(ctx context.Context, userID string,
 	return scanRoutineSummaries(rows)
 }
 
-func (r *routineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (r *routineRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
+	search = strings.TrimSpace(search)
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			r.id::text,
 			r.name,
 			COALESCE(r.description, ''),
+			r.source,
+			r.is_predefined,
+			r.routine_type::text,
 			COUNT(re.id)::int,
 			r.updated_at
 		FROM public.routines r
 		LEFT JOIN public.routine_exercises re ON re.routine_id = r.id
-		WHERE r.user_id = $1::uuid
-		GROUP BY r.id, r.name, r.description, r.updated_at, r.created_at
+		WHERE (r.user_id = $1::uuid OR r.is_predefined = true)
+			AND (
+				$2::text = ''
+				OR r.name ILIKE '%' || $2::text || '%'
+				OR COALESCE(r.description, '') ILIKE '%' || $2::text || '%'
+			)
+		GROUP BY r.id, r.name, r.description, r.source, r.is_predefined, r.routine_type, r.updated_at, r.created_at
 		ORDER BY r.name ASC, r.updated_at DESC, r.id::text DESC
-	`, userID)
+	`, userID, search)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +101,8 @@ func (r *routineRepository) GetByID(ctx context.Context, userID, routineID strin
 			r.name,
 			COALESCE(r.description, ''),
 			r.source,
+			r.is_predefined,
+			r.routine_type::text,
 			r.created_at,
 			r.updated_at,
 			re.id::text,
@@ -122,7 +136,7 @@ func (r *routineRepository) GetByID(ctx context.Context, userID, routineID strin
 		LEFT JOIN public.routine_exercises re ON re.routine_id = r.id
 		LEFT JOIN public.exercises e ON e.id = re.exercise_id AND e.deleted_at IS NULL
 		LEFT JOIN public.routine_exercise_sets res ON res.routine_exercise_id = re.id
-		WHERE r.user_id = $1::uuid
+		WHERE (r.user_id = $1::uuid OR r.is_predefined = true)
 			AND r.id = $2::uuid
 		ORDER BY re.exercise_order ASC, re.id::text ASC, res.set_number ASC, res.id::text ASC
 	`, userID, routineID)
@@ -140,6 +154,8 @@ func (r *routineRepository) GetByID(ctx context.Context, userID, routineID strin
 			routineName           string
 			routineDescription    string
 			routineSource         string
+			routineIsPredefined   bool
+			routineType           string
 			routineCreatedAt      time.Time
 			routineUpdatedAt      time.Time
 			routineExerciseID     sql.NullString
@@ -169,6 +185,8 @@ func (r *routineRepository) GetByID(ctx context.Context, userID, routineID strin
 			&routineName,
 			&routineDescription,
 			&routineSource,
+			&routineIsPredefined,
+			&routineType,
 			&routineCreatedAt,
 			&routineUpdatedAt,
 			&routineExerciseID,
@@ -197,13 +215,15 @@ func (r *routineRepository) GetByID(ctx context.Context, userID, routineID strin
 
 		if routine == nil {
 			routine = &model.RoutineDetail{
-				ID:          routineIDValue,
-				Name:        routineName,
-				Description: routineDescription,
-				Source:      routineSource,
-				CreatedAt:   routineCreatedAt,
-				UpdatedAt:   routineUpdatedAt,
-				Exercises:   []model.RoutineExerciseDetail{},
+				ID:           routineIDValue,
+				Name:         routineName,
+				Description:  routineDescription,
+				Source:       routineSource,
+				IsPredefined: routineIsPredefined,
+				RoutineType:  routineType,
+				CreatedAt:    routineCreatedAt,
+				UpdatedAt:    routineUpdatedAt,
+				Exercises:    []model.RoutineExerciseDetail{},
 			}
 		}
 
@@ -423,6 +443,9 @@ func scanRoutineSummaries(rows pgx.Rows) ([]model.OverviewRoutineSummary, error)
 			&routine.ID,
 			&routine.Name,
 			&routine.Description,
+			&routine.Source,
+			&routine.IsPredefined,
+			&routine.RoutineType,
 			&routine.ExerciseCount,
 			&routine.UpdatedAt,
 		); err != nil {

@@ -11,14 +11,18 @@ import (
 )
 
 type routineServiceTestRepository struct {
-	getByIDFunc func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	getByIDFunc    func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	listByUserFunc func(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error)
 }
 
 func (r *routineServiceTestRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (r *routineServiceTestRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (r *routineServiceTestRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
+	if r.listByUserFunc != nil {
+		return r.listByUserFunc(ctx, userID, search)
+	}
 	return []model.OverviewRoutineSummary{}, nil
 }
 
@@ -62,6 +66,36 @@ func TestRoutineServiceGetByID(t *testing.T) {
 	}
 	if routine == nil || routine.Name != "Push Day" {
 		t.Fatalf("expected routine Push Day, got %#v", routine)
+	}
+}
+
+func TestRoutineServiceListByUserForwardsSearch(t *testing.T) {
+	var capturedSearch string
+	svc := NewRoutineService(&routineServiceTestRepository{
+		listByUserFunc: func(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
+			capturedSearch = search
+			return []model.OverviewRoutineSummary{{ID: "r1", Name: "Push"}}, nil
+		},
+	})
+
+	routines, err := svc.ListByUser(context.Background(), "user-1", "  push  ")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if capturedSearch != "push" {
+		t.Fatalf("expected trimmed search 'push', got %q", capturedSearch)
+	}
+	if len(routines) != 1 {
+		t.Fatalf("expected 1 routine, got %d", len(routines))
+	}
+}
+
+func TestRoutineServiceListByUserInvalidInput(t *testing.T) {
+	svc := NewRoutineService(&routineServiceTestRepository{})
+
+	_, err := svc.ListByUser(context.Background(), "  ", "")
+	if !errors.Is(err, ErrInvalidUserInput) {
+		t.Fatalf("expected ErrInvalidUserInput, got %v", err)
 	}
 }
 

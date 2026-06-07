@@ -53,6 +53,8 @@ type RoutineDetail struct {
 	Name          string                  `json:"name"`
 	Description   string                  `json:"description,omitempty"`
 	Source        string                  `json:"source"`
+	IsPredefined  bool                    `json:"is_predefined"`
+	RoutineType   string                  `json:"routine_type"`
 	ExerciseCount int                     `json:"exercise_count"`
 	CreatedAt     time.Time               `json:"created_at"`
 	UpdatedAt     time.Time               `json:"updated_at"`

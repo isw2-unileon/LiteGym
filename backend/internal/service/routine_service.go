@@ -20,14 +20,14 @@ func NewRoutineService(repo repository.RoutineRepository) *RoutineService {
 	return &RoutineService{repo: repo}
 }
 
-// ListByUser returns all routines owned by a user.
-func (s *RoutineService) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+// ListByUser returns all routines owned by a user, optionally filtered by a name/description search term.
+func (s *RoutineService) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return nil, ErrInvalidUserInput
 	}
 
-	return s.repo.ListByUser(ctx, userID)
+	return s.repo.ListByUser(ctx, userID, strings.TrimSpace(search))
 }
 
 // GetByID returns one routine owned by a user with its exercises and planned sets.

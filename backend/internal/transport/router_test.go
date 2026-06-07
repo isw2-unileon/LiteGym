@@ -129,7 +129,7 @@ func (m *MockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (m *MockRoutineRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
 }
 

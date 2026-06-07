@@ -174,6 +174,10 @@ func setupRouterInternal(
 	if routineHandler != nil {
 		heavyReads.GET("/routines", routineHandler.ListRoutines)
 		heavyReads.GET("/routines/:id", routineHandler.GetRoutine)
+		protected.POST("/routines", routineHandler.CreateRoutine)
+		protected.PUT("/routines/:id", routineHandler.UpdateRoutine)
+		protected.DELETE("/routines/:id", routineHandler.DeleteRoutine)
+		protected.POST("/routines/:id/duplicate", routineHandler.DuplicateRoutine)
 		aiLimited.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
 		protected.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
 		aiLimited.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)

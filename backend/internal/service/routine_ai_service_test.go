@@ -42,7 +42,7 @@ func (r *routineAITestRoutineRepository) ListRecentByUser(ctx context.Context, u
 	}, nil
 }
 
-func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (r *routineAITestRoutineRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
 }
 
