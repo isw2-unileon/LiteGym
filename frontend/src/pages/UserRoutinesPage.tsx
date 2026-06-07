@@ -1390,7 +1390,7 @@ export default function UserRoutinesPage() {
 
             <div className="flex flex-wrap gap-2.5">
               <Stat n={String(routines?.length)} l="Rutinas totales" />
-              <Stat n={`${routines.length} / ${MAX_ROUTINES_PER_USER}`} l="Límite de rutinas propias" />
+              <Stat n={`${routines.length - parseInt(countDefaultRoutines())} / ${MAX_ROUTINES_PER_USER}`} l="Límite de rutinas propias" />
               <Stat n={countDefaultRoutines()} l="Rutinas por defecto" />
               <Stat n={countAIRoutines()} l="Rutinas con IA" />
             </div>
