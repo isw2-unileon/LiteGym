@@ -211,6 +211,7 @@ type MockWorkoutRepository struct {
 	CreateWorkoutSetFunc                  func(ctx context.Context, workoutSet *model.WorkoutSet) error
 	GetWorkoutSetsByWorkoutExerciseIDFunc func(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error)
 	UpdateWorkoutSetFunc                  func(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error
+	RemoveWorkoutSetFunc                  func(ctx context.Context, setID uuid.UUID) error
 }
 
 func (m *MockWorkoutRepository) CreateSession(ctx context.Context, workout *model.WorkoutSession) error {
@@ -279,6 +280,13 @@ func (m *MockWorkoutRepository) GetWorkoutSetsByWorkoutExerciseID(ctx context.Co
 func (m *MockWorkoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error {
 	if m.UpdateWorkoutSetFunc != nil {
 		return m.UpdateWorkoutSetFunc(ctx, setID, setNumber, set)
+	}
+	return nil
+}
+
+func (m *MockWorkoutRepository) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	if m.RemoveWorkoutSetFunc != nil {
+		return m.RemoveWorkoutSetFunc(ctx, setID)
 	}
 	return nil
 }

@@ -105,4 +105,47 @@ describe("FillWorkoutPage", () => {
 
     expect(repsInput).toHaveValue(9);
   });
+
+  it("blocks save when completed sets contain invalid numeric values", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          id: "workout-1",
+          name: "Push Day",
+          exercises: [
+            {
+              id: "exercise-1",
+              name: "Bench Press",
+              muscle_group: "chest",
+              exercise_order: 1,
+              sets: [
+                {
+                  id: "set-1",
+                  set_number: 1,
+                  target_reps_text: "8-10",
+                  completed: null,
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/workouts/workout-1/fill"]}>
+        <Routes>
+          <Route path="/workouts/:id/fill" element={<FillWorkoutPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Hecho" }));
+    await user.type(screen.getByPlaceholderText("Reps reales"), "abc");
+    await user.type(screen.getByPlaceholderText("Peso real (kg)"), "x");
+
+    expect(screen.getByRole("button", { name: "Guardar entrenamiento" })).toBeDisabled();
+  });
 });

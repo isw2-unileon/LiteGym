@@ -28,6 +28,7 @@ type MockWorkoutRepository struct {
 	CreateWorkoutSetFunc                  func(ctx context.Context, workoutSet *model.WorkoutSet) error
 	GetWorkoutSetsByWorkoutExerciseIDFunc func(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error)
 	UpdateWorkoutSetFunc                  func(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error
+	RemoveWorkoutSetFunc                  func(ctx context.Context, setID uuid.UUID) error
 	OriginalSessionData                   *model.WorkoutSession
 	OriginalSessionDataID                 uuid.UUID
 	OriginalSetData                       *model.WorkoutSet
@@ -107,6 +108,13 @@ func (m *MockWorkoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid
 	m.OriginalSetData = set
 	if m.UpdateWorkoutSetFunc != nil {
 		return m.UpdateWorkoutSetFunc(ctx, setID, setNumber, set)
+	}
+	return nil
+}
+
+func (m *MockWorkoutRepository) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	if m.RemoveWorkoutSetFunc != nil {
+		return m.RemoveWorkoutSetFunc(ctx, setID)
 	}
 	return nil
 }
@@ -1478,5 +1486,72 @@ func TestWorkoutHandlerUpdateWorkoutSetInternalServerError(t *testing.T) {
 	workoutHandler.UpdateWorkoutSet(ctx)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestWorkoutHandlerRemoveWorkoutSetSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockWorkoutRepository{
+		RemoveWorkoutSetFunc: func(ctx context.Context, setID uuid.UUID) error {
+			return nil
+		},
+	}
+	workoutService := service.NewWorkoutService(mockRepo)
+	workoutHandler := NewWorkoutHandler(workoutService)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	workoutID := uuid.New()
+	exerciseID := uuid.New()
+	setID := uuid.New()
+	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
+	ctx.Request = httptest.NewRequest("DELETE", "/api/workout/"+workoutID.String()+"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), nil)
+
+	workoutHandler.RemoveWorkoutSet(ctx)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, w.Code)
+	}
+}
+
+func TestWorkoutHandlerRemoveWorkoutSetInvalidSetID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	workoutService := service.NewWorkoutService(&MockWorkoutRepository{})
+	workoutHandler := NewWorkoutHandler(workoutService)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Params = gin.Params{{Key: "id", Value: uuid.New().String()}, {Key: "exercise_id", Value: uuid.New().String()}, {Key: "set_id", Value: "invalid"}}
+	ctx.Request = httptest.NewRequest("DELETE", "/api/workout/x/exercises/y/sets/z", nil)
+
+	workoutHandler.RemoveWorkoutSet(ctx)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestWorkoutHandlerRemoveWorkoutSetNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := &MockWorkoutRepository{
+		RemoveWorkoutSetFunc: func(ctx context.Context, setID uuid.UUID) error {
+			return service.ErrWorkoutSetNotFound
+		},
+	}
+	workoutService := service.NewWorkoutService(mockRepo)
+	workoutHandler := NewWorkoutHandler(workoutService)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	workoutID := uuid.New()
+	exerciseID := uuid.New()
+	setID := uuid.New()
+	ctx.Params = gin.Params{{Key: "id", Value: workoutID.String()}, {Key: "exercise_id", Value: exerciseID.String()}, {Key: "set_id", Value: setID.String()}}
+	ctx.Request = httptest.NewRequest("DELETE", "/api/workout/"+workoutID.String()+"/exercises/"+exerciseID.String()+"/sets/"+setID.String(), nil)
+
+	workoutHandler.RemoveWorkoutSet(ctx)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, w.Code)
 	}
 }

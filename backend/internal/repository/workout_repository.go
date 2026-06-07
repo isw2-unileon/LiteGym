@@ -24,6 +24,7 @@ type WorkoutRepository interface {
 	CreateWorkoutSet(ctx context.Context, workoutSet *model.WorkoutSet) error
 	GetWorkoutSetsByWorkoutExerciseID(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error)
 	UpdateWorkoutSet(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error
+	RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error
 }
 
 type workoutRepository struct {
@@ -637,6 +638,26 @@ func (wr *workoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid.UU
 		setNumber,
 	)
 
+	if err != nil {
+		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
+}
+
+// RemoveWorkoutSet deletes one manually added workout set.
+func (wr *workoutRepository) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	query := `
+	DELETE FROM workout_sets
+	WHERE id = $1
+		AND routine_exercise_set_id IS NULL
+	`
+
+	commandTag, err := wr.db.Exec(ctx, query, setID)
 	if err != nil {
 		return err
 	}

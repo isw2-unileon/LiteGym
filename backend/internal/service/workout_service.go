@@ -209,3 +209,18 @@ func (ws *WorkoutService) UpdateWorkoutSet(ctx context.Context, setID uuid.UUID,
 	}
 	return nil
 }
+
+// RemoveWorkoutSet deletes one manually added workout set by its ID.
+func (ws *WorkoutService) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	if setID == uuid.Nil {
+		return ErrInvalidWorkoutSetInput
+	}
+	err := ws.repo.RemoveWorkoutSet(ctx, setID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrWorkoutSetNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
