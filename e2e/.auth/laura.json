@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "auth_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMjIyMjIyMi0yMjIyLTIyMjItMjIyMi0yMjIyMjIyMjIyMjIiLCJlbWFpbCI6ImxhdXJhQGV4YW1wbGUuY29tIiwidXNlcm5hbWUiOiJsYXVyYSIsInJvbGUiOiJ1c2VyIiwiaXNzIjoiZ3J1cG8tMTYtYmFja2VuZCIsImlhdCI6MTc4MDg0OTU4NSwiZXhwIjoxNzgwOTM1OTg1fQ.Ti40hwQnmcob6wyJKitZn4RIVX8ccJNSgbf051u7qSg",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMjIyMjIyMi0yMjIyLTIyMjItMjIyMi0yMjIyMjIyMjIyMjIiLCJlbWFpbCI6ImxhdXJhQGV4YW1wbGUuY29tIiwidXNlcm5hbWUiOiJsYXVyYSIsInJvbGUiOiJ1c2VyIiwiaXNzIjoiZ3J1cG8tMTYtYmFja2VuZCIsImlhdCI6MTc4MDg1MjE0MSwiZXhwIjoxNzgwOTM4NTQxfQ.KquZZFniSYmd5z4_mj67C7DjPIoqPEsBdVid80-Q5dw",
       "domain": "localhost",
       "path": "/",
-      "expires": 1780935985.818,
+      "expires": 1780938541.95,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

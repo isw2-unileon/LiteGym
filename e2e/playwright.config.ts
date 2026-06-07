@@ -1,5 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const browserProject = process.env.PLAYWRIGHT_BROWSER ?? "chromium";
+const browserDevices: Record<string, (typeof devices)[keyof typeof devices]> = {
+  chromium: devices["Desktop Chrome"],
+  firefox: devices["Desktop Firefox"],
+  webkit: devices["Desktop Safari"],
+};
+
+if (!browserDevices[browserProject]) {
+  throw new Error(
+    `Unsupported PLAYWRIGHT_BROWSER "${browserProject}". Use chromium, firefox, or webkit.`,
+  );
+}
+
 export default defineConfig({
   testDir: "./tests",
   globalSetup: "./global.setup.ts",
@@ -30,5 +43,5 @@ export default defineConfig({
     },
   ],
 
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [{ name: browserProject, use: { ...browserDevices[browserProject] } }],
 });
