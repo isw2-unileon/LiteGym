@@ -168,11 +168,13 @@ Error handling behavior:
 
 ## Rate limiting
 
-The service still contains per-user rate-limit logic based on `ai_routine_generation_logs`, but:
+The service enforces a per-user rate limit based on `ai_routine_generation_logs`:
 
-- `aiRoutineRateLimitEnabled` is currently `false`
+- `aiRoutineRateLimit = 2` requests
+- `aiRoutineRateWindow = time.Hour`
 
-So at the moment the internal application-side limit is disabled, even though the provider may still enforce external quotas.
+So each user can run at most 2 AI routine requests per hour. Exceeding the limit
+returns `429`. The provider may still enforce its own external quotas on top of this.
 
 ## Frontend flow
 

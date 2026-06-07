@@ -54,6 +54,7 @@ export default function ExercisePage() {
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [editErrorMessage, setEditErrorMessage] = React.useState("");
   const [isUpdatingExercise, setIsUpdatingExercise] = React.useState(false);
+  const [isDeletingExercise, setIsDeletingExercise] = React.useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
   const [exerciseWorkoutSessions, setExerciseWorkoutSessions] = React.useState<
     ExerciseWorkoutSessionSummary[]
@@ -530,6 +531,53 @@ export default function ExercisePage() {
     }
   };
 
+  const handleDeleteExercise = async () => {
+    if (!selectedExercise) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Seguro que quieres eliminar "${selectedExercise.name}"? Esta acción no se puede deshacer.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingExercise(true);
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/exercises/${selectedExercise.id}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+
+        window.alert(errorBody?.error ?? "No se pudo eliminar el ejercicio.");
+        return;
+      }
+
+      const deletedId = selectedExercise.id;
+      setExercises((current) =>
+        current.filter((exercise) => exercise.id !== deletedId),
+      );
+      setSelectedExerciseId("");
+    } catch (error) {
+      console.error(error);
+      window.alert(
+        "No se pudo eliminar el ejercicio. Revisa la conexion con el backend.",
+      );
+    } finally {
+      setIsDeletingExercise(false);
+    }
+  };
+
   const officialCount = exercises.filter(
     (exercise) => exercise.is_official !== false,
   ).length;
@@ -633,6 +681,16 @@ export default function ExercisePage() {
                 <CardHeader
                     kicker={"DETALLE"}
                     title={selectedExercise?.name ?? "Detalle del ejercicio"}
+                    right={
+                      <button
+                          type="button"
+                          onClick={handleDeleteExercise}
+                          disabled={!canEditSelectedExercise || isDeletingExercise}
+                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] border border-[#9f2f22]/25 bg-[#fff0ec] px-3.5 py-2 text-[14px] font-bold text-[#9f2f22] transition hover:-translate-y-px hover:border-[#9f2f22]/45 hover:bg-[#9f2f22]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isDeletingExercise ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    }
                 />
                 <div className="relative z-[2] mt-4 grid grid-cols-2 gap-2.5">
                   <button
@@ -678,6 +736,13 @@ export default function ExercisePage() {
                         label="Descripción"
                         value={selectedExercise.description?.trim() || "Sin descripción."}
                     />
+
+                    {currentUser?.role === "admin" && selectedExercise.owner_user_id && (
+                      <InfoTile
+                          label="Propietario"
+                          value={`${selectedExercise.owner_user_id} · ${selectedExercise.owner_email ?? "—"}`}
+                      />
+                    )}
 
                     <Card accent="#ea7130">
                       <CardHeader kicker={"SESIONES"} title={""} right={selectedExercise ? (

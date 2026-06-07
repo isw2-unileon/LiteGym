@@ -88,10 +88,11 @@ The backend `Config` struct includes:
 
 ### `GEMINI_MODEL`
 
-- config fallback: `gemini-1.5-flash`
-- service-level fallback when empty input reaches the AI service: `gemini-2.5-flash`
+- config default (`config.go`): `gemini-2.5-flash`
+- service-level fallback when an empty value reaches the AI service: `gemini-2.5-flash`
 
-If you want deterministic behavior, set `GEMINI_MODEL` explicitly rather than relying on fallback paths.
+If you want deterministic behavior, set `GEMINI_MODEL` explicitly rather than relying
+on fallback paths.
 
 ## Example backend environment
 

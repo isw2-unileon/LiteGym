@@ -77,11 +77,11 @@ npm test -- --run src/pages/UserRoutinesPage.test.tsx
 
 ## E2E tests
 
-Playwright configuration lives in:
+The E2E suite is still a work in progress. Playwright configuration lives in:
 
 - `e2e/playwright.config.ts`
 
-Current example test:
+Current test (the suite currently ships only this one):
 
 - `e2e/tests/health.spec.ts`
 
