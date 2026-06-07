@@ -5,8 +5,10 @@ type TestUser = {
   password: string;
 };
 
+test.describe.configure({ mode: "serial" });
+
 const seededUser: TestUser = {
-  email: "diego@example.com",
+  email: "laura@example.com",
   password: "1234",
 };
 
@@ -18,8 +20,15 @@ async function loginWithUser(page: Page, user: TestUser) {
   await page.getByRole("button", { name: /iniciar sesion/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByText(/panel principal/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Panel$/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Panel$/ })).toHaveAttribute("href", "/dashboard");
+}
+
+async function submitLoginForm(page: Page, user: TestUser) {
+  await page.goto("/");
+  await page.getByRole("textbox", { name: /email/i }).fill(user.email);
+  await page.getByLabel(/contrasena/i).fill(user.password);
+  await page.getByRole("button", { name: /iniciar sesion/i }).click();
 }
 
 test("can log in to reach the dashboard", async ({ page }) => {
@@ -44,4 +53,51 @@ test("can submit a support ticket while authenticated", async ({ page }) => {
   await page.getByRole("button", { name: /enviar ticket/i }).click();
 
   await expect(page.getByText(/ticket enviado correctamente/i)).toBeVisible();
+});
+
+test("shows an error when login credentials are invalid", async ({ page }) => {
+  const invalidLoginUser = {
+    email: "diego@example.com",
+    password: "wrong-password",
+  };
+
+  await submitLoginForm(page, invalidLoginUser);
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText(/el correo o la contrase[nñ]a no son correctos/i)).toBeVisible();
+});
+
+test("shows a rate limit error after repeated invalid login attempts", async ({ page }) => {
+  const invalidLoginUser = {
+    email: "diego@example.com",
+    password: "wrong-password",
+  };
+  const invalidCredentialsMessage = page.getByText(
+    /el correo o la contrase[nñ]a no son correctos/i,
+  );
+  const rateLimitMessage = page.getByText(
+    /too many login attempts|iniciar sesion demasiadas veces|rate limit exceeded/i,
+  );
+  let rateLimited = false;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await submitLoginForm(page, invalidLoginUser);
+    await expect(page).toHaveURL(/\/$/);
+
+    const outcome = await Promise.race([
+      rateLimitMessage
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => "rate"),
+      invalidCredentialsMessage
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => "invalid"),
+    ]);
+
+    if (outcome === "rate") {
+      rateLimited = true;
+      break;
+    }
+  }
+
+  expect(rateLimited).toBeTruthy();
 });

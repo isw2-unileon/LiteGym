@@ -25,3 +25,18 @@ test("can register through the UI and reach the dashboard", async ({ page }) => 
   await expect(page.getByText(/panel principal/i)).toBeVisible();
   await expect(page.getByText(new RegExp(`hola,\\s*${username}`, "i"))).toBeVisible();
 });
+
+test("shows an error when registering with an existing email", async ({ page }) => {
+  await page.goto("/register");
+
+  await page.getByRole("textbox", { name: /nombre de usuario/i }).fill(`e2e-register-${Date.now()}`);
+  await page.getByRole("textbox", { name: /email/i }).fill("marta@example.com");
+  await page.getByLabel(/^contrasena$/i).first().fill("Password123!");
+  await page.getByLabel(/repite la contrasena/i).fill("Password123!");
+  await page.getByRole("button", { name: /crear cuenta/i }).click();
+
+  await expect(page).toHaveURL(/\/register$/);
+  await expect(
+    page.getByText(/ya existe un usuario con ese correo electr[oó]nico/i),
+  ).toBeVisible();
+});
