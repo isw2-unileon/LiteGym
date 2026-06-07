@@ -71,11 +71,31 @@ func (h *ExerciseHandler) ListExercises(c *gin.Context) {
 		officialFilter = &isOfficial
 	}
 
+	userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	userID, _ := userIDValue.(string)
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	// Admins see every exercise; regular users only see official ones plus their own.
+	ownerUserID := userID
+	if userRoleFromContext(c) == adminRole {
+		ownerUserID = ""
+	}
+
 	filters := model.ExerciseFilter{
 		Search:      c.Query("search"),
 		Type:        c.Query("type"),
 		MuscleGroup: c.Query("muscle_group"),
 		Official:    officialFilter,
+		UserID:      ownerUserID,
 		Page:        page,
 		Limit:       limit,
 	}

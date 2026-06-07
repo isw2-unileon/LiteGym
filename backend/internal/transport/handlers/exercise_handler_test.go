@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 type MockExerciseRepository struct {
@@ -229,6 +230,7 @@ func TestListExercises(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
 
 	exerciseHandler.ListExercises(c)
 
@@ -261,6 +263,7 @@ func TestListExercisesInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
 
 	exerciseHandler.ListExercises(c)
 
