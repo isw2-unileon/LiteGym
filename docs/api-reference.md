@@ -16,9 +16,13 @@ Protected endpoint that pings the configured database.
 
 ## Auth endpoints
 
+### `POST /api/auth/register`
+
+Registers a new user. Rate-limited in transport middleware.
+
 ### `POST /api/auth/login`
 
-Authenticates a user and sets the auth cookie.
+Authenticates a user and sets the auth cookie. Rate-limited in transport middleware.
 
 ### `POST /api/auth/logout`
 
@@ -49,6 +53,24 @@ Protected. Returns user detail by id.
 ### `DELETE /api/users/:id`
 
 Protected. Deletes a user.
+
+## Profile endpoints
+
+### `GET /api/profile/dashboard`
+
+Protected. Returns the profile dashboard view.
+
+### `PUT /api/profile/goals`
+
+Protected. Updates the user's goals.
+
+### `POST /api/profile/metrics`
+
+Protected. Adds a body metric entry.
+
+### `POST /api/profile/ai-analysis`
+
+Protected. Returns an AI-based profile analysis. Rate-limited in transport middleware.
 
 ## Exercise endpoints
 
@@ -108,6 +130,22 @@ Protected. Lists routines for the authenticated user.
 
 Protected. Returns full routine detail including planned sets.
 
+### `POST /api/routines`
+
+Protected. Creates a manual routine.
+
+### `PUT /api/routines/:id`
+
+Protected. Updates a routine.
+
+### `DELETE /api/routines/:id`
+
+Protected. Deletes a routine.
+
+### `POST /api/routines/:id/duplicate`
+
+Protected. Duplicates an existing routine, including its exercises and sets.
+
 ### `POST /api/routines/ai/generate`
 
 Protected. Generates an AI routine preview.
@@ -152,7 +190,7 @@ Notes:
 
 - the preview does not persist the routine
 - provider failures are surfaced as `503`
-- the backend currently has rate-limit code paths, although the AI service keeps them disabled at the moment
+- AI generation is rate-limited per user (2 requests/hour); exceeding it returns `429`
 
 ### `POST /api/routines/ai/save`
 
@@ -173,6 +211,19 @@ Behavior:
 - resolves existing exercises by id or by name/domain match
 - creates missing user-owned exercises when needed
 - persists routine, routine exercises, and planned sets
+
+### `POST /api/routines/:id/ai/upgrade`
+
+Protected. Generates an AI-improved version of an existing routine as a preview.
+Rate-limited per user like `ai/generate`.
+
+### `POST /api/routines/:id/ai/save-as-new`
+
+Protected. Saves an AI-upgraded preview as a new routine.
+
+### `PUT /api/routines/:id/ai/overwrite`
+
+Protected. Overwrites an existing routine with an AI-upgraded version.
 
 ## Dashboard endpoints
 
@@ -208,6 +259,10 @@ Protected. Starts a workout session.
 
 Protected. Returns workout detail.
 
+### `GET /api/workout/:id/detail`
+
+Protected. Returns the aggregated workout detail (session, exercises, and sets).
+
 ### `POST /api/workout/:id/finish`
 
 Protected. Finishes a workout session.
@@ -235,3 +290,7 @@ Protected. Lists sets for a workout exercise.
 ### `POST /api/workout/:id/exercises/:exercise_id/sets/:set_id`
 
 Protected. Updates a workout set.
+
+### `DELETE /api/workout/:id/exercises/:exercise_id/sets/:set_id`
+
+Protected. Removes a workout set.
