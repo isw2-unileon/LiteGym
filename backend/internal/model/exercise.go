@@ -21,6 +21,7 @@ type ExerciseFilter struct {
 	Type        string
 	MuscleGroup string
 	Official    *bool
+	UserID      string
 	Page        int
 	Limit       int
 }
