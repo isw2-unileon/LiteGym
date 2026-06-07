@@ -99,6 +99,10 @@ func (r *routineAITestExerciseRepository) GetByID(ctx context.Context, id string
 	return nil, pgx.ErrNoRows
 }
 
+func (r *routineAITestExerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	return false, nil
+}
+
 func (r *routineAITestExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	matches := make([]model.Exercise, 0, len(r.exercises))
 	for _, exercise := range r.exercises {

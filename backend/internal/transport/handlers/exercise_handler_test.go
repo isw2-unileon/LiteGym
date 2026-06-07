@@ -19,6 +19,7 @@ import (
 type MockExerciseRepository struct {
 	createFunc                        func(ctx context.Context, exercise *model.Exercise) error
 	getByIDFunc                       func(ctx context.Context, id string) (*model.Exercise, error)
+	nameExistsFunc                    func(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error)
 	listFunc                          func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
 	listWorkoutSessionsByExerciseFunc func(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
 	getInsightsFunc                   func(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error)
@@ -38,6 +39,13 @@ func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model
 		return m.getByIDFunc(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *MockExerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	if m.nameExistsFunc != nil {
+		return m.nameExistsFunc(ctx, name, ownerUserID, excludeID)
+	}
+	return false, nil
 }
 
 func (m *MockExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
@@ -344,6 +352,62 @@ func TestUpdateExerciseOfficialRequiresAdmin(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestUpdateExerciseUnmarkOfficialAssignsOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminID := "550e8400-e29b-41d4-a716-446655440111"
+
+	var captured *model.Exercise
+	mockRepo := &MockExerciseRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
+			return &model.Exercise{
+				ID:           id,
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "strength",
+				IsOfficial:   true,
+			}, nil
+		},
+		updateExerciseFunc: func(ctx context.Context, exercise *model.Exercise) error {
+			captured = exercise
+			return nil
+		},
+	}
+
+	exerciseService := service.NewExerciseService(mockRepo)
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Set("user_role", "admin")
+	c.Set(middleware.ContextUserIDKey, adminID)
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/exercises/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewBufferString(`{"name":"Bench Press","muscle_group":"chest","exercise_type":"strength","is_official":false}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	exerciseHandler.UpdateExercise(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	if captured == nil {
+		t.Fatal("expected repository UpdateExercise to be called")
+	}
+
+	if captured.IsOfficial {
+		t.Error("expected exercise to be marked as non-official")
+	}
+
+	if captured.OwnerUserID == nil || *captured.OwnerUserID != adminID {
+		t.Errorf("expected owner to be assigned to the editor %q, got %v", adminID, captured.OwnerUserID)
 	}
 }
 

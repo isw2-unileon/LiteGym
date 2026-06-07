@@ -120,6 +120,34 @@ func isValidMuscleGroup(value string) bool {
 	return ok
 }
 
+// normalizeSecondaryMuscleGroups validates the comma-separated list of secondary
+// muscle groups, returning them normalized and de-duplicated as a comma-separated
+// string. primary must already be normalized.
+func normalizeSecondaryMuscleGroups(raw, primary string) (string, error) {
+	seen := make(map[string]struct{})
+	normalized := make([]string, 0)
+
+	for _, group := range strings.Split(raw, ",") {
+		group = normalizeDomainValue(group)
+		if group == "" {
+			continue
+		}
+		if !isValidMuscleGroup(group) {
+			return "", ErrInvalidMuscleGroup
+		}
+		if group == primary {
+			return "", ErrSecondaryEqualsPrimary
+		}
+		if _, exists := seen[group]; exists {
+			continue
+		}
+		seen[group] = struct{}{}
+		normalized = append(normalized, group)
+	}
+
+	return strings.Join(normalized, ", "), nil
+}
+
 func exerciseMetadata() model.ExerciseMetadataResponse {
 	return model.ExerciseMetadataResponse{
 		ExerciseTypes: selectOptionsFromCatalog(validExerciseTypes, exerciseTypeLabels),

@@ -14,6 +14,7 @@ import (
 // ExerciseRepository defines the persistence operations for exercises.
 type ExerciseRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Exercise, error)
+	NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error)
 	List(ctx context.Context, filter model.ExerciseFilter) ([]model.Exercise, int, error)
 	ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
 	GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error)
@@ -43,11 +44,12 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 			COALESCE(string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group), ''),
 			e.exercise_type,
 			e.is_official,
+			e.owner_user_id::text,
 			e.created_at
 		FROM exercises e
 		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
 		WHERE e.id = $1::uuid AND e.deleted_at IS NULL
-		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.created_at
+		GROUP BY e.id, e.name, e.description, e.muscle_group, e.exercise_type, e.is_official, e.owner_user_id, e.created_at
 	`
 
 	var exercise model.Exercise
@@ -60,6 +62,7 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 		&exercise.SecondaryMuscleGroup,
 		&exercise.ExerciseType,
 		&exercise.IsOfficial,
+		&exercise.OwnerUserID,
 		&exercise.CreatedAt,
 	)
 	if err != nil {
@@ -69,13 +72,39 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 	return &exercise, nil
 }
 
-// ownerUserIDParam returns nil for an empty user id so the owner filter is
-// skipped (admins see every exercise); otherwise it returns the id to filter by.
-func ownerUserIDParam(userID string) *string {
-	if strings.TrimSpace(userID) == "" {
+// NameExists reports whether an active exercise already uses the given name
+// (case-insensitive) within the scope that must stay unique: any official
+// exercise, plus the requesting owner's own exercises. ownerUserID is nil for
+// official exercises (which then only clash with other official ones). excludeID
+// skips a specific exercise (used when updating).
+func (r *exerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM exercises e
+			WHERE e.deleted_at IS NULL
+				AND lower(e.name) = lower($1)
+				AND ($2::uuid IS NULL OR e.id <> $2::uuid)
+				AND (e.is_official = true OR e.owner_user_id = $3::uuid)
+		)
+	`
+
+	var exists bool
+	if err := r.db.QueryRow(ctx, query, name, nullableUUIDParam(excludeID), ownerUserID).Scan(&exists); err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+// nullableUUIDParam returns nil for an empty id so a "$n::uuid IS NULL" guard can
+// skip the predicate (e.g. an admin owner filter, or an absent exclude id);
+// otherwise it returns the value to bind.
+func nullableUUIDParam(id string) *string {
+	if strings.TrimSpace(id) == "" {
 		return nil
 	}
-	return &userID
+	return &id
 }
 
 func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
@@ -95,9 +124,12 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 			COALESCE(string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group), ''),
 			e.exercise_type,
 			e.is_official,
+			e.owner_user_id::text,
+			u.email,
 			e.created_at
 		FROM exercises e
 		LEFT JOIN exercise_secondary_muscle_groups esmg ON esmg.exercise_id = e.id
+		LEFT JOIN users u ON u.id = e.owner_user_id
 		WHERE e.deleted_at IS NULL
 			AND (
 				$1 = ''
@@ -131,6 +163,8 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 			e.muscle_group,
 			e.exercise_type,
 			e.is_official,
+			e.owner_user_id,
+			u.email,
 			e.created_at
 		ORDER BY e.created_at ASC, e.id::text ASC
 		LIMIT $5 OFFSET $6
@@ -145,7 +179,7 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 		filters.Official,
 		filters.Limit,
 		offset,
-		ownerUserIDParam(filters.UserID),
+		nullableUUIDParam(filters.UserID),
 	)
 	if err != nil {
 		return nil, 0, err
@@ -165,6 +199,8 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 			&exercise.SecondaryMuscleGroup,
 			&exercise.ExerciseType,
 			&exercise.IsOfficial,
+			&exercise.OwnerUserID,
+			&exercise.OwnerEmail,
 			&exercise.CreatedAt,
 		)
 		if err != nil {
@@ -222,7 +258,7 @@ func (r *exerciseRepository) countExercises(ctx context.Context, filters model.E
 		filters.Type,
 		filters.MuscleGroup,
 		filters.Official,
-		ownerUserIDParam(filters.UserID),
+		nullableUUIDParam(filters.UserID),
 	).Scan(&total)
 	if err != nil {
 		return 0, err
@@ -555,8 +591,9 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
             description = $2,
             muscle_group = $3,
             exercise_type = $4,
-            is_official = $5
-        WHERE id = $6::uuid AND deleted_at IS NULL
+            is_official = $5,
+            owner_user_id = $6::uuid
+        WHERE id = $7::uuid AND deleted_at IS NULL
     `
 
 	// 2. Execute the update.
@@ -568,6 +605,7 @@ func (r *exerciseRepository) UpdateExercise(ctx context.Context, exercise *model
 		exercise.MuscleGroup,
 		exercise.ExerciseType,
 		exercise.IsOfficial,
+		exercise.OwnerUserID,
 		exercise.ID,
 	)
 	if err != nil {

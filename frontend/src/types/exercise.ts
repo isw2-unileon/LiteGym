@@ -7,6 +7,8 @@ export type Exercise = {
     secondary_muscle_groups?: string[] | null;
     exercise_type: string | null;
     is_official?: boolean;
+    owner_user_id?: string | null;
+    owner_email?: string | null;
     created_at?: string;
 };
 
