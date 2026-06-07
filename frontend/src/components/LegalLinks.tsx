@@ -1,11 +1,5 @@
 import { Link } from "react-router-dom";
-
-export const legalLinks = [
-  { to: "/legal/aviso-legal", label: "Aviso legal" },
-  { to: "/legal/privacidad", label: "Privacidad" },
-  { to: "/legal/cookies", label: "Cookies" },
-  { to: "/legal/terminos", label: "Términos" },
-];
+import { legalLinks } from "./legalLinksData";
 
 type LegalLinksProps = {
   className?: string;

@@ -2,7 +2,11 @@
   "name": "e2e",
   "private": true,
   "scripts": {
+    "install:browsers": "playwright install",
     "test": "playwright test",
+    "test:chromium": "PLAYWRIGHT_BROWSER=chromium playwright test",
+    "test:firefox": "PLAYWRIGHT_BROWSER=firefox playwright test",
+    "test:webkit": "PLAYWRIGHT_BROWSER=webkit playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug"
