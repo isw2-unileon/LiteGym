@@ -51,7 +51,7 @@ func (s *geminiRoutineGenerationStrategy) Generate(
 		"notes_present", strings.TrimSpace(req.Notes) != "",
 	)
 
-	exercises, err := s.service.repo.ListAvailableExercisesForAI(ctx, userID, req.TargetMuscleGroups, 200)
+	exercises, err := s.service.repo.ListAvailableExercisesForAI(ctx, userID, muscleGroupSlugs(req.TargetMuscleGroups), 200)
 	if err != nil {
 		return model.AIRoutineGenerateResponse{}, err
 	}
@@ -251,7 +251,7 @@ func buildRoutineGenerationInputPayload(
 	return map[string]any{
 		"objective":            req.Objective,
 		"duration_minutes":     req.DurationMinutes,
-		"target_muscle_groups": normalizeTextList(req.TargetMuscleGroups),
+		"target_muscle_groups": muscleGroupSlugs(req.TargetMuscleGroups),
 		"mandatory_exercises":  normalizeTextList(req.MandatoryExercises),
 		"user_notes":           strings.TrimSpace(req.Notes),
 		"user_context":         userContext,

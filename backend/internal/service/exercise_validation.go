@@ -120,6 +120,111 @@ func isValidMuscleGroup(value string) bool {
 	return ok
 }
 
+var spanishAccentReplacer = strings.NewReplacer(
+	"á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u", "ü", "u", "ñ", "n",
+)
+
+// normalizeMuscleKey lowercases, strips Spanish accents and collapses spaces to
+// underscores so display labels and slugs can be compared on equal footing.
+func normalizeMuscleKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = spanishAccentReplacer.Replace(value)
+	return strings.Join(strings.Fields(value), "_")
+}
+
+// muscleGroupAliases maps normalized display labels (and their singular forms) to
+// canonical slugs, so values coming from the AI provider or the user in Spanish
+// ("Pecho", "Hombro", "Tríceps") resolve to the stored slugs ("chest", ...).
+var muscleGroupAliases = buildMuscleGroupAliases()
+
+func buildMuscleGroupAliases() map[string]string {
+	aliases := make(map[string]string, len(muscleGroupLabels)*2)
+	add := func(raw, slug string) {
+		key := normalizeMuscleKey(raw)
+		if key != "" {
+			aliases[key] = slug
+		}
+	}
+
+	for slug, label := range muscleGroupLabels {
+		add(label, slug)
+		// Tolerate singular/plural mismatches (e.g. AI returns "Hombro" for "Hombros").
+		add(strings.TrimSuffix(label, "s"), slug)
+	}
+
+	return aliases
+}
+
+// muscleGroupSlug resolves a free-form muscle group (a slug, or a Spanish label in
+// any case/accent/number) to its canonical slug, or "" when it cannot be resolved.
+func muscleGroupSlug(raw string) string {
+	key := normalizeMuscleKey(raw)
+	if key == "" {
+		return ""
+	}
+	if _, ok := validMuscleGroups[key]; ok {
+		return key
+	}
+	if slug, ok := muscleGroupAliases[key]; ok {
+		return slug
+	}
+	if slug, ok := muscleGroupAliases[strings.TrimSuffix(key, "s")]; ok {
+		return slug
+	}
+	return ""
+}
+
+// muscleGroupSlugs resolves each value to its canonical slug, dropping blanks and
+// duplicates while preserving order. Unresolved values are kept normalized so a
+// caller filtering by them simply finds nothing rather than silently widening.
+func muscleGroupSlugs(values []string) []string {
+	slugs := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		slug := muscleGroupSlug(value)
+		if slug == "" {
+			slug = normalizeDomainValue(value)
+		}
+		if slug == "" {
+			continue
+		}
+		if _, ok := seen[slug]; ok {
+			continue
+		}
+		seen[slug] = struct{}{}
+		slugs = append(slugs, slug)
+	}
+	return slugs
+}
+
+// normalizeSecondaryMuscleGroups validates the comma-separated list of secondary
+// muscle groups, returning them normalized and de-duplicated as a comma-separated
+// string. primary must already be normalized.
+func normalizeSecondaryMuscleGroups(raw, primary string) (string, error) {
+	seen := make(map[string]struct{})
+	normalized := make([]string, 0)
+
+	for _, group := range strings.Split(raw, ",") {
+		group = normalizeDomainValue(group)
+		if group == "" {
+			continue
+		}
+		if !isValidMuscleGroup(group) {
+			return "", ErrInvalidMuscleGroup
+		}
+		if group == primary {
+			return "", ErrSecondaryEqualsPrimary
+		}
+		if _, exists := seen[group]; exists {
+			continue
+		}
+		seen[group] = struct{}{}
+		normalized = append(normalized, group)
+	}
+
+	return strings.Join(normalized, ", "), nil
+}
+
 func exerciseMetadata() model.ExerciseMetadataResponse {
 	return model.ExerciseMetadataResponse{
 		ExerciseTypes: selectOptionsFromCatalog(validExerciseTypes, exerciseTypeLabels),

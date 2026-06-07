@@ -12,6 +12,7 @@ type Exercise struct {
 	ExerciseType         string    `json:"exercise_type,omitempty"`
 	IsOfficial           bool      `json:"is_official"`
 	OwnerUserID          *string   `json:"owner_user_id,omitempty"`
+	OwnerEmail           *string   `json:"owner_email,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 

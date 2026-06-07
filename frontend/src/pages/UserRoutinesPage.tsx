@@ -1403,7 +1403,11 @@ export default function UserRoutinesPage() {
                 search={routineSearch}
                 onSearchChange={setRoutineSearch}
                 onCreate={handleOpenCreateRoutine}
-                onCreateAI={() => setIsAIFormOpen(true)}
+                onCreateAI={() => {
+                  setAIMessage("");
+                  setAIStatus("idle");
+                  setIsAIFormOpen(true);
+                }}
                 createDisabled={routineLimitReached}
             />
           </section>
@@ -1481,7 +1485,7 @@ export default function UserRoutinesPage() {
                     <div className="relative mt-4 flex min-h-0 flex-1 flex-col gap-4">
                       <div className="flex flex-wrap gap-2.5">
                         <Stat n={formatRoutineDate(selectedRoutine.updated_at)} l="Última modificación" />
-                        <Stat n={selectedRoutine.source} l="Origen" />
+                        <Stat n={selectedRoutine.source === "ai" ? selectedRoutine.source.toUpperCase() : selectedRoutine.source} l="Origen" />
                         <Stat n={String(selectedRoutine.exercises.length)} l="Ejercicios" />
                         <Stat n={String(selectedRoutine.exercises.reduce((total, exercise) => total + exercise.sets.length, 0))} l="Series" />
                       </div>

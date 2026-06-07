@@ -14,6 +14,7 @@ import (
 type MockWorkoutRepository struct {
 	CreateSessionFunc                  func(ctx context.Context, workout *model.WorkoutSession) error
 	GetSessionByIDFunc                 func(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error)
+	GetSessionDetailByIDFunc           func(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error)
 	UpdateSessionByIDFunc              func(ctx context.Context, id uuid.UUID, session *model.WorkoutSession) error
 	RemoveSessionByIDFunc              func(ctx context.Context, id uuid.UUID) error
 	CreateWorkoutExerciseFunc          func(ctx context.Context, workoutExercise *model.WorkoutExercise) error
@@ -21,6 +22,7 @@ type MockWorkoutRepository struct {
 	CreateWorkoutSetFunc               func(ctx context.Context, workoutSet *model.WorkoutSet) error
 	GetWorkoutSetsByExerciseIDFunc     func(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error)
 	UpdateWorkoutSetFunc               func(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error
+	RemoveWorkoutSetFunc               func(ctx context.Context, setID uuid.UUID) error
 	OriginalSessionData                *model.WorkoutSession
 	OriginalSessionDataID              uuid.UUID
 	OriginalSetData                    *model.WorkoutSet
@@ -39,6 +41,13 @@ func (m *MockWorkoutRepository) CreateSession(ctx context.Context, workout *mode
 func (m *MockWorkoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error) {
 	if m.GetSessionByIDFunc != nil {
 		return m.GetSessionByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *MockWorkoutRepository) GetSessionDetailByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error) {
+	if m.GetSessionDetailByIDFunc != nil {
+		return m.GetSessionDetailByIDFunc(ctx, id)
 	}
 	return nil, nil
 }
@@ -93,6 +102,13 @@ func (m *MockWorkoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid
 	m.OriginalSetData = set
 	if m.UpdateWorkoutSetFunc != nil {
 		return m.UpdateWorkoutSetFunc(ctx, setID, setNumber, set)
+	}
+	return nil
+}
+
+func (m *MockWorkoutRepository) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	if m.RemoveWorkoutSetFunc != nil {
+		return m.RemoveWorkoutSetFunc(ctx, setID)
 	}
 	return nil
 }
@@ -203,6 +219,48 @@ func TestWorkoutServiceGetSessionByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestWorkoutServiceGetSessionDetailByIDSuccess(t *testing.T) {
+	id := uuid.New()
+	mockRepo := &MockWorkoutRepository{
+		GetSessionDetailByIDFunc: func(ctx context.Context, receivedID uuid.UUID) (*model.WorkoutSessionDetail, error) {
+			return &model.WorkoutSessionDetail{
+				ID:   receivedID.String(),
+				Name: "Push Day",
+			}, nil
+		},
+	}
+
+	service := NewWorkoutService(mockRepo)
+	session, err := service.GetSessionDetailByID(context.Background(), id)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if session == nil || session.ID != id.String() {
+		t.Fatalf("expected workout detail for %s, got %#v", id, session)
+	}
+}
+
+func TestWorkoutServiceGetSessionDetailByIDInvalidInput(t *testing.T) {
+	service := NewWorkoutService(&MockWorkoutRepository{})
+	_, err := service.GetSessionDetailByID(context.Background(), uuid.Nil)
+	if !errors.Is(err, ErrInvalidWorkoutSessionInput) {
+		t.Fatalf("expected ErrInvalidWorkoutSessionInput, got %v", err)
+	}
+}
+
+func TestWorkoutServiceGetSessionDetailByIDNotFound(t *testing.T) {
+	mockRepo := &MockWorkoutRepository{
+		GetSessionDetailByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error) {
+			return nil, pgx.ErrNoRows
+		},
+	}
+	service := NewWorkoutService(mockRepo)
+	_, err := service.GetSessionDetailByID(context.Background(), uuid.New())
+	if !errors.Is(err, ErrWorkoutNotFound) {
+		t.Fatalf("expected ErrWorkoutNotFound, got %v", err)
+	}
+}
+
 /* Update Workout Session by ID */
 func TestWorkoutServiceUpdateSessionByIDInvalidInput(t *testing.T) {
 	mockRepo := &MockWorkoutRepository{}
@@ -220,6 +278,47 @@ func TestWorkoutServiceUpdateSessionByIDInvalidInput(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidWorkoutSessionInput) {
 		t.Fatalf("expected ErrInvalidWorkoutSessionInput, got %v", err)
+	}
+}
+
+func TestWorkoutServiceFinishSessionSuccess(t *testing.T) {
+	id := uuid.New()
+	performedBefore := time.Now().Add(-24 * time.Hour)
+	plannedAt := time.Now().Add(-48 * time.Hour)
+	mockRepo := &MockWorkoutRepository{
+		GetSessionByIDFunc: func(ctx context.Context, receivedID uuid.UUID) (*model.WorkoutSession, error) {
+			return &model.WorkoutSession{
+				ID:          receivedID,
+				UserID:      uuid.New(),
+				Name:        "Original",
+				PerformedAt: &performedBefore,
+				PlannedAt:   &plannedAt,
+			}, nil
+		},
+		UpdateSessionByIDFunc: func(ctx context.Context, receivedID uuid.UUID, session *model.WorkoutSession) error {
+			return nil
+		},
+	}
+	service := NewWorkoutService(mockRepo)
+	duration := 55
+	err := service.FinishSession(context.Background(), id, &model.WorkoutFinishInput{
+		Name:     "Finished Workout",
+		Duration: &duration,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if mockRepo.OriginalSessionData == nil {
+		t.Fatal("expected updated session data to be forwarded to repository")
+	}
+	if mockRepo.OriginalSessionData.Name != "Finished Workout" {
+		t.Fatalf("expected updated name, got %q", mockRepo.OriginalSessionData.Name)
+	}
+	if mockRepo.OriginalSessionData.PlannedAt == nil || !mockRepo.OriginalSessionData.PlannedAt.Equal(plannedAt) {
+		t.Fatalf("expected planned_at to be preserved, got %#v", mockRepo.OriginalSessionData.PlannedAt)
+	}
+	if mockRepo.OriginalSessionData.PerformedAt == nil {
+		t.Fatal("expected performed_at to be set")
 	}
 }
 
@@ -643,6 +742,39 @@ func TestWorkoutServiceUpdateWorkoutSetSuccess(t *testing.T) {
 	}
 	if mockRepo.OriginalSetData.Repetitions != updatedSet.Repetitions {
 		t.Fatalf("expected repetitions %d, got %d", *updatedSet.Repetitions, *mockRepo.OriginalSetData.Repetitions)
+	}
+}
+
+func TestWorkoutServiceRemoveWorkoutSetInvalidInput(t *testing.T) {
+	service := NewWorkoutService(&MockWorkoutRepository{})
+	err := service.RemoveWorkoutSet(context.Background(), uuid.Nil)
+	if !errors.Is(err, ErrInvalidWorkoutSetInput) {
+		t.Fatalf("expected ErrInvalidWorkoutSetInput, got %v", err)
+	}
+}
+
+func TestWorkoutServiceRemoveWorkoutSetNotFound(t *testing.T) {
+	mockRepo := &MockWorkoutRepository{
+		RemoveWorkoutSetFunc: func(ctx context.Context, setID uuid.UUID) error {
+			return pgx.ErrNoRows
+		},
+	}
+	service := NewWorkoutService(mockRepo)
+	err := service.RemoveWorkoutSet(context.Background(), uuid.New())
+	if !errors.Is(err, ErrWorkoutSetNotFound) {
+		t.Fatalf("expected ErrWorkoutSetNotFound, got %v", err)
+	}
+}
+
+func TestWorkoutServiceRemoveWorkoutSetSuccess(t *testing.T) {
+	mockRepo := &MockWorkoutRepository{
+		RemoveWorkoutSetFunc: func(ctx context.Context, setID uuid.UUID) error {
+			return nil
+		},
+	}
+	service := NewWorkoutService(mockRepo)
+	if err := service.RemoveWorkoutSet(context.Background(), uuid.New()); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }
 

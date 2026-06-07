@@ -1,3 +1,5 @@
+import { exerciseTypeLabel, muscleGroupLabel } from "../../lib/exerciseLabels";
+
 export type AIRoutinePreviewSet = {
   set_number: number;
   target_reps_min?: number;
@@ -106,17 +108,17 @@ export default function AIRoutinePreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/65 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
-      <div className="relative flex h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[1.75rem] border border-[#1f1b16]/10 bg-[#fffaf0] shadow-[0_40px_120px_rgba(31,27,22,0.32)] sm:rounded-[2rem]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/45 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
+      <div className="relative flex h-[calc(100vh-12rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[1.75rem] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)] sm:rounded-[2rem]">
         <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.18fr)]">
-          <aside className="flex flex-col justify-between bg-[linear-gradient(180deg,#265c52_0%,#173e37_100%)] px-5 py-6 text-[#fffaf0] sm:px-6 sm:py-8 lg:sticky lg:top-0">
+          <aside className="flex flex-col justify-between bg-[#1f1b16] px-5 py-6 text-[#fffaf0] sm:px-6 sm:py-8 lg:sticky lg:top-0">
             <div>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#f6c98d]">
+                  <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-xs font-extrabold uppercase tracking-[0.30em] text-[#f1a45b]">
                     Vista previa
                   </p>
-                  <h3 className="mt-3 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-2xl font-black tracking-[-0.05em] sm:text-3xl">
+                  <h3 className="mt-3 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-2xl font-black tracking-[-0.04em] sm:text-3xl">
                     Revisa la rutina antes de guardarla.
                   </h3>
                 </div>
@@ -138,7 +140,7 @@ export default function AIRoutinePreviewModal({
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 <div className="rounded-2xl border border-[#fffaf0]/15 bg-[#fffaf0]/10 p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f6c98d]">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f1a45b]">
                     Objetivo
                   </p>
                   <p className="mt-2 text-sm font-bold leading-6">
@@ -148,7 +150,7 @@ export default function AIRoutinePreviewModal({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-[#fffaf0]/15 bg-[#fffaf0]/10 p-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f6c98d]">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f1a45b]">
                       Duracion
                     </p>
                     <p className="mt-2 text-2xl font-black">
@@ -156,7 +158,7 @@ export default function AIRoutinePreviewModal({
                     </p>
                   </div>
                   <div className="rounded-2xl border border-[#fffaf0]/15 bg-[#fffaf0]/10 p-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f6c98d]">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#f1a45b]">
                       Ejercicios
                     </p>
                     <p className="mt-2 text-2xl font-black">
@@ -177,7 +179,7 @@ export default function AIRoutinePreviewModal({
                 Cancelar
               </button>
               <button
-                className="rounded-2xl bg-[#f6c98d] px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:bg-[#fffaf0] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-[#ea7130] px-4 py-3 text-sm font-black text-white transition hover:bg-[#f1a45b] disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 onClick={onConfirm}
                 disabled={isSaving}
@@ -208,13 +210,13 @@ export default function AIRoutinePreviewModal({
                   Musculos objetivo
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {routine.target_muscles.length > 0 ? (
+                  {routine.target_muscles && routine.target_muscles.length > 0 ? (
                     routine.target_muscles.map((muscle) => (
                       <span
                         className="rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16]"
                         key={muscle}
                       >
-                        {muscle}
+                        {muscleGroupLabel(muscle)}
                       </span>
                     ))
                   ) : (
@@ -248,8 +250,10 @@ export default function AIRoutinePreviewModal({
                             {exercise.name}
                           </h5>
                           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#7a6b5c]">
-                            {exercise.muscle_group}
-                            {exercise.exercise_type ? ` · ${exercise.exercise_type}` : ""}
+                            {muscleGroupLabel(exercise.muscle_group)}
+                            {exercise.exercise_type
+                              ? ` · ${exerciseTypeLabel(exercise.exercise_type)}`
+                              : ""}
                           </p>
                         </div>
                         {exercise.is_mandatory && (

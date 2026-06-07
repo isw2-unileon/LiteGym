@@ -97,6 +97,10 @@ func (r *routineHandlerTestExerciseRepository) GetByID(ctx context.Context, id s
 	return &model.Exercise{ID: id}, nil
 }
 
+func (r *routineHandlerTestExerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	return false, nil
+}
+
 func (r *routineHandlerTestExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	return []model.Exercise{}, 0, nil
 }

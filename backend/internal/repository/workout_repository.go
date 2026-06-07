@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -15,6 +16,7 @@ import (
 type WorkoutRepository interface {
 	CreateSession(ctx context.Context, workout *model.WorkoutSession) error
 	GetSessionByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error)
+	GetSessionDetailByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error)
 	UpdateSessionByID(ctx context.Context, id uuid.UUID, session *model.WorkoutSession) error
 	RemoveSessionByID(ctx context.Context, id uuid.UUID) error
 	CreateWorkoutExercise(ctx context.Context, workoutExercise *model.WorkoutExercise) error
@@ -22,6 +24,7 @@ type WorkoutRepository interface {
 	CreateWorkoutSet(ctx context.Context, workoutSet *model.WorkoutSet) error
 	GetWorkoutSetsByWorkoutExerciseID(ctx context.Context, exerciseID uuid.UUID) ([]*model.WorkoutSet, error)
 	UpdateWorkoutSet(ctx context.Context, setID uuid.UUID, setNumber int, set *model.WorkoutSet) error
+	RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error
 }
 
 type workoutRepository struct {
@@ -118,6 +121,251 @@ func (wr *workoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (
 	}
 
 	return &workout, nil
+}
+
+// GetSessionDetailByID retrieves a workout session with all its exercises and sets.
+func (wr *workoutRepository) GetSessionDetailByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error) {
+	query := `
+		SELECT
+			ws.id::text,
+			ws.user_id::text,
+			COALESCE(ws.routine_id::text, ''),
+			ws.name,
+			ws.performed_at,
+			ws.planned_at,
+			ws.duration_minutes,
+			ws.calories_burned,
+			ws.notes,
+			ws.created_at,
+			we.id::text,
+			we.workout_session_id::text,
+			we.exercise_id::text,
+			COALESCE(we.routine_exercise_id::text, ''),
+			COALESCE(e.name, ''),
+			COALESCE(e.description, ''),
+			COALESCE(e.muscle_group, ''),
+			COALESCE(
+				(
+					SELECT string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group)
+					FROM public.exercise_secondary_muscle_groups esmg
+					WHERE esmg.exercise_id = e.id
+				),
+				''
+			),
+			COALESCE(e.exercise_type, ''),
+			we.exercise_order,
+			COALESCE(we.notes, ''),
+			wset.id::text,
+			COALESCE(wset.routine_exercise_set_id::text, ''),
+			wset.set_number,
+			wset.target_reps_min,
+			wset.target_reps_max,
+			COALESCE(wset.target_reps_text, ''),
+			wset.target_weight_kg,
+			wset.target_duration_seconds,
+			wset.target_distance_km,
+			wset.target_rir,
+			wset.rest_seconds,
+			wset.reps,
+			wset.weight_kg,
+			wset.duration_seconds,
+			wset.distance_km,
+			wset.rir,
+			wset.completed,
+			wset.created_at
+		FROM public.workout_sessions ws
+		LEFT JOIN public.workout_exercises we ON we.workout_session_id = ws.id
+		LEFT JOIN public.exercises e ON e.id = we.exercise_id AND e.deleted_at IS NULL
+		LEFT JOIN public.workout_sets wset ON wset.workout_exercise_id = we.id
+		WHERE ws.id = $1
+		ORDER BY we.exercise_order ASC, we.id::text ASC, wset.set_number ASC, wset.id::text ASC
+	`
+
+	rows, err := wr.db.Query(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var detail *model.WorkoutSessionDetail
+	exerciseIndex := make(map[string]int)
+
+	for rows.Next() {
+		var (
+			sessionID             string
+			userID                string
+			routineID             string
+			name                  string
+			performedAt           *time.Time
+			plannedAt             *time.Time
+			duration              *int
+			caloriesBurned        *float64
+			notes                 *string
+			createdAt             time.Time
+			workoutExerciseID     *string
+			workoutSessionID      *string
+			exerciseID            *string
+			routineExerciseID     *string
+			exerciseName          *string
+			exerciseDescription   *string
+			muscleGroup           *string
+			secondaryMuscleGroup  *string
+			exerciseType          *string
+			exerciseOrder         *int
+			exerciseNotes         *string
+			workoutSetID          *string
+			routineExerciseSetID  *string
+			setNumber             *int
+			targetRepsMin         *int
+			targetRepsMax         *int
+			targetRepsText        *string
+			targetWeightKg        *float64
+			targetDurationSeconds *int
+			targetDistanceKm      *float64
+			targetRir             *int
+			restSeconds           *int
+			reps                  *int
+			weightKg              *float64
+			setDuration           *int
+			distanceKm            *float64
+			rir                   *int
+			completed             *bool
+			setCreatedAt          *time.Time
+		)
+
+		if err := rows.Scan(
+			&sessionID,
+			&userID,
+			&routineID,
+			&name,
+			&performedAt,
+			&plannedAt,
+			&duration,
+			&caloriesBurned,
+			&notes,
+			&createdAt,
+			&workoutExerciseID,
+			&workoutSessionID,
+			&exerciseID,
+			&routineExerciseID,
+			&exerciseName,
+			&exerciseDescription,
+			&muscleGroup,
+			&secondaryMuscleGroup,
+			&exerciseType,
+			&exerciseOrder,
+			&exerciseNotes,
+			&workoutSetID,
+			&routineExerciseSetID,
+			&setNumber,
+			&targetRepsMin,
+			&targetRepsMax,
+			&targetRepsText,
+			&targetWeightKg,
+			&targetDurationSeconds,
+			&targetDistanceKm,
+			&targetRir,
+			&restSeconds,
+			&reps,
+			&weightKg,
+			&setDuration,
+			&distanceKm,
+			&rir,
+			&completed,
+			&setCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		if detail == nil {
+			detail = &model.WorkoutSessionDetail{
+				ID:             sessionID,
+				UserID:         userID,
+				RoutineID:      strings.TrimSpace(routineID),
+				Name:           name,
+				PerformedAt:    performedAt,
+				PlannedAt:      plannedAt,
+				Duration:       duration,
+				CaloriesBurned: caloriesBurned,
+				Notes:          notes,
+				CreatedAt:      createdAt,
+				Exercises:      []model.WorkoutSessionExerciseDetail{},
+			}
+		}
+
+		if workoutExerciseID == nil || strings.TrimSpace(*workoutExerciseID) == "" {
+			continue
+		}
+
+		index, exists := exerciseIndex[*workoutExerciseID]
+		if !exists {
+			index = len(detail.Exercises)
+			exerciseIndex[*workoutExerciseID] = index
+			detail.Exercises = append(detail.Exercises, model.WorkoutSessionExerciseDetail{
+				ID:                   *workoutExerciseID,
+				WorkoutSessionID:     stringValue(workoutSessionID),
+				ExerciseID:           stringValue(exerciseID),
+				RoutineExerciseID:    strings.TrimSpace(stringValue(routineExerciseID)),
+				Name:                 stringValue(exerciseName),
+				Description:          stringValue(exerciseDescription),
+				MuscleGroup:          stringValue(muscleGroup),
+				SecondaryMuscleGroup: stringValue(secondaryMuscleGroup),
+				ExerciseType:         stringValue(exerciseType),
+				ExerciseOrder:        intValue(exerciseOrder),
+				Notes:                stringValue(exerciseNotes),
+				Sets:                 []model.WorkoutSessionSetDetail{},
+			})
+		}
+
+		if workoutSetID == nil || strings.TrimSpace(*workoutSetID) == "" || setNumber == nil || setCreatedAt == nil {
+			continue
+		}
+
+		detail.Exercises[index].Sets = append(detail.Exercises[index].Sets, model.WorkoutSessionSetDetail{
+			ID:                    *workoutSetID,
+			RoutineExerciseSetID:  strings.TrimSpace(stringValue(routineExerciseSetID)),
+			SetNumber:             *setNumber,
+			TargetRepsMin:         targetRepsMin,
+			TargetRepsMax:         targetRepsMax,
+			TargetRepsText:        stringValue(targetRepsText),
+			TargetWeightKg:        targetWeightKg,
+			TargetDurationSeconds: targetDurationSeconds,
+			TargetDistanceKm:      targetDistanceKm,
+			TargetRir:             targetRir,
+			RestSeconds:           restSeconds,
+			Repetitions:           reps,
+			WeightKg:              weightKg,
+			Duration:              setDuration,
+			DistanceKm:            distanceKm,
+			Rir:                   rir,
+			Completed:             completed,
+			CreatedAt:             *setCreatedAt,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if detail == nil {
+		return nil, pgx.ErrNoRows
+	}
+
+	return detail, nil
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func intValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 // UpdateSessionByID updates an existing workout session in the database.
@@ -390,6 +638,26 @@ func (wr *workoutRepository) UpdateWorkoutSet(ctx context.Context, setID uuid.UU
 		setNumber,
 	)
 
+	if err != nil {
+		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
+}
+
+// RemoveWorkoutSet deletes one manually added workout set.
+func (wr *workoutRepository) RemoveWorkoutSet(ctx context.Context, setID uuid.UUID) error {
+	query := `
+	DELETE FROM workout_sets
+	WHERE id = $1
+		AND routine_exercise_set_id IS NULL
+	`
+
+	commandTag, err := wr.db.Exec(ctx, query, setID)
 	if err != nil {
 		return err
 	}

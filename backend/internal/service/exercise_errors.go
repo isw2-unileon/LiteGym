@@ -14,4 +14,5 @@ var (
 	ErrInvalidMuscleGroup     = errors.New("invalid muscle group")
 	ErrDescriptionTooLong     = errors.New("description is too long")
 	ErrSecondaryEqualsPrimary = errors.New("secondary muscle group cannot equal primary muscle group")
+	ErrExerciseNameTaken      = errors.New("an exercise with this name already exists")
 )
