@@ -231,6 +231,13 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 			return
 		}
 
+		if errors.Is(err, service.ErrExerciseNameTaken) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "an exercise with this name already exists",
+			})
+			return
+		}
+
 		slog.Error("failed to create exercise", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create exercise",
@@ -281,6 +288,29 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 		IsOfficial:           isOfficial,
 	}
 
+	// A custom exercise needs an owner: keep the existing one, or assign it to
+	// the editor when the exercise used to be official (e.g. an admin un-marking it).
+	if !isOfficial {
+		if existingExercise.OwnerUserID != nil {
+			exercise.OwnerUserID = existingExercise.OwnerUserID
+		} else {
+			userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+			if !ok {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+				return
+			}
+
+			userID, _ := userIDValue.(string)
+			userID = strings.TrimSpace(userID)
+			if userID == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+				return
+			}
+
+			exercise.OwnerUserID = &userID
+		}
+	}
+
 	err := h.service.UpdateExercise(c.Request.Context(), &exercise)
 
 	if err != nil {
@@ -289,6 +319,8 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise input"})
 		case errors.Is(err, service.ErrExerciseNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "exercise not found"})
+		case errors.Is(err, service.ErrExerciseNameTaken):
+			c.JSON(http.StatusConflict, gin.H{"error": "an exercise with this name already exists"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exercise"})
 		}

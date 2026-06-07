@@ -80,6 +80,10 @@ func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model
 	return nil, nil
 }
 
+func (m *MockExerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	return false, nil
+}
+
 func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, exercise)

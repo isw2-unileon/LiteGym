@@ -135,22 +135,48 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *model.Exercise) 
 		return ErrInvalidExerciseInput
 	}
 
-	if !exercise.IsOfficial {
-		if exercise.OwnerUserID == nil || strings.TrimSpace(*exercise.OwnerUserID) == "" {
-			return ErrInvalidExerciseInput
-		}
-		if _, err := uuid.Parse(strings.TrimSpace(*exercise.OwnerUserID)); err != nil {
-			return ErrInvalidExerciseInput
-		}
-	} else {
-		exercise.OwnerUserID = nil
+	if err := validateExerciseOwnership(exercise); err != nil {
+		return err
 	}
 
 	if err := s.normalizeAndValidateExercise(exercise); err != nil {
 		return err
 	}
 
-	return s.repo.Create(ctx, exercise)
+	exists, err := s.repo.NameExists(ctx, exercise.Name, exercise.OwnerUserID, "")
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrExerciseNameTaken
+	}
+
+	if err := s.repo.Create(ctx, exercise); err != nil {
+		if isUniqueViolation(err) {
+			return ErrExerciseNameTaken
+		}
+		return err
+	}
+
+	return nil
+}
+
+// validateExerciseOwnership enforces the official/owner invariant: official
+// exercises have no owner, custom exercises must belong to a valid user.
+func validateExerciseOwnership(exercise *model.Exercise) error {
+	if exercise.IsOfficial {
+		exercise.OwnerUserID = nil
+		return nil
+	}
+
+	if exercise.OwnerUserID == nil || strings.TrimSpace(*exercise.OwnerUserID) == "" {
+		return ErrInvalidExerciseInput
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(*exercise.OwnerUserID)); err != nil {
+		return ErrInvalidExerciseInput
+	}
+
+	return nil
 }
 
 // GetMetadata returns the valid exercise domain options exposed to clients.
@@ -169,13 +195,28 @@ func (s *ExerciseService) UpdateExercise(ctx context.Context, exercise *model.Ex
 		return ErrInvalidExerciseInput
 	}
 
+	if err := validateExerciseOwnership(exercise); err != nil {
+		return err
+	}
+
 	if err := s.normalizeAndValidateExercise(exercise); err != nil {
 		return err
 	}
 
-	err := s.repo.UpdateExercise(ctx, exercise)
+	exists, err := s.repo.NameExists(ctx, exercise.Name, exercise.OwnerUserID, exercise.ID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrExerciseNameTaken
+	}
+
+	err = s.repo.UpdateExercise(ctx, exercise)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrExerciseNotFound
+	}
+	if isUniqueViolation(err) {
+		return ErrExerciseNameTaken
 	}
 
 	return err
@@ -200,7 +241,6 @@ func (s *ExerciseService) normalizeAndValidateExercise(exercise *model.Exercise)
 	exercise.Name = normalizeName(exercise.Name)
 	exercise.Description = strings.TrimSpace(exercise.Description)
 	exercise.MuscleGroup = normalizeDomainValue(exercise.MuscleGroup)
-	exercise.SecondaryMuscleGroup = normalizeDomainValue(exercise.SecondaryMuscleGroup)
 	exercise.ExerciseType = normalizeDomainValue(exercise.ExerciseType)
 
 	if exercise.Name == "" {
@@ -223,14 +263,14 @@ func (s *ExerciseService) normalizeAndValidateExercise(exercise *model.Exercise)
 		return ErrInvalidMuscleGroup
 	}
 
-	if exercise.SecondaryMuscleGroup != "" {
-		if !isValidMuscleGroup(exercise.SecondaryMuscleGroup) {
-			return ErrInvalidMuscleGroup
-		}
-		if exercise.SecondaryMuscleGroup == exercise.MuscleGroup {
-			return ErrSecondaryEqualsPrimary
-		}
+	normalizedSecondary, err := normalizeSecondaryMuscleGroups(
+		exercise.SecondaryMuscleGroup,
+		exercise.MuscleGroup,
+	)
+	if err != nil {
+		return err
 	}
+	exercise.SecondaryMuscleGroup = normalizedSecondary
 
 	if exercise.ExerciseType == "" {
 		return ErrExerciseTypeRequired
