@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-02-16
+26-02-2026
 
 ## Context
 
@@ -14,7 +14,7 @@ We need a repository structure that supports developing a Go API backend and a R
 
 ## Decision
 
-Use a monorepo with top-level `backend/` and `frontend/` directories. Each has its own dependency management (`go.mod`, `package.json`) and CI workflow with path filters so changes to one don't trigger the other.
+Use a monorepo with top-level `backend/` and `frontend/` directories. The Go module is declared once via a `go.mod` at the repository root (covering `backend/`), while the frontend manages its own dependencies through `package.json`. Each side has a CI workflow with path filters so changes to one don't trigger the other.
 
 ## Consequences
 
