@@ -11,6 +11,8 @@ import {HelloHeader} from "@/components/HelloHeader.tsx";
 import { Stat } from "../components/Stat";
 import {MuscleDistribution, type MuscleDistributionData} from "@/components/MuscleDistribution.tsx";
 import {DialogPopup} from "@/components/DialogPopup.tsx";
+import {MobileOnlyDisclosure} from "@/components/MobileOnlyDisclosure.tsx";
+import {useIsMobile} from "@/lib/useIsMobile.ts";
 
 
 // --- INTERFACES ---
@@ -63,6 +65,7 @@ function buildMonthDays(referenceDate: Date, todayDate: Date) {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -312,7 +315,7 @@ export default function Profile() {
       <div aria-hidden="true" className="pointer-events-none absolute left-8 top-12 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/20 blur-[1px]" />
       <div aria-hidden="true" className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10" />
 
-      <div className="px-6 pt-8 sm:px-8">
+      <div className="px-4 pt-5 sm:px-6 sm:pt-8 md:px-8">
 
         {/* HERO Y STATS SUPERIORES */}
         <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
@@ -333,15 +336,15 @@ export default function Profile() {
             )}
           </div>
 
-          <div className="flex flex-col items-end gap-3">
-            <div className="inline-flex gap-0.5 rounded-[12px] border border-[#1f1b16]/10 bg-[#fffaf0]/60 p-1 backdrop-blur-sm">
+          <div className="flex w-full flex-col items-stretch gap-3 md:w-auto md:items-end">
+            <div className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[12px] border border-[#1f1b16]/10 bg-[#fffaf0]/60 p-1 backdrop-blur-sm">
               {(["month", "all"] as const).map((r) => (
                 <button key={r} onClick={() => setStatsRange(r)} className={`rounded-[8px] px-3.5 py-2.5 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase leading-none tracking-[0.14em] transition ${statsRange === r ? "bg-[#ea7130] text-[#1f1b16] shadow-sm" : "bg-transparent text-[#3a332c] hover:bg-[#1f1b16]/5"}`}>
                   {r === "month" ? "Mes Actual" : "Todo el Historial"}
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap justify-end gap-2.5">
+            <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 md:flex md:w-auto md:flex-wrap md:justify-end">
               <Stat n={String(stats?.weekly_streak ?? 0)} l="Racha semanal" accent />
               <Stat n={String(stats?.total_workouts ?? 0)} l="Entrenos" />
               <Stat n={`${stats?.total_duration_minutes ?? 0} m`} l="Duración" />
@@ -351,19 +354,184 @@ export default function Profile() {
           </div>
         </section>
 
+        {isMobile && (
+          <section className="mx-auto grid max-w-[1280px] gap-4 md:hidden">
+            <div className="rounded-[30px] bg-[#1f1b16] p-5 text-[#fffaf0] shadow-[0_20px_44px_rgba(31,27,22,0.22)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.2em] text-[#f1a45b]">
+                    Coach IA
+                  </p>
+                  <h2 className="mt-2 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[27px] font-black leading-none tracking-[-0.05em]">
+                    Tu lectura rápida
+                  </h2>
+                </div>
+                <button
+                  onClick={handleAIAnalysis}
+                  disabled={isAnalyzing}
+                  className="rounded-[16px] bg-[#ea7130] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#1f1b16] disabled:opacity-55"
+                >
+                  {isAnalyzing ? "..." : "Analizar"}
+                </button>
+              </div>
+              <p className="mt-4 text-sm font-semibold leading-relaxed text-[#fffaf0]/78">
+                {aiInsight || "Genera una lectura de progreso cuando quieras. La dejamos plegada mentalmente: útil, no invasiva."}
+              </p>
+            </div>
+
+            <section className="overflow-hidden rounded-[30px] border border-[#1f1b16]/10 bg-[#fffaf0]/86 shadow-[0_14px_32px_rgba(31,27,22,0.1)]">
+              <div className="bg-[#ea7130] px-5 py-4">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#1f1b16]/70">
+                  Progreso
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <h2 className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[31px] font-black leading-none tracking-[-0.055em] text-[#1f1b16]">
+                    Peso y cuerpo
+                  </h2>
+                  <button
+                    onClick={() => setIsAddingMetric(true)}
+                    className="rounded-[15px] bg-[#1f1b16] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#f1a45b]"
+                  >
+                    Añadir
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-4">
+                <MobileMetricChip label="Peso" value={`${currentWeight || "--"} kg`} />
+                <MobileMetricChip label="IMC" value={currentBMI || "--"} />
+                <MobileMetricChip label="Grasa" value={currentFat ? `${currentFat}%` : "--"} />
+              </div>
+              <div className="px-4 pb-4">
+                {weightData.length > 1 ? (
+                  <div className="h-[120px] rounded-[22px] border border-[#1f1b16]/10 bg-white/55 p-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={weightData} margin={{ left: -24, right: 4, top: 8, bottom: 0 }}>
+                        <Line yAxisId="left" type="monotone" dataKey="weight" stroke="#1f1b16" strokeWidth={3} dot={false} />
+                        <YAxis yAxisId="left" hide domain={["dataMin - 1", "dataMax + 1"]} />
+                        <XAxis dataKey="id" hide />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-[#1f1b16]/14 bg-white/55 px-4 py-5 text-center text-xs font-bold text-[#3a332c]">
+                    Añade otro pesaje para dibujar tu tendencia.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <MobilePocket kicker="Calendario" title={calendarFormatter.format(visibleMonth)} defaultOpen>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                    setSelectedDayInfo(null);
+                  }}
+                  className="rounded-[14px] bg-[#1f1b16] px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-[#f1a45b]"
+                >
+                  Hoy
+                </button>
+                <div className="flex gap-1.5">
+                  <NavBtn dir="prev" onClick={() => handleChangeVisibleMonth(-1)} />
+                  <NavBtn dir="next" disabled={!canShowNextMonth} onClick={() => handleChangeVisibleMonth(1)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {weekdayLabels.map((label) => (
+                  <p key={label} className="text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[9px] font-black uppercase tracking-[0.08em] text-[#3a332c]/70">
+                    {label.slice(0, 2)}
+                  </p>
+                ))}
+                {calendarDays.map((day) => {
+                  const dateKey = toDateKey(day.date);
+                  const activities = activitiesByDate.get(dateKey) ?? [];
+                  const isTrained = day.isCurrentMonth && activities.some(a => !a.is_planned);
+                  const isPlanned = day.isCurrentMonth && !isTrained && activities.some(a => a.is_planned);
+                  return (
+                    <button
+                      key={day.key}
+                      type="button"
+                      disabled={!day.isCurrentMonth}
+                      onClick={() => setSelectedDayInfo({ date: dateKey, activities, isFuture: dateKey > todayKey })}
+                      className={[
+                        "relative grid aspect-square place-items-center rounded-[12px] text-[13px] font-black",
+                        !day.isCurrentMonth && "text-[#1f1b16]/20",
+                        isTrained && "bg-[#265c52] text-[#fffaf0]",
+                        isPlanned && "bg-[#ea7130]/18 text-[#1f1b16] ring-1 ring-[#ea7130]/35",
+                        day.isCurrentMonth && !isTrained && !isPlanned && dateKey === todayKey && "bg-[#1f1b16] text-[#f1a45b]",
+                        day.isCurrentMonth && !isTrained && !isPlanned && dateKey !== todayKey && "bg-white/58 text-[#1f1b16]/65",
+                      ].filter(Boolean).join(" ")}
+                    >
+                      {day.dayNumber}
+                    </button>
+                  );
+                })}
+              </div>
+            </MobilePocket>
+
+            <MobilePocket kicker="Objetivos" title="Metas personales">
+              <form onSubmit={handleSaveGoals} className="grid gap-3">
+                <input className="rounded-[16px] border border-[#1f1b16]/12 bg-white/80 px-4 py-3 text-sm font-bold outline-none focus:border-[#ea7130]" value={goals.shortTerm} onChange={(e) => setGoals({ ...goals, shortTerm: e.target.value })} placeholder="Meta a corto plazo" />
+                <div className="grid grid-cols-[1fr_5.5rem] gap-2">
+                  <input className="rounded-[16px] border border-[#1f1b16]/12 bg-white/80 px-4 py-3 text-sm font-bold outline-none focus:border-[#ea7130]" value={goals.longTerm} onChange={(e) => setGoals({ ...goals, longTerm: e.target.value })} placeholder="Meta a largo plazo" />
+                  <input type="number" min="1" max="7" className="rounded-[16px] border border-[#1f1b16]/12 bg-white/80 px-3 py-3 text-center text-sm font-black outline-none focus:border-[#ea7130]" value={goals.targetDays} onChange={(e) => setGoals({ ...goals, targetDays: parseInt(e.target.value) || 0 })} />
+                </div>
+                <button type="submit" disabled={isSavingGoals} className="rounded-[16px] bg-[#1f1b16] px-4 py-3 text-sm font-black uppercase tracking-[0.08em] text-[#f1a45b] disabled:opacity-60">
+                  {isSavingGoals ? "Guardando..." : "Guardar metas"}
+                </button>
+              </form>
+            </MobilePocket>
+
+            <MobilePocket kicker="Músculos" title="Resumen muscular">
+              <div className="grid gap-2">
+                {radarData.slice(0, 5).map((item) => (
+                  <div key={item.muscle} className="grid grid-cols-[minmax(0,1fr)_3rem] items-center gap-3 rounded-[16px] bg-white/62 px-3 py-2">
+                    <span className="truncate text-sm font-black text-[#1f1b16]">{muscleLabelsEs[item.muscle.toLowerCase()] ?? item.muscle}</span>
+                    <span className="rounded-[12px] bg-[#265c52]/12 px-2 py-1 text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-xs font-black text-[#265c52]">{item.value}</span>
+                  </div>
+                ))}
+                {radarData.length === 0 && <p className="text-sm font-bold text-[#3a332c]">Sin datos musculares todavía.</p>}
+              </div>
+            </MobilePocket>
+
+            <MobilePocket kicker="Favoritos" title="Ejercicios top">
+              {topExercises.length > 0 ? (
+                <ul className="grid gap-2">
+                  {topExercises.slice(0, 4).map((ex, i) => (
+                    <li key={ex.name} className="flex items-center justify-between gap-3 rounded-[17px] bg-white/62 px-3 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black uppercase tracking-[-0.01em] text-[#1f1b16]">{ex.name}</p>
+                        <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.12em] text-[#3a332c]/70">{ex.sets} series</p>
+                      </div>
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] bg-[#ea7130] font-black text-[#1f1b16]">#{i + 1}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm font-bold text-[#3a332c]">Aún no hay favoritos.</p>
+              )}
+            </MobilePocket>
+          </section>
+        )}
+
+        {!isMobile && (
+        <>
         {/* IA ASSISTANT */}
         <section className="mx-auto mb-8 max-w-[1280px]">
-          <Card accent="#ea7130" dark>
-            <div className="flex flex-col sm:flex-row gap-6 items-center justify-between">
-              <div>
-                <h3 className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black text-[#fffaf0]">Entrenador IA</h3>
-                <p className="mt-1 text-sm text-[#fffaf0]/80 max-w-2xl">{aiInsight || "Haz clic para generar un análisis personalizado de tu rendimiento basado en tus últimas métricas."}</p>
+          <MobileOnlyDisclosure kicker="IA" title="Entrenador IA">
+            <Card accent="#ea7130" dark className="max-md:p-4">
+              <div className="flex flex-col items-stretch gap-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black text-[#fffaf0]">Entrenador IA</h3>
+                  <p className="mt-1 text-sm text-[#fffaf0]/80 max-w-2xl">{aiInsight || "Haz clic para generar un análisis personalizado de tu rendimiento basado en tus últimas métricas."}</p>
+                </div>
+                <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="group relative w-full shrink-0 cursor-pointer overflow-hidden rounded-[14px] bg-[#ea7130] px-6 py-4 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.30)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:opacity-50 sm:w-auto">
+                  <span className="relative z-10">{isAnalyzing ? "Analizando datos..." : "Generar Análisis"}</span>
+                </button>
               </div>
-              <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="shrink-0 group relative cursor-pointer overflow-hidden rounded-[14px] bg-[#ea7130] px-6 py-4 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.30)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:opacity-50">
-                <span className="relative z-10">{isAnalyzing ? "Analizando datos..." : "Generar Análisis"}</span>
-              </button>
-            </div>
-          </Card>
+            </Card>
+          </MobileOnlyDisclosure>
         </section>
 
         {/* CONTENIDO PRINCIPAL */}
@@ -371,10 +539,12 @@ export default function Profile() {
 
           {/* COLUMNA IZQUIERDA */}
           <div className="flex flex-col gap-[18px] h-full">
-            <Card accent="#ea7130" className="flex-1">
+            <MobileOnlyDisclosure kicker="Progreso" title="Evolución de peso" defaultOpen>
+            <Card accent="#ea7130" className="flex-1 max-md:border-0 max-md:bg-transparent max-md:p-0">
               <CardHeader
                   kicker="Progreso"
                   title="Evolución de Peso"
+                  className="max-md:hidden"
                   right={
                     <button
                         onClick={() => setIsAddingMetric(true)}
@@ -384,12 +554,18 @@ export default function Profile() {
                     </button>
                   }
               />
-              <div className="relative z-[2] mt-4 flex gap-2.5">
+              <button
+                  onClick={() => setIsAddingMetric(true)}
+                  className="relative z-[2] mb-4 w-full rounded-[14px] border border-[#1f1b16]/18 bg-[#1f1b16] px-5 py-3 text-[14px] font-extrabold tracking-[0.04em] text-[#f1a45b] transition hover:-translate-y-px hover:bg-[#2c261f] md:hidden"
+              >
+                Añadir Pesaje
+              </button>
+              <div className="relative z-[2] mt-4 grid grid-cols-3 gap-2.5 sm:flex sm:flex-wrap">
                 <MetricTile label="Peso Actual" value={`${currentWeight || "--"} kg`} />
                 <MetricTile label="IMC" value={`${currentBMI || "--"}`} />
                 <MetricTile label="% Grasa" value={`${currentFat ? currentFat + "%" : "--"}`} />
               </div>
-              <div className="relative z-[2] mt-6 h-[240px] w-full">
+              <div className="relative z-[2] mt-5 h-[150px] w-full sm:h-[240px]">
                 {weightData.length > 1 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={weightData} margin={{ left: -20, bottom: 0 }}>
@@ -451,7 +627,9 @@ export default function Profile() {
                 ) : <div className="h-full flex items-center justify-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-xs text-[#3a332c]">Añade pesajes para ver tu gráfica.</div>}
               </div>
             </Card>
-            <Card accent="#ea7130">
+            </MobileOnlyDisclosure>
+            <MobileOnlyDisclosure kicker="Calendario" title={calendarFormatter.format(visibleMonth)}>
+            <Card accent="#ea7130" className="max-md:border-0 max-md:bg-transparent max-md:p-0">
               <CardHeader
                   kicker="Calendario"
                   title={<span className="capitalize">{calendarFormatter.format(visibleMonth)}</span>}
@@ -523,11 +701,13 @@ export default function Profile() {
                 <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] border-2 border-[#ea7130] bg-[#fffaf0]" /> Hoy</span>
               </div>
             </Card>
+            </MobileOnlyDisclosure>
 
-            <Card accent="#ea7130">
-              <CardHeader kicker="Metas" title="Tus Objetivos" />
+            <MobileOnlyDisclosure kicker="Metas" title="Tus objetivos">
+            <Card accent="#ea7130" className="max-md:border-0 max-md:bg-transparent max-md:p-0">
+              <CardHeader kicker="Metas" title="Tus Objetivos" className="max-md:hidden" />
               <form onSubmit={handleSaveGoals} className="relative z-[2] mt-4 flex flex-col gap-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase tracking-wider text-[#3a332c]">A Corto Plazo</label>
                     <input type="text" className="w-full rounded-[14px] border border-[#1f1b16]/12 bg-white/85 px-4 py-3 text-[14px] font-semibold text-[#1f1b16] outline-none transition focus:border-[#ea7130]" value={goals.shortTerm} onChange={(e) => setGoals({ ...goals, shortTerm: e.target.value })} />
@@ -546,6 +726,7 @@ export default function Profile() {
                 </button>
               </form>
             </Card>
+            </MobileOnlyDisclosure>
 
 
 
@@ -554,21 +735,26 @@ export default function Profile() {
           {/* COLUMNA DERECHA */}
           <div className="flex flex-col gap-[18px] h-full">
 
+            <MobileOnlyDisclosure kicker="Músculos" title="Distribución muscular">
             <MuscleDistribution
               data={muscleDistributionData}
               range={statsRange === "all" ? "year" : "month"}
               summary={false}
             />
+            </MobileOnlyDisclosure>
 
-            <Card accent="#ea7130" dark>
-              <CardHeader kicker="Heatmap" title="Mapa Muscular" onDark />
+            <MobileOnlyDisclosure kicker="Heatmap" title="Mapa muscular">
+            <Card accent="#ea7130" dark className="max-md:border-0 max-md:bg-[#1f1b16] max-md:p-4">
+              <CardHeader kicker="Heatmap" title="Mapa Muscular" onDark className="max-md:hidden" />
               <div className="relative z-[2] mt-6 h-[260px] w-full">
                 <BodyHeatmap data={radarData} />
               </div>
             </Card>
+            </MobileOnlyDisclosure>
 
-            <Card accent="#ea7130" className={"flex-1"}>
-              <CardHeader kicker="Top grupos" title="Ejercicios Favoritos" />
+            <MobileOnlyDisclosure kicker="Top grupos" title="Ejercicios favoritos">
+            <Card accent="#ea7130" className="flex-1 max-md:border-0 max-md:bg-transparent max-md:p-0">
+              <CardHeader kicker="Top grupos" title="Ejercicios Favoritos" className="max-md:hidden" />
               {topExercises.length > 0 ? (
                 <ul className="relative z-[2] mt-4 flex flex-col gap-2.5">
                   {topExercises.map((ex, i) => (
@@ -583,9 +769,12 @@ export default function Profile() {
                 </ul>
               ) : <p className="relative z-[2] mt-4 rounded-[14px] border border-dashed border-[#1f1b16]/18 p-4 text-[13px] font-semibold text-[#3a332c]">Sin datos de ejercicios.</p>}
             </Card>
+            </MobileOnlyDisclosure>
 
           </div>
         </section>
+        </>
+        )}
       </div>
 
       {/* DIALOG SHELL CALENDARIO (ESTILO DASHBOARD) */}
@@ -672,10 +861,51 @@ export default function Profile() {
 
 function MetricTile({ label, value }: { label: string; value: string; }) {
   return (
-    <div className="flex-1 rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-4">
-      <p className="m-0 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-bold uppercase tracking-[0.16em] text-[#3a332c]">{label}</p>
-      <p className="mt-1.5 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[26px] font-black leading-none tracking-[-0.04em] text-[#1f1b16]">{value}</p>
+    <div className="min-w-0 flex-1 rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-3 sm:p-4">
+      <p className="m-0 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[9px] font-bold uppercase tracking-[0.14em] text-[#3a332c] sm:text-[10px] sm:tracking-[0.16em]">{label}</p>
+      <p className="mt-1.5 break-words [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[23px] font-black leading-none tracking-[-0.04em] text-[#1f1b16] sm:text-[26px]">{value}</p>
     </div>
+  );
+}
+
+function MobileMetricChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-[20px] border border-[#1f1b16]/10 bg-white/62 px-3 py-3">
+      <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[9px] font-black uppercase tracking-[0.12em] text-[#3a332c]/72">{label}</p>
+      <p className="mt-2 break-words [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-none tracking-[-0.05em] text-[#1f1b16]">{value}</p>
+    </div>
+  );
+}
+
+function MobilePocket({
+  kicker,
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  kicker: string;
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className="group overflow-hidden rounded-[26px] border border-[#1f1b16]/10 bg-[#fffaf0]/82 shadow-[0_12px_28px_rgba(31,27,22,0.08)]"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#265c52]">{kicker}</span>
+          <span className="mt-1 block truncate [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[23px] font-black leading-none tracking-[-0.045em] text-[#1f1b16]">{title}</span>
+        </span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[15px] bg-[#1f1b16] text-[#f1a45b]">
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 transition group-open:rotate-45">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+        </span>
+      </summary>
+      <div className="border-t border-[#1f1b16]/10 px-4 pb-4 pt-3">{children}</div>
+    </details>
   );
 }
 

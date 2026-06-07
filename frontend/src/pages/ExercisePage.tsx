@@ -7,6 +7,7 @@ import ExerciseHeader from "../components/Exercise/ExerciseHeader";
 import ExerciseInsightModal from "../components/Exercise/ExerciseInsightModal";
 import ExerciseList from "../components/Exercise/ExerciseList";
 import { apiUrl } from "../lib/api";
+import { useIsMobile } from "../lib/useIsMobile";
 import type {
   Exercise,
   ExerciseInsights,
@@ -19,6 +20,7 @@ import {HelloHeader} from "@/components/HelloHeader.tsx";
 import {Stat} from "@/components/Stat.tsx";
 import {Card, CardHeader} from "@/components/Card.tsx";
 import { exerciseTypeLabel, muscleGroupLabel } from "../lib/exerciseLabels";
+import { DialogPopup } from "@/components/DialogPopup.tsx";
 
 type CurrentUser = {
   id: string;
@@ -42,6 +44,7 @@ const workoutSessionDateFormatter = new Intl.DateTimeFormat("es-ES", {
 });
 
 export default function ExercisePage() {
+  const isMobile = useIsMobile();
   const [exercises, setExercises] = React.useState<Exercise[]>([]);
   const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(
     null,
@@ -70,6 +73,7 @@ export default function ExercisePage() {
   const [exerciseInsightsMessage, setExerciseInsightsMessage] =
     React.useState("");
   const [isInsightsModalOpen, setIsInsightsModalOpen] = React.useState(false);
+  const [isMobileExerciseDetailOpen, setIsMobileExerciseDetailOpen] = React.useState(false);
 
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
@@ -609,13 +613,13 @@ export default function ExercisePage() {
             aria-hidden="true"
             className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
         />
-        <div className="px-6  pt-8 sm:px-8">
+        <div className="px-4 pt-5 sm:px-6 sm:pt-8 md:px-8">
           <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
             <div>
               <HelloHeader page={"PANEL PRINCIPAL"} user={currentUser?.username ?? "Atleta"} />
               <ExerciseHeader />
             </div>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="grid w-full grid-cols-3 gap-2.5 md:flex md:w-auto md:flex-wrap">
               <Stat n={String(exercises.length)} l="Ejercicios" />
               <Stat n={String(officialCount)} l="Ejercicios oficiales" />
               <Stat n={String(customCount)} l="Ejercicios no oficiales" />
@@ -624,7 +628,7 @@ export default function ExercisePage() {
 
           <section className="mx-auto max-w-[1280px]">
             <div className="grid grid-cols-1 justify-center gap-[18px] rounded-[20px] border border-[#1f1b16]/12 bg-[#fffaf0]/75 p-2.5 backdrop-blur xl:[grid-template-columns:3fr_7fr]">
-              <Card accent="#ea7130" className="flex flex-col" dark={true}>
+              <Card accent="#ea7130" className="hidden flex-col md:flex" dark={true}>
                 <CardHeader kicker={"Control"} title={"Crea un ejercicio"} onDark={true} />
                 <button
                     data-ui="create-exercise-button"
@@ -639,7 +643,23 @@ export default function ExercisePage() {
                 </button>
               </Card>
               <Card accent="#ea7130" className="flex flex-col">
-                <CardHeader kicker={"Filtro y Búsqueda"} title={""} />
+                <CardHeader
+                  kicker={"Filtro y Búsqueda"}
+                  title={""}
+                  right={(
+                    <button
+                      data-ui="create-exercise-button-mobile"
+                      type="button"
+                      className="rounded-[12px] bg-[#1f1b16] px-3 py-2 text-xs font-black text-[#f1a45b] md:hidden"
+                      onClick={() => {
+                        setCreateErrorMessage("");
+                        setIsCreateModalOpen(true);
+                      }}
+                    >
+                      Crear
+                    </button>
+                  )}
+                />
                 <ExerciseFilters
                     search={search}
                     typeFilter={typeFilter}
@@ -661,9 +681,44 @@ export default function ExercisePage() {
               </Card>
             </div>
           </section>
+
+          {isMobile && (
+          <section className="mx-auto mt-4 grid w-full max-w-[1280px] min-w-0 gap-4">
+            {selectedExercise && (
+              <button
+                type="button"
+                onClick={() => setIsMobileExerciseDetailOpen(true)}
+                className="w-full min-w-0 rounded-[22px] border border-[#1f1b16]/12 bg-[#1f1b16] p-4 text-left text-[#fffaf0] shadow-[0_16px_36px_rgba(31,27,22,0.18)]"
+              >
+                <span className="block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#f1a45b]">
+                  Ejercicio seleccionado
+                </span>
+                <span className="mt-2 block [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-none tracking-[-0.04em]">
+                  {selectedExercise.name}
+                </span>
+                <span className="mt-3 block text-sm font-bold text-[#fffaf0]/75">
+                  Toca para ver músculos, rendimiento y edición.
+                </span>
+              </button>
+            )}
+
+            <MobileExerciseDeck
+              status={status}
+              message={message}
+              exercises={filteredExercises}
+              selectedExerciseId={selectedExercise?.id}
+              onOpenExercise={(exercise) => {
+                setSelectedExerciseId(exercise.id);
+                setIsMobileExerciseDetailOpen(true);
+              }}
+            />
+          </section>
+          )}
+
+          {!isMobile && (
           <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-[18px] xl:grid-cols-[7fr_3fr]">
             <div className="flex flex-col gap-[18px] mt-4">
-              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+              <Card accent="#ea7130" className={"flex flex-col xl:h-[70vh]"}>
                 <CardHeader kicker={"EJERCICIOS"} title={"Elige un ejercicio"} />
                 <ExerciseList
                     status={status}
@@ -677,7 +732,7 @@ export default function ExercisePage() {
               </Card>
             </div>
             <div className="flex flex-col gap-[18px] mt-4">
-              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+              <Card accent="#ea7130" className={"flex flex-col xl:h-[70vh]"}>
                 <CardHeader
                     kicker={"DETALLE"}
                     title={selectedExercise?.name ?? "Detalle del ejercicio"}
@@ -692,7 +747,7 @@ export default function ExercisePage() {
                       </button>
                     }
                 />
-                <div className="relative z-[2] mt-4 grid grid-cols-2 gap-2.5">
+                <div className="relative z-[2] mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <button
                       type="button"
                       onClick={() => setIsInsightsModalOpen(true)}
@@ -808,6 +863,7 @@ export default function ExercisePage() {
               </Card>
             </div>
           </section>
+          )}
 
 
         </div>
@@ -850,7 +906,37 @@ export default function ExercisePage() {
             message={exerciseInsightsMessage}
             onClose={() => setIsInsightsModalOpen(false)}
         />
-    </main>
+        {isMobileExerciseDetailOpen && selectedExercise && (
+          <DialogPopup
+            kicker="Ejercicio"
+            title={selectedExercise.name}
+            onClose={() => setIsMobileExerciseDetailOpen(false)}
+          >
+            <div className="grid gap-3">
+              <div className="rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-3">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.16em] text-[#265c52]">Tipo</p>
+                <p className="mt-1 text-sm font-bold text-[#1f1b16]">
+                  {selectedExercise.exercise_type ? exerciseTypeLabel(selectedExercise.exercise_type) : "Sin tipo"}
+                </p>
+              </div>
+              <div className="rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-3">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.16em] text-[#265c52]">Músculos</p>
+                <p className="mt-1 text-sm font-bold text-[#1f1b16]">
+                  {[selectedExercise.muscle_group, ...secondaryMuscleGroupValues].filter(Boolean).map(muscleGroupLabel).join(", ") || "Sin grupo"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => { setIsMobileExerciseDetailOpen(false); setIsInsightsModalOpen(true); }} className="rounded-[14px] bg-[#ea7130] px-3 py-3 text-sm font-black text-[#1f1b16]">
+                Rendimiento
+              </button>
+              <button type="button" onClick={() => { setIsMobileExerciseDetailOpen(false); setEditErrorMessage(""); setIsEditModalOpen(true); }} disabled={!canEditSelectedExercise} className="rounded-[14px] border border-[#1f1b16]/15 px-3 py-3 text-sm font-black text-[#1f1b16] disabled:opacity-50">
+                Editar
+              </button>
+            </div>
+          </DialogPopup>
+        )}
+      </main>
   );
 }
 
@@ -862,5 +948,109 @@ function InfoTile({ label, value }: { label: string; value: string }) {
       </p>
       <p className="mt-2 text-sm font-semibold text-[#1f1b16]">{value}</p>
     </div>
+  );
+}
+
+function MobileExerciseDeck({
+  status,
+  message,
+  exercises,
+  selectedExerciseId,
+  onOpenExercise,
+}: {
+  status: ExerciseStatus;
+  message: string;
+  exercises: Exercise[];
+  selectedExerciseId?: string;
+  onOpenExercise: (exercise: Exercise) => void;
+}) {
+  return (
+    <section className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-[#1f1b16]/10 bg-[#fffaf0]/86 shadow-[0_14px_34px_rgba(31,27,22,0.1)]">
+      <div className="flex items-center justify-between gap-3 bg-[#ea7130] px-5 py-4">
+        <div className="min-w-0">
+          <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#1f1b16]/70">
+            Ejercicios
+          </p>
+          <h2 className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[31px] font-black leading-none tracking-[-0.055em] text-[#1f1b16]">
+            {exercises.length} resultados
+          </h2>
+        </div>
+      </div>
+
+      <div className="grid gap-2 p-3">
+        {status === "loading" && (
+          <p className="rounded-[18px] bg-white/60 px-4 py-5 text-sm font-bold text-[#3a332c]">
+            Cargando ejercicios...
+          </p>
+        )}
+
+        {status === "error" && (
+          <p className="rounded-[18px] border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-4 py-5 text-sm font-black text-[#9f2f22]">
+            {message}
+          </p>
+        )}
+
+        {status === "success" && exercises.length === 0 && (
+          <p className="rounded-[18px] border border-dashed border-[#1f1b16]/14 bg-white/60 px-4 py-5 text-sm font-bold text-[#3a332c]">
+            No hay ejercicios con esos filtros.
+          </p>
+        )}
+
+        {status === "success" &&
+          exercises.map((exercise) => {
+            const isSelected = exercise.id === selectedExerciseId;
+            return (
+              <button
+                key={exercise.id}
+                type="button"
+                onClick={() => onOpenExercise(exercise)}
+                className={[
+                  "w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border px-4 py-3 text-left transition",
+                  isSelected
+                    ? "border-[#1f1b16] bg-[#1f1b16] text-[#fffaf0] shadow-[0_12px_26px_rgba(31,27,22,0.16)]"
+                    : "border-[#1f1b16]/10 bg-white/64 text-[#1f1b16]",
+                ].join(" ")}
+              >
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5">
+                  <div className="min-w-0 max-w-full overflow-hidden">
+                    <p className="max-w-full truncate [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[21px] font-black leading-none tracking-[-0.04em]">
+                      {exercise.name}
+                    </p>
+                    <p className={["mt-2 max-w-full truncate text-[11px] font-black uppercase tracking-[0.08em]", isSelected ? "text-[#fffaf0]/66" : "text-[#3a332c]/72"].join(" ")}>
+                      {exercise.exercise_type ? exerciseTypeLabel(exercise.exercise_type) : "Sin tipo"}
+                    </p>
+                  </div>
+                  <span
+                    className={[
+                      "max-w-[5.4rem] shrink-0 truncate rounded-[13px] px-2.5 py-1 text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.08em]",
+                      exercise.is_official === false
+                        ? "bg-[#ea7130] text-[#1f1b16]"
+                        : isSelected
+                          ? "bg-[#fffaf0]/10 text-[#f1a45b]"
+                          : "bg-[#265c52]/10 text-[#265c52]",
+                    ].join(" ")}
+                  >
+                    {exercise.is_official === false ? "Propio" : "Oficial"}
+                  </span>
+                </div>
+                <div className="mt-3 flex min-w-0 max-w-full flex-wrap gap-1.5 overflow-hidden">
+                  {[exercise.muscle_group, ...(exercise.secondary_muscle_groups ?? [])].filter(Boolean).slice(0, 3).map((muscle) => (
+                    <span
+                      key={muscle}
+                      title={muscleGroupLabel(muscle)}
+                      className={[
+                        "max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black sm:max-w-[10rem]",
+                        isSelected ? "bg-[#fffaf0]/10 text-[#fffaf0]/78" : "bg-[#1f1b16]/6 text-[#3a332c]",
+                      ].join(" ")}
+                    >
+                      {muscleGroupLabel(muscle)}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+      </div>
+    </section>
   );
 }

@@ -149,15 +149,15 @@ export default function CreateExerciseModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/45 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/45 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
       data-block="create-exercise-modal-overlay"
     >
       <section
-        className="relative w-full max-w-4xl overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]"
+        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]"
         data-block="create-exercise-modal"
       >
-        <div className="grid gap-0 lg:grid-cols-[0.95fr_1.45fr]">
-          <div className="bg-[#1f1b16] px-6 py-8 text-[#fffaf0] sm:px-8">
+        <div className="grid min-h-0 overflow-y-auto gap-0 lg:grid-cols-[0.95fr_1.45fr]">
+          <div className="bg-[#1f1b16] px-5 py-6 text-[#fffaf0] sm:px-8 sm:py-8">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">
               {isEditMode ? "Editar ejercicio" : "Nuevo ejercicio"}
             </p>
@@ -185,7 +185,7 @@ export default function CreateExerciseModal({
           </div>
 
           <form
-            className="grid gap-5 px-6 py-8 sm:px-8"
+            className="grid gap-5 px-5 py-6 sm:px-8 sm:py-8"
             onSubmit={handleSubmit}
             data-block="create-exercise-form"
           >

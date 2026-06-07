@@ -109,8 +109,8 @@ export default function AIRoutinePreviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/45 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
-      <div className="relative flex h-[calc(100vh-12rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[1.75rem] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)] sm:rounded-[2rem]">
-        <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.18fr)]">
+      <div className="relative flex h-[calc(100dvh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[1.75rem] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)] sm:h-[calc(100vh-12rem)] sm:rounded-[2rem]">
+        <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto lg:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.18fr)] lg:overflow-hidden">
           <aside className="flex flex-col justify-between bg-[#1f1b16] px-5 py-6 text-[#fffaf0] sm:px-6 sm:py-8 lg:sticky lg:top-0">
             <div>
               <div className="flex items-start justify-between gap-3">

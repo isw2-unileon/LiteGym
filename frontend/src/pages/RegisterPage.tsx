@@ -194,7 +194,7 @@ export default function RegisterPage() {
               </label>
 
               <button
-                className="group relative w-full overflow-hidden rounded-2xl bg-[#ea7130] px-5 py-4 text-base font-black text-[##fffaf0] shadow-[0_18px_35px_rgba(38,92,82,0.30)] transition hover:-translate-y-0.5 hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                className="group relative w-full overflow-hidden rounded-2xl bg-[#ea7130] px-5 py-4 text-base font-black text-[#1f1b16] shadow-[0_18px_35px_rgba(38,92,82,0.30)] transition hover:-translate-y-0.5 hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 type="submit"
                 disabled={registerStatus === "loading"}
               >

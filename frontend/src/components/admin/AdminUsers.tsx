@@ -72,8 +72,8 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="grid gap-[24px] lg:grid-cols-[1fr_1.8fr] items-start h-[46vh]">
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[44vh]">
+    <div className="grid items-start gap-[24px] lg:h-[46vh] lg:grid-cols-[1fr_1.8fr]">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 lg:h-[44vh]">
         <CardHeader kicker={"NUEVO REGISTRO"} title={"Introduzca los datos de un nuevo usuario"} />
         <form onSubmit={handleCreateUser} className="relative mt-4 z-[2] flex flex-col gap-4">
           <div className="flex flex-col">
@@ -140,13 +140,13 @@ export default function AdminUsers() {
           </button>
         </form>
       </Card>
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[44vh]">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 lg:h-[44vh]">
         <CardHeader kicker={"DIRECTORIO ACTIVO"} title={`Usuarios Registrados (${users.length})`} />
-        <div className="relative z-[2] mt-4 overflow-y-auto pr-1 flex flex-col gap-3 h-[36vh]">
+        <div className="relative z-[2] mt-4 flex max-h-[32rem] flex-col gap-3 overflow-y-auto pr-1 lg:h-[36vh] lg:max-h-none">
           {users.map((item) => (
               <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-4 transition hover:shadow-sm hover:border-[#1f1b16]/18"
+                  className="flex flex-col items-start justify-between gap-3 rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-4 transition hover:border-[#1f1b16]/18 hover:shadow-sm sm:flex-row sm:items-center"
               >
                 <div>
                   <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ export default function AdminUsers() {
         </div>
       </Card>
       {statusMessage && (
-          <div className={`h-[4vh] col-span-full rounded-2xl px-5 py-4 border text-sm font-semibold tracking-tight text-center transition ${
+          <div className={`col-span-full rounded-2xl border px-5 py-4 text-center text-sm font-semibold tracking-tight transition lg:h-[4vh] ${
               statusMessage.type === "success"
                   ? "bg-[#265c52]/10 text-[#265c52] border-[#265c52]/20"
                   : "bg-[#c94b32]/10 text-[#c94b32] border-[#c94b32]/20"

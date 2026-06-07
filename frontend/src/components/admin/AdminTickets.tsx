@@ -238,7 +238,7 @@ export default function AdminTickets() {
   }
 
   return (
-    <div className="flex-col gap-6 h-[46vh]">
+    <div className="flex-col gap-6 lg:h-[46vh]">
       <div className="flex flex-col min-w-[160px] overflow-y-auto [scrollbar-gutter:stable]">
         <label className="mb-1.5 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold uppercase tracking-wider text-[#3a332c]/85">
           Estado
@@ -253,8 +253,8 @@ export default function AdminTickets() {
           <option value="all">Mostrar Todos</option>
         </select>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-3 gap-6 mt-4 overflow-y-auto [scrollbar-gutter:stable]">
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[38vh] flex flex-col">
+      <div className="mt-4 grid grid-cols-1 gap-6 overflow-y-auto [scrollbar-gutter:stable] lg:grid-cols-3">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 flex min-h-[22rem] flex-col lg:h-[38vh]">
         <CardHeader kicker={"GENERAL"} title={""} />
         <TicketList
           items={filteredGeneralTickets}
@@ -264,7 +264,7 @@ export default function AdminTickets() {
           onClose={handleCloseTicket}
         />
       </Card>
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[38vh] flex flex-col">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 flex min-h-[22rem] flex-col lg:h-[38vh]">
         <CardHeader kicker={"Asistente IA"} title={""} />
         <TicketList
             items={filteredIATickets}
@@ -274,7 +274,7 @@ export default function AdminTickets() {
             onClose={handleCloseTicket}
         />
       </Card>
-      <Card accent="#ea7130" className="relative z-[2] mb-5 h-[38vh] flex flex-col">
+      <Card accent="#ea7130" className="relative z-[2] mb-5 flex min-h-[22rem] flex-col lg:h-[38vh]">
         <CardHeader kicker={"Ejercicios"} title={""} />
         <TicketList
             items={filteredExercisesTickets}
@@ -288,4 +288,3 @@ export default function AdminTickets() {
     </div>
   );
 }
-

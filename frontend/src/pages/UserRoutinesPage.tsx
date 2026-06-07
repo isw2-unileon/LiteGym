@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../lib/api";
+import { useIsMobile } from "../lib/useIsMobile";
 import { exerciseTypeLabel, muscleGroupLabel } from "../lib/exerciseLabels";
 import AIRoutinePreviewModal, {
   type AIRoutinePreview,
@@ -205,6 +206,7 @@ function routineFilterKey(routine: RoutineSummary): RoutineFilterKey {
 const MAX_ROUTINES_PER_USER = 50;
 
 export default function UserRoutinesPage() {
+  const isMobile = useIsMobile();
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [status, setStatus] = useState<RoutineStatus>("idle");
   const [selectedRoutineID, setSelectedRoutineID] = useState("");
@@ -241,6 +243,7 @@ export default function UserRoutinesPage() {
     sets: RoutineSetDetail[];
   };
   const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [isMobileRoutineDetailOpen, setIsMobileRoutineDetailOpen] = useState(false);
   const [planDate, setPlanDate] = useState("");
   const [planTime, setPlanTime] = useState("");
   const [planStatus, setPlanStatus] = useState<RoutineStatus>("idle");
@@ -1374,13 +1377,37 @@ export default function UserRoutinesPage() {
             aria-hidden="true"
             className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
         />
-        <div className="px-6 pt-8 sm:px-8">
+        <div className="px-4 pt-5 sm:px-6 sm:pt-8 md:px-8">
           <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
             <div>
               <HelloHeader page={"LISTADO DE RUTINAS"} user={user?.username ?? "Atleta"} />
               <p className="mt-3.5 max-w-[640px] text-[15px] leading-[1.55] text-[#3a332c]">
                 Organiza, edita y planifica cualquier sesión con un solo click.
               </p>
+              <div className="mt-5 grid grid-cols-2 gap-3 md:hidden">
+                <button
+                  type="button"
+                  onClick={handleOpenCreateRoutine}
+                  disabled={routineLimitReached}
+                  className="rounded-[18px] bg-[#1f1b16] px-4 py-4 text-left text-sm font-black text-[#f1a45b] shadow-[0_14px_30px_rgba(31,27,22,0.18)] disabled:opacity-50"
+                >
+                  <span className="block text-[11px] uppercase tracking-[0.16em] text-[#fffaf0]/70">Manual</span>
+                  Crear rutina
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAIMessage("");
+                    setAIStatus("idle");
+                    setIsAIFormOpen(true);
+                  }}
+                  disabled={routineLimitReached}
+                  className="rounded-[18px] border border-[#1f1b16]/12 bg-[#fffaf0]/85 px-4 py-4 text-left text-sm font-black text-[#1f1b16] shadow-[0_12px_28px_rgba(31,27,22,0.08)] disabled:opacity-50"
+                >
+                  <span className="block text-[11px] uppercase tracking-[0.16em] text-[#265c52]">IA</span>
+                  Generar
+                </button>
+              </div>
               {status === "error" && (
                   <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
                     No se ha podido cargar toda la información de las rutinas.
@@ -1388,7 +1415,7 @@ export default function UserRoutinesPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2.5">
+            <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4 md:flex md:w-auto md:flex-wrap">
               <Stat n={String(routines?.length)} l="Rutinas totales" />
               <Stat n={`${routines.length - parseInt(countDefaultRoutines())} / ${MAX_ROUTINES_PER_USER}`} l="Límite de rutinas propias" />
               <Stat n={countDefaultRoutines()} l="Rutinas por defecto" />
@@ -1411,14 +1438,47 @@ export default function UserRoutinesPage() {
                 createDisabled={routineLimitReached}
             />
           </section>
+
+          {isMobile && (
+          <section className="mx-auto grid max-w-[1280px] gap-4">
+            {selectedRoutine && (
+              <button
+                type="button"
+                onClick={() => setIsMobileRoutineDetailOpen(true)}
+                className="rounded-[22px] border border-[#1f1b16]/12 bg-[#1f1b16] p-4 text-left text-[#fffaf0] shadow-[0_16px_36px_rgba(31,27,22,0.18)]"
+              >
+                <span className="block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#f1a45b]">
+                  Rutina seleccionada
+                </span>
+                <span className="mt-2 block [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-none tracking-[-0.04em]">
+                  {selectedRoutine.name}
+                </span>
+                <span className="mt-3 block text-sm font-bold text-[#fffaf0]/75">
+                  Toca para ver ejercicios, series y acciones.
+                </span>
+              </button>
+            )}
+
+            <MobileRoutineDeck
+              status={status}
+              routines={visibleRoutines}
+              selectedRoutineID={selectedRoutineID}
+              onOpenRoutine={(routine) => {
+                void fetchRoutineDetail(routine.id).then(() => setIsMobileRoutineDetailOpen(true));
+              }}
+            />
+          </section>
+          )}
+
+          {!isMobile && (
           <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-[18px] xl:grid-cols-[3fr_7fr]">
             <div className="flex flex-col gap-[18px] mt-4">
-              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+              <Card accent="#ea7130" className={"flex flex-col xl:h-[70vh]"}>
                 <CardHeader
                     kicker={"Rutinas"}
                     title={"Elige una rutina"}
                 />
-                <ul className="relative z-[2] mt-6 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+                <ul className="relative z-[2] mt-6 flex max-h-[32rem] min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1 xl:max-h-none">
                   {visibleRoutines.length === 0 ? (
                       <li className="rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
                         {status === "loading"
@@ -1463,7 +1523,7 @@ export default function UserRoutinesPage() {
               </Card >
             </div>
             <div className="flex flex-col gap-[18px] mt-4">
-              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+              <Card accent="#ea7130" className={"flex flex-col xl:h-[70vh]"}>
                 <CardHeader
                     kicker={"Detalle"}
                     title={selectedRoutine ? selectedRoutine.name : "Detalle de la rutina"}
@@ -1503,14 +1563,14 @@ export default function UserRoutinesPage() {
                               </button>
                           ))}
                         </div>
-                        <span className="ml-auto inline-flex items-center rounded-md bg-[#1f1b16] px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.16em] text-[#f1a45b]">
+                        <span className="inline-flex items-center rounded-md bg-[#1f1b16] px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.16em] text-[#f1a45b] sm:ml-auto">
                         {selectedRoutine.is_predefined ? "Rutina por defecto" : "Rutina"}
                       </span>
                         <span className="inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52]">
                         {selectedRoutine.exercise_count} {selectedRoutine.exercise_count === 1 ? "ejercicio" : "ejercicios"}
                       </span>
                       </div>
-                      <p className="text-[15px] font-semibold leading-[0.75] text-[#3a332c]">
+                      <p className="text-[15px] font-semibold leading-[1.35] text-[#3a332c] xl:leading-[0.75]">
                         {cleanDescription(selectedRoutine.description) || "Esta rutina no tiene descripción."}
                       </p>
                       {routineActionMessage && (
@@ -1573,6 +1633,7 @@ export default function UserRoutinesPage() {
             </div>
 
           </section>
+          )}
 
         </div>
     <section className="space-y-6">
@@ -2687,6 +2748,37 @@ export default function UserRoutinesPage() {
           </div>
         </RoutineDialogShell>
       )}
+
+      {isMobileRoutineDetailOpen && selectedRoutine && (
+        <DialogPopup
+          kicker="Rutina"
+          title={selectedRoutine.name}
+          onClose={() => setIsMobileRoutineDetailOpen(false)}
+        >
+          <div className="grid grid-cols-2 gap-2.5">
+            <Stat n={String(selectedRoutine.exercises.length)} l="Ejercicios" />
+            <Stat n={String(selectedRoutine.exercises.reduce((total, exercise) => total + exercise.sets.length, 0))} l="Series" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setIsMobileRoutineDetailOpen(false); handleRoutineAction("plan"); }} className="rounded-[14px] bg-[#ea7130] px-3 py-3 text-sm font-black text-[#1f1b16]">
+              Planificar
+            </button>
+            <button type="button" onClick={() => { setIsMobileRoutineDetailOpen(false); handleRoutineAction("edit"); }} className="rounded-[14px] border border-[#1f1b16]/15 px-3 py-3 text-sm font-black text-[#1f1b16]">
+              Editar
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {selectedRoutine.exercises.map((exercise) => (
+              <div key={exercise.id} className="rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-3">
+                <p className="m-0 text-sm font-black text-[#1f1b16]">{exercise.name}</p>
+                <p className="mt-1 text-xs font-bold text-[#3a332c]/70">
+                  {exercise.sets.length} {exercise.sets.length === 1 ? "serie" : "series"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </DialogPopup>
+      )}
     </section>
       </main>
   );
@@ -2954,19 +3046,19 @@ function RoutineDialogShell({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-0">
       <section
-        className={`w-full ${maxWidthClass} max-h-[calc(100vh-10rem)] overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]`}
+        className={`flex w-full ${maxWidthClass} max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)] sm:max-h-[calc(100vh-10rem)]`}
       >
-        <header className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-t-[24px] bg-[#1f1b16] px-6 py-5 text-[#fffaf0]">
+        <header className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-t-[24px] bg-[#1f1b16] px-4 py-4 text-[#fffaf0] sm:px-6 sm:py-5">
           <div>
             <div
-              className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[16px] font-extrabold uppercase tracking-[0.30em]"
+              className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-extrabold uppercase tracking-[0.22em] sm:text-[16px] sm:tracking-[0.30em]"
               style={{ color: "#f1a45b" }}
             >
               {kicker}
             </div>
-            <h3 className="mt-1 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-none tracking-[-0.04em]">
+            <h3 className="mt-1 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[20px] font-black leading-none tracking-[-0.04em] sm:text-[22px]">
               {title}
             </h3>
           </div>
@@ -2988,7 +3080,7 @@ function RoutineDialogShell({
             </svg>
           </button>
         </header>
-        <div className="max-h-[calc(100vh-18rem)] overflow-y-auto bg-[#fffaf0] px-6 py-5">
+        <div className="min-h-0 overflow-y-auto bg-[#fffaf0] px-4 py-4 sm:max-h-[calc(100vh-18rem)] sm:px-6 sm:py-5">
           {children}
         </div>
       </section>
@@ -3048,7 +3140,7 @@ function Toolbar({
           })}
         </div>
 
-        <label className="relative flex min-w-[220px] flex-1 items-center">
+        <label className="relative flex min-w-0 flex-[1_1_100%] items-center sm:min-w-[220px] sm:flex-1">
           <span className="sr-only">Buscar rutina</span>
           <svg
               aria-hidden="true"
@@ -3077,7 +3169,7 @@ function Toolbar({
             onClick={onCreate}
             disabled={createDisabled}
             title={createDisabled ? "Has alcanzado el límite de rutinas propias" : undefined}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50"
+            className="hidden cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
             <path d="M12 5v14M5 12h14" />
@@ -3090,7 +3182,7 @@ function Toolbar({
             onClick={onCreateAI}
             disabled={createDisabled}
             title={createDisabled ? "Has alcanzado el límite de rutinas" : undefined}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50"
+            className="hidden cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={0.75} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
             <path d="M12 2l1.9 5.6a3 3 0 0 0 1.9 1.9L21.5 11.5l-5.6 1.9a3 3 0 0 0-1.9 1.9L12 21l-1.9-5.6a3 3 0 0 0-1.9-1.9L2.5 11.5l5.6-1.9a3 3 0 0 0 1.9-1.9L12 2z" />
@@ -3169,6 +3261,89 @@ function RoutineActionsMenu({
             </div>
         )}
       </div>
+  );
+}
+
+function MobileRoutineDeck({
+  status,
+  routines,
+  selectedRoutineID,
+  onOpenRoutine,
+}: {
+  status: RoutineStatus;
+  routines: RoutineSummary[];
+  selectedRoutineID: string;
+  onOpenRoutine: (routine: RoutineSummary) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[28px] border border-[#1f1b16]/10 bg-[#fffaf0]/86 shadow-[0_14px_34px_rgba(31,27,22,0.1)]">
+      <div className="bg-[#ea7130] px-5 py-4">
+        <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#1f1b16]/70">
+          Rutinas
+        </p>
+        <h2 className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[31px] font-black leading-none tracking-[-0.055em] text-[#1f1b16]">
+          {routines.length} disponibles
+        </h2>
+      </div>
+
+      <div className="grid gap-2 p-3">
+        {status === "loading" && (
+          <p className="rounded-[18px] bg-white/60 px-4 py-5 text-sm font-bold text-[#3a332c]">
+            Cargando rutinas...
+          </p>
+        )}
+
+        {status !== "loading" && routines.length === 0 && (
+          <p className="rounded-[18px] border border-dashed border-[#1f1b16]/14 bg-white/60 px-4 py-5 text-sm font-bold text-[#3a332c]">
+            No hay rutinas con esos filtros.
+          </p>
+        )}
+
+        {routines.map((routine) => {
+          const isSelected = routine.id === selectedRoutineID;
+          return (
+            <button
+              key={routine.id}
+              type="button"
+              onClick={() => onOpenRoutine(routine)}
+              className={[
+                "w-full rounded-[20px] border px-4 py-3 text-left transition",
+                isSelected
+                  ? "border-[#1f1b16] bg-[#1f1b16] text-[#fffaf0] shadow-[0_12px_26px_rgba(31,27,22,0.16)]"
+                  : "border-[#1f1b16]/10 bg-white/64 text-[#1f1b16]",
+              ].join(" ")}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-none tracking-[-0.04em]">
+                    {routine.name}
+                  </p>
+                  <p className={["mt-2 line-clamp-2 text-xs font-bold leading-snug", isSelected ? "text-[#fffaf0]/66" : "text-[#3a332c]/72"].join(" ")}>
+                    {cleanDescription(routine.description) || "Sin descripción."}
+                  </p>
+                </div>
+                <span
+                  className={[
+                    "shrink-0 rounded-[13px] px-2.5 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.1em]",
+                    isSelected ? "bg-[#fffaf0]/10 text-[#f1a45b]" : "bg-[#265c52]/10 text-[#265c52]",
+                  ].join(" ")}
+                >
+                  {routine.exercise_count} ej.
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className={["rounded-full px-2.5 py-1 text-[11px] font-black", isSelected ? "bg-[#fffaf0]/10 text-[#fffaf0]/78" : "bg-[#1f1b16]/6 text-[#3a332c]"].join(" ")}>
+                  {routine.routine_type || "Sin clasificar"}
+                </span>
+                <span className={["rounded-full px-2.5 py-1 text-[11px] font-black", isSelected ? "bg-[#fffaf0]/10 text-[#fffaf0]/78" : "bg-[#1f1b16]/6 text-[#3a332c]"].join(" ")}>
+                  {routine.is_predefined ? "Base" : "Tuya"}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

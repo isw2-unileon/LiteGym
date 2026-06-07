@@ -22,10 +22,10 @@ export default function ExerciseList({
 
     return (
         <div
-            className="mt-4 h-full min-h-[24rem] rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-2"
+            className="mt-4 rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-2 md:h-full md:min-h-[24rem]"
             data-block="exercise-list-container"
         >
-          <div className="h-full overflow-y-auto p-3 [scrollbar-gutter:stable]">
+          <div className="max-h-[32rem] overflow-y-auto p-2 [scrollbar-gutter:stable] sm:p-3 md:h-full md:max-h-none">
             {status === "loading" && (
                 <p
                     className="text-sm text-[#6b5d4d]"
@@ -63,7 +63,7 @@ export default function ExerciseList({
                     )}
 
                     <ul
-                        className="grid gap-5 s:grid-cols-1 md:grid-cols-2 xl:grid-cols-2 "
+                        className="grid gap-3 sm:gap-5 md:grid-cols-2 xl:grid-cols-2"
                         data-block="exercise-list"
                     >
                         {exercises.map((exercise) => (
