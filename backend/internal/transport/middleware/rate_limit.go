@@ -1,10 +1,7 @@
 package middleware
 
 import (
-	"math"
 	"net/http"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -12,241 +9,87 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const (
-	defaultRateLimitTTL       = 30 * time.Minute
-	defaultRateLimitSweepFreq = 5 * time.Minute
-)
-
-type rateLimitPolicy struct {
-	name      string
-	limit     rate.Limit
-	burst     int
-	keyFunc   func(*gin.Context) string
-	errorText string
+type RateLimitMiddleware struct {
+	mu         sync.Mutex
+	requests   map[string]*rate.Limiter
+	login      *rate.Limiter
+	register   *rate.Limiter
+	protected  *rate.Limiter
+	heavyRead  *rate.Limiter
+	publicAuth *rate.Limiter
+	ai         *rate.Limiter
+	profileAI  *rate.Limiter
 }
 
-type rateLimitEntry struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-type rateLimitStore struct {
-	mu        sync.Mutex
-	entries   map[string]*rateLimitEntry
-	ttl       time.Duration
-	sweepFreq time.Duration
-	lastSweep time.Time
-}
-
-func newRateLimitStore(ttl, sweepFreq time.Duration) *rateLimitStore {
-	if ttl <= 0 {
-		ttl = defaultRateLimitTTL
-	}
-	if sweepFreq <= 0 {
-		sweepFreq = defaultRateLimitSweepFreq
-	}
-
-	return &rateLimitStore{
-		entries:   make(map[string]*rateLimitEntry),
-		ttl:       ttl,
-		sweepFreq: sweepFreq,
+func NewRateLimitMiddleware() *RateLimitMiddleware {
+	return &RateLimitMiddleware{
+		requests:   make(map[string]*rate.Limiter),
+		login:      rate.NewLimiter(rate.Every(6*time.Second), 5),         // 10 req/min
+		register:   rate.NewLimiter(rate.Every(10*time.Second), 3),        // 6 req/min
+		protected:  rate.NewLimiter(rate.Every(500*time.Millisecond), 40), // 120 req/min
+		heavyRead:  rate.NewLimiter(rate.Every(time.Second), 20),          // 60 req/min
+		publicAuth: rate.NewLimiter(rate.Every(3*time.Second), 10),        // 20 req/min
+		ai:         rate.NewLimiter(rate.Every(10*time.Minute), 1),        // 0.1 req/min
+		profileAI:  rate.NewLimiter(rate.Every(15*time.Minute), 1),        // 0.066 req/min
 	}
 }
 
-func (s *rateLimitStore) limiterFor(key string, limit rate.Limit, burst int, now time.Time) *rate.Limiter {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func NewRateLimiter() *RateLimitMiddleware {
+	return NewRateLimitMiddleware()
+}
 
-	if now.IsZero() {
-		now = time.Now()
-	}
-	s.cleanupLocked(now)
+func (m *RateLimitMiddleware) limiterFor(category, clientIP string, template *rate.Limiter) *rate.Limiter {
+	key := category + ":" + clientIP
 
-	entry, ok := s.entries[key]
-	if !ok {
-		entry = &rateLimitEntry{
-			limiter: rate.NewLimiter(limit, burst),
-		}
-		s.entries[key] = entry
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if limiter, ok := m.requests[key]; ok {
+		return limiter
 	}
 
-	entry.lastSeen = now
-	return entry.limiter
+	limiter := rate.NewLimiter(template.Limit(), template.Burst())
+	m.requests[key] = limiter
+	return limiter
 }
 
-func (s *rateLimitStore) cleanupLocked(now time.Time) {
-	if !s.lastSweep.IsZero() && now.Sub(s.lastSweep) < s.sweepFreq {
-		return
-	}
-
-	for key, entry := range s.entries {
-		if now.Sub(entry.lastSeen) > s.ttl {
-			delete(s.entries, key)
-		}
-	}
-	s.lastSweep = now
-}
-
-// RateLimiter exposes reusable Gin middlewares for different endpoint groups.
-type RateLimiter struct {
-	store *rateLimitStore
-}
-
-// NewRateLimiter returns the default in-memory rate limiter configuration.
-func NewRateLimiter() *RateLimiter {
-	return &RateLimiter{
-		store: newRateLimitStore(defaultRateLimitTTL, defaultRateLimitSweepFreq),
-	}
-}
-
-// Login returns a strict IP-based limiter for login attempts.
-func (r *RateLimiter) Login() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "auth_login",
-		limit:     rate.Every(12 * time.Second), // 5 req/min
-		burst:     3,
-		keyFunc:   clientIPKey,
-		errorText: "login rate limit exceeded",
-	})
-}
-
-// Register returns a strict IP-based limiter for account creation.
-func (r *RateLimiter) Register() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "auth_register",
-		limit:     rate.Every(20 * time.Second), // 3 req/min
-		burst:     2,
-		keyFunc:   clientIPKey,
-		errorText: "registration rate limit exceeded",
-	})
-}
-
-// Protected returns the default limiter for authenticated traffic.
-func (r *RateLimiter) Protected() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "protected",
-		limit:     rate.Every(time.Second), // 60 req/min
-		burst:     20,
-		keyFunc:   authenticatedUserOrIPKey,
-		errorText: "request rate limit exceeded",
-	})
-}
-
-// ProtectedReadHeavy returns a tighter limiter for expensive authenticated reads.
-func (r *RateLimiter) ProtectedReadHeavy() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "protected_read_heavy",
-		limit:     rate.Every(2 * time.Second), // 30 req/min
-		burst:     10,
-		keyFunc:   authenticatedUserOrIPKey,
-		errorText: "read rate limit exceeded",
-	})
-}
-
-// AI returns a very strict limiter for AI routine generation and save endpoints.
-func (r *RateLimiter) AI() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "routine_ai",
-		limit:     rate.Every(30 * time.Minute), // 2 req/hour
-		burst:     2,
-		keyFunc:   authenticatedUserOrIPKey,
-		errorText: "ai generation rate limit exceeded",
-	})
-}
-
-// ProfileAI returns a strict limiter for AI profile coaching analysis to prevent abuse.
-func (r *RateLimiter) ProfileAI() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "profile_ai",
-		limit:     rate.Every(60 * time.Minute), // 1 req/hour
-		burst:     1,
-		keyFunc:   authenticatedUserOrIPKey,
-		errorText: "profile ai analysis rate limit exceeded",
-	})
-}
-
-// PublicAuth returns a moderate limiter for auth-adjacent public endpoints such as logout.
-func (r *RateLimiter) PublicAuth() gin.HandlerFunc {
-	return r.middleware(rateLimitPolicy{
-		name:      "auth_public",
-		limit:     rate.Every(6 * time.Second), // 10 req/min
-		burst:     5,
-		keyFunc:   clientIPKey,
-		errorText: "auth rate limit exceeded",
-	})
-}
-
-func (r *RateLimiter) middleware(policy rateLimitPolicy) gin.HandlerFunc {
+func (m *RateLimitMiddleware) withLimit(category string, template *rate.Limiter, message string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		now := time.Now()
-		key := policy.keyFunc(c)
-		if strings.TrimSpace(key) == "" {
-			key = clientIPKey(c)
-		}
-
-		limiter := r.store.limiterFor(policy.name+"|"+key, policy.limit, policy.burst, now)
-		reservation := limiter.ReserveN(now, 1)
-		if !reservation.OK() {
-			r.reject(c, policy, 0)
+		if !m.limiterFor(category, c.ClientIP(), template).Allow() {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": message,
+			})
 			return
 		}
-
-		delay := reservation.DelayFrom(now)
-		if delay > 0 {
-			reservation.CancelAt(now)
-			r.reject(c, policy, delay)
-			return
-		}
-
-		c.Header("X-RateLimit-Limit", strconv.Itoa(policy.burst))
-		c.Header("X-RateLimit-Remaining", remainingTokensHeader(limiter.TokensAt(now)))
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(now.Unix(), 10))
 
 		c.Next()
 	}
 }
 
-func (r *RateLimiter) reject(c *gin.Context, policy rateLimitPolicy, delay time.Duration) {
-	retryAfter := int(math.Ceil(delay.Seconds()))
-	if retryAfter < 1 {
-		retryAfter = 1
-	}
-
-	c.Header("Retry-After", strconv.Itoa(retryAfter))
-	c.Header("X-RateLimit-Limit", strconv.Itoa(policy.burst))
-	c.Header("X-RateLimit-Remaining", "0")
-	c.Header("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(delay).Unix(), 10))
-	c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-		"error":       policy.errorText,
-		"retry_after": retryAfter,
-	})
+func (m *RateLimitMiddleware) Login() gin.HandlerFunc {
+	return m.withLimit("login", m.login, "too many login attempts")
 }
 
-func remainingTokensHeader(tokens float64) string {
-	if tokens <= 0 {
-		return "0"
-	}
-
-	return strconv.Itoa(int(math.Floor(tokens)))
+func (m *RateLimitMiddleware) Register() gin.HandlerFunc {
+	return m.withLimit("register", m.register, "too many register attempts")
 }
 
-func clientIPKey(c *gin.Context) string {
-	ip := strings.TrimSpace(c.ClientIP())
-	if ip == "" {
-		return "unknown-ip"
-	}
-	return "ip:" + ip
+func (m *RateLimitMiddleware) Protected() gin.HandlerFunc {
+	return m.withLimit("protected", m.protected, "too many requests")
 }
 
-func authenticatedUserOrIPKey(c *gin.Context) string {
-	if userIDValue, ok := c.Get(ContextUserIDKey); ok {
-		if userID, ok := userIDValue.(string); ok {
-			userID = strings.TrimSpace(userID)
-			if userID != "" {
-				return "user:" + userID
-			}
-		}
-	}
+func (m *RateLimitMiddleware) ProtectedReadHeavy() gin.HandlerFunc {
+	return m.withLimit("protected-read-heavy", m.heavyRead, "too many read requests")
+}
 
-	return clientIPKey(c)
+func (m *RateLimitMiddleware) PublicAuth() gin.HandlerFunc {
+	return m.withLimit("public-auth", m.publicAuth, "too many authentication requests")
+}
+
+func (m *RateLimitMiddleware) AI() gin.HandlerFunc {
+	return m.withLimit("ai", m.ai, "ai rate limit exceeded")
+}
+
+func (m *RateLimitMiddleware) ProfileAI() gin.HandlerFunc {
+	return m.withLimit("profile-ai", m.profileAI, "profile ai rate limit exceeded")
 }
