@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 
@@ -40,7 +40,7 @@ export default function VerifyEmailPage() {
             : "Ha ocurrido un error al verificar tu cuenta."
         );
       }
-    } catch (error) {
+    } catch {
       setStatus("error");
       setMessage("No se pudo conectar con el servidor.");
     }
