@@ -10,22 +10,19 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func TestRateLimitStoreCleanupRemovesStaleEntries(t *testing.T) {
-	store := newRateLimitStore(10*time.Millisecond, time.Nanosecond)
-	base := time.Now()
+func TestRateLimitMiddlewareReusesLimiterPerCategoryAndIP(t *testing.T) {
+	limiter := NewRateLimitMiddleware()
 
-	store.limiterFor("auth_login|ip:203.0.113.1", rate.Every(time.Second), 1, base)
-	store.limiterFor("auth_login|ip:203.0.113.2", rate.Every(time.Second), 1, base.Add(20*time.Millisecond))
+	first := limiter.limiterFor("login", "203.0.113.1", rate.NewLimiter(rate.Every(time.Second), 1))
+	second := limiter.limiterFor("login", "203.0.113.1", rate.NewLimiter(rate.Every(time.Second), 1))
+	otherIP := limiter.limiterFor("login", "203.0.113.2", rate.NewLimiter(rate.Every(time.Second), 1))
 
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if _, ok := store.entries["auth_login|ip:203.0.113.1"]; ok {
-		t.Fatalf("expected stale entry to be removed from the store")
+	if first != second {
+		t.Fatalf("expected limiter to be reused for the same category and IP")
 	}
 
-	if _, ok := store.entries["auth_login|ip:203.0.113.2"]; !ok {
-		t.Fatalf("expected recent entry to be kept in the store")
+	if first == otherIP {
+		t.Fatalf("expected different IPs to get different limiters")
 	}
 }
 
@@ -62,7 +59,7 @@ func TestRateLimiter_ProfileAI(t *testing.T) {
 	}
 }
 
-func TestRateLimiter_AIAllowsTwoImmediateRequests(t *testing.T) {
+func TestRateLimiter_AIIsStrict(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	limiter := NewRateLimiter()
 
@@ -72,21 +69,19 @@ func TestRateLimiter_AIAllowsTwoImmediateRequests(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	for i := 1; i <= 2; i++ {
-		req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-		req.RemoteAddr = "192.168.1.2:1234"
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected status 200 for request %d, got %d", i, w.Code)
-		}
-	}
-
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.RemoteAddr = "192.168.1.2:1234"
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected status 429 for third request, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for first request, got %d", w.Code)
+	}
+
+	req2, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req2.RemoteAddr = "192.168.1.2:1234"
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status 429 for second request, got %d", w2.Code)
 	}
 }

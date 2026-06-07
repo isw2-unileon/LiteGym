@@ -91,7 +91,7 @@ Run with:
 make e2e
 ```
 
-Make sure the backend and frontend are already running before you execute E2E tests.
+`make e2e` starts the local PostgreSQL stack and Playwright starts the backend and frontend web servers automatically.
 
 ## Useful commands
 
