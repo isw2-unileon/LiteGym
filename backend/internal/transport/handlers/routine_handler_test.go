@@ -33,7 +33,7 @@ func (r *routineHandlerTestRepository) ListRecentByUser(ctx context.Context, use
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (r *routineHandlerTestRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (r *routineHandlerTestRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
 }
 

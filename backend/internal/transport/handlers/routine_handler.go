@@ -16,8 +16,9 @@ import (
 
 // RoutineHandler handles routine-related HTTP requests.
 type RoutineHandler struct {
-	service   *service.RoutineService
-	aiService *service.RoutineAIService
+	service       *service.RoutineService
+	aiService     *service.RoutineAIService
+	manualService *service.ManualRoutineService
 }
 
 type aiRoutineSaveRequest struct {
@@ -30,9 +31,14 @@ type aiRoutineOverwriteRequest struct {
 
 type aiRoutinePersistFunc func(ctx *gin.Context, userID, routineID string, routine model.AIRoutineJSON) (model.AIRoutineGenerateResponse, error)
 
-// NewRoutineHandler creates a new RoutineHandler.
-func NewRoutineHandler(svc *service.RoutineService, aiService *service.RoutineAIService) *RoutineHandler {
-	return &RoutineHandler{service: svc, aiService: aiService}
+// NewRoutineHandler creates a new RoutineHandler. The manual routine service is optional so existing
+// callers (and tests) that only exercise read/AI endpoints keep working.
+func NewRoutineHandler(svc *service.RoutineService, aiService *service.RoutineAIService, manualService ...*service.ManualRoutineService) *RoutineHandler {
+	handler := &RoutineHandler{service: svc, aiService: aiService}
+	if len(manualService) > 0 {
+		handler.manualService = manualService[0]
+	}
+	return handler
 }
 
 // GetRoutineByID returns one authenticated user's routine with exercises and planned sets.
@@ -74,7 +80,7 @@ func (h *RoutineHandler) ListRoutines(c *gin.Context) {
 		return
 	}
 
-	routines, err := h.service.ListByUser(c.Request.Context(), userID)
+	routines, err := h.service.ListByUser(c.Request.Context(), userID, c.Query("search"))
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidUserInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user"})

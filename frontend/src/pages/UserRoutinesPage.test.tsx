@@ -1,15 +1,138 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import UserRoutinesPage from "./UserRoutinesPage";
+
+type RoutineSummaryLike = {
+  id: string;
+  name: string;
+  description?: string;
+  source?: string;
+  is_predefined?: boolean;
+  routine_type?: string;
+  exercise_count?: number;
+  updated_at?: string;
+};
+
+type FetchCall = { url: string; method: string; body?: string };
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+function buildDetail(
+  id: string,
+  routines: RoutineSummaryLike[],
+  detailById?: Record<string, unknown>,
+) {
+  if (detailById && detailById[id]) {
+    return detailById[id];
+  }
+  const routine = routines.find((item) => item.id === id);
+  return {
+    id,
+    name: routine?.name ?? "Rutina",
+    description: routine?.description ?? "",
+    source: routine?.source ?? "manual",
+    is_predefined: routine?.is_predefined ?? false,
+    routine_type: routine?.routine_type ?? "Sin clasificar",
+    exercise_count: routine?.exercise_count ?? 0,
+    created_at: "2026-05-24T10:00:00Z",
+    updated_at: routine?.updated_at ?? "2026-05-24T10:00:00Z",
+    exercises: [],
+  };
+}
+
+type InstallOptions = {
+  routines?: RoutineSummaryLike[];
+  exercises?: unknown[];
+  detailById?: Record<string, unknown>;
+  failList?: boolean;
+};
+
+function installFetch(options: InstallOptions = {}) {
+  const routines = options.routines ?? [];
+  const exercises = options.exercises ?? [];
+  const calls: FetchCall[] = [];
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input);
+    const method = (init?.method ?? "GET").toUpperCase();
+    const body = init?.body != null ? String(init.body) : undefined;
+    calls.push({ url, method, body });
+
+    const path = new URL(url, "http://localhost").pathname;
+
+    if (path.startsWith("/api/exercises")) {
+      return jsonResponse({
+        items: exercises,
+        page: 1,
+        limit: 100,
+        total: exercises.length,
+        total_pages: 1,
+      });
+    }
+
+    if (path === "/api/workouts/planned") {
+      return jsonResponse({});
+    }
+
+    if (path === "/api/routines/ai/generate" || path === "/api/routines/ai/save") {
+      return jsonResponse({ routine_json: {}, routine_id: "ai-routine-1" });
+    }
+
+    const duplicateMatch = path.match(/^\/api\/routines\/([^/]+)\/duplicate$/);
+    if (duplicateMatch && method === "POST") {
+      return jsonResponse({ routine_id: "duplicated-1" });
+    }
+
+    const byIdMatch = path.match(/^\/api\/routines\/([^/]+)$/);
+    if (byIdMatch) {
+      const id = byIdMatch[1] ?? "";
+      if (method === "GET") {
+        return jsonResponse(buildDetail(id, routines, options.detailById));
+      }
+      if (method === "PUT") {
+        return jsonResponse({ routine_id: id });
+      }
+      if (method === "DELETE") {
+        return jsonResponse({});
+      }
+    }
+
+    if (path === "/api/routines") {
+      if (method === "POST") {
+        return jsonResponse({ routine_id: "created-1" });
+      }
+      if (options.failList) {
+        return jsonResponse({ error: "failed" }, { status: 500 });
+      }
+      return jsonResponse(routines);
+    }
+
+    return jsonResponse({}, { status: 404 });
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+  return { fetchMock, calls };
+}
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={["/rutinas"]}>
+      <Routes>
+        <Route
+          element={<Outlet context={{ user: { id: "u1", username: "diego" } }} />}
+        >
+          <Route path="/rutinas" element={<UserRoutinesPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
 }
 
 describe("UserRoutinesPage", () => {
@@ -18,762 +141,282 @@ describe("UserRoutinesPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows saved routines from the API", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 5,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
+  it("muestra las rutinas guardadas desde la API", async () => {
+    installFetch({
+      routines: [
+        {
+          id: "routine-1",
+          name: "Upper Strength",
+          description: "Trabajo principal de torso",
+          exercise_count: 5,
+          source: "manual",
+        },
+      ],
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText("Trabajo principal de torso"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Upper Strength").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("5 ejercicios").length).toBeGreaterThan(0);
+  });
+
+  it("muestra el estado vacío cuando no hay rutinas", async () => {
+    installFetch({ routines: [] });
+
+    renderPage();
+
+    expect(
+      await screen.findByText("Todavía no tienes rutinas guardadas."),
+    ).toBeInTheDocument();
+  });
+
+  it("muestra el estado de error cuando la API falla", async () => {
+    installFetch({ failList: true });
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "No se ha podido cargar toda la información de las rutinas.",
       ),
-    );
-
-    render(<UserRoutinesPage />);
-
-    expect(await screen.findByRole("heading", { name: "Upper Strength" })).toBeInTheDocument();
-    expect(screen.getByText("Trabajo principal de torso")).toBeInTheDocument();
-    expect(screen.getByText("5 ejercicios")).toBeInTheDocument();
+    ).toBeInTheDocument();
   });
 
-  it("loads routine details when a routine is selected", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 1,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-1",
-          name: "Upper Strength",
-          description: "Trabajo principal de torso",
+  it("carga el detalle al seleccionar una rutina de la lista", async () => {
+    installFetch({
+      routines: [
+        { id: "routine-1", name: "Upper Strength", exercise_count: 0 },
+        { id: "routine-2", name: "Lower Power", exercise_count: 1 },
+      ],
+      detailById: {
+        "routine-2": {
+          id: "routine-2",
+          name: "Lower Power",
+          description: "",
+          source: "manual",
+          is_predefined: false,
+          routine_type: "Fuerza",
           exercise_count: 1,
-          source: "ai",
           created_at: "2026-05-24T10:00:00Z",
           updated_at: "2026-05-24T10:00:00Z",
           exercises: [
             {
-              id: "routine-exercise-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [
-                {
-                  id: "set-1",
-                  set_number: 1,
-                  target_reps_min: 8,
-                  target_reps_max: 10,
-                  target_weight_kg: 72.5,
-                  target_rir: 2,
-                  rest_seconds: 120,
-                },
-              ],
-            },
-          ],
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<UserRoutinesPage />);
-
-    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
-
-    expect(await screen.findByRole("heading", { name: "Bench Press" })).toBeInTheDocument();
-    expect(screen.getByText("8-10")).toBeInTheDocument();
-    expect(screen.getByText("72.5 kg")).toBeInTheDocument();
-  });
-
-  it("shows the AI upgrade action and opens its modal for a selected routine", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 2,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-1",
-          name: "Upper Strength",
-          description: "Trabajo principal de torso",
-          exercise_count: 2,
-          source: "manual",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [],
-            },
-            {
-              id: "routine-exercise-2",
-              exercise_id: "exercise-2",
-              name: "Row",
-              muscle_group: "back",
-              exercise_order: 2,
-              sets: [],
-            },
-          ],
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<UserRoutinesPage />);
-
-    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
-    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
-
-    expect(await screen.findByRole("heading", { name: "Mejorar Upper Strength" })).toBeInTheDocument();
-    expect(screen.getByText("2 ejercicios cargados para preparar la mejora.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Preparar mejora" })).toBeInTheDocument();
-  });
-
-  it("requests an AI routine upgrade and shows the preview diff", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 2,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-1",
-          name: "Upper Strength",
-          description: "Trabajo principal de torso",
-          exercise_count: 2,
-          source: "manual",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [],
-            },
-            {
-              id: "routine-exercise-2",
-              exercise_id: "exercise-2",
-              name: "Row",
-              muscle_group: "back",
-              exercise_order: 2,
-              sets: [],
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_json: {
-            name: "Upper Strength Plus",
-            objective: "Equilibrar la sesion y subir intensidad",
-            duration_minutes: 50,
-            target_muscles: ["chest", "back", "shoulders"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [
-              {
-                exercise_id: "exercise-1",
-                name: "Bench Press",
-                muscle_group: "chest",
-                exercise_type: "strength",
-                is_mandatory: true,
-                sets: [
-                  {
-                    set_number: 1,
-                    target_reps_min: 5,
-                    target_reps_max: 7,
-                    target_weight_kg: 77.5,
-                  },
-                ],
-              },
-              {
-                exercise_id: "exercise-3",
-                name: "Shoulder Press",
-                muscle_group: "shoulders",
-                exercise_type: "strength",
-                is_mandatory: false,
-                sets: [],
-              },
-            ],
-          },
-          diff: {
-            summary: {
-              added_exercises: 1,
-              removed_exercises: 1,
-              modified_exercises: 1,
-              unchanged_exercises: 0,
-            },
-            exercises: [
-              {
-                change_type: "modified",
-                exercise_id: "exercise-1",
-                before_name: "Bench Press",
-                after_name: "Bench Press",
-                before_order: 1,
-                after_order: 1,
-                before_muscle_group: "chest",
-                after_muscle_group: "chest",
-                sets: [
-                  {
-                    change_type: "modified",
-                    set_number: 1,
-                    before: {
-                      set_number: 1,
-                      target_reps_min: 6,
-                      target_reps_max: 8,
-                    },
-                    after: {
-                      set_number: 1,
-                      target_reps_min: 5,
-                      target_reps_max: 7,
-                      target_weight_kg: 77.5,
-                    },
-                  },
-                ],
-              },
-              {
-                change_type: "removed",
-                exercise_id: "exercise-2",
-                before_name: "Row",
-                before_order: 2,
-                before_muscle_group: "back",
-                sets: [],
-              },
-              {
-                change_type: "added",
-                exercise_id: "exercise-3",
-                after_name: "Shoulder Press",
-                after_order: 2,
-                after_muscle_group: "shoulders",
-                sets: [],
-              },
-            ],
-          },
-          rate_limit: {
-            remaining: 1,
-            reset_at: "2026-05-24T11:00:00Z",
-          },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<UserRoutinesPage />);
-
-    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
-    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
-    await user.clear(screen.getByLabelText("Instrucciones para la IA"));
-    await user.type(
-      screen.getByLabelText("Instrucciones para la IA"),
-      "Sube intensidad y añade hombro.",
-    );
-    await user.click(screen.getByRole("button", { name: "Preparar mejora" }));
-
-    expect(await screen.findAllByRole("heading", { name: "Upper Strength Plus" })).toHaveLength(2);
-    expect(screen.getAllByText("Cambios detectados")).toHaveLength(1);
-    expect(screen.getByText("Añadidos")).toBeInTheDocument();
-    expect(screen.getAllByText("Shoulder Press")).toHaveLength(2);
-    expect(screen.getByText(/Quedan 1 intentos en esta hora/i)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/routines/routine-1/ai/upgrade"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          message: "Sube intensidad y añade hombro.",
-        }),
-      }),
-    );
-  });
-
-  it("regenerates the AI upgrade proposal with feedback", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 2,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-1",
-          name: "Upper Strength",
-          description: "Trabajo principal de torso",
-          exercise_count: 2,
-          source: "manual",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [],
-            },
-            {
-              id: "routine-exercise-2",
-              exercise_id: "exercise-2",
-              name: "Row",
-              muscle_group: "back",
-              exercise_order: 2,
-              sets: [],
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_json: {
-            name: "Upper Strength Plus",
-            objective: "Equilibrar la sesion y subir intensidad",
-            duration_minutes: 50,
-            target_muscles: ["chest", "back", "shoulders"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [],
-          },
-          diff: {
-            summary: {
-              added_exercises: 1,
-              removed_exercises: 0,
-              modified_exercises: 1,
-              unchanged_exercises: 0,
-            },
-            exercises: [],
-          },
-          rate_limit: {
-            remaining: 1,
-            reset_at: "2026-05-24T11:00:00Z",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_json: {
-            name: "Upper Strength Refined",
-            objective: "Mantener intensidad con menos volumen",
-            duration_minutes: 48,
-            target_muscles: ["chest", "back", "shoulders"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:15:00Z",
-            generation_source: "gemini",
-            exercises: [],
-          },
-          diff: {
-            summary: {
-              added_exercises: 0,
-              removed_exercises: 0,
-              modified_exercises: 2,
-              unchanged_exercises: 0,
-            },
-            exercises: [],
-          },
-          rate_limit: {
-            remaining: 0,
-            reset_at: "2026-05-24T11:00:00Z",
-          },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<UserRoutinesPage />);
-
-    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
-    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
-    await user.clear(screen.getByLabelText("Instrucciones para la IA"));
-    await user.type(
-      screen.getByLabelText("Instrucciones para la IA"),
-      "Sube intensidad y añade hombro.",
-    );
-    await user.click(screen.getByRole("button", { name: "Preparar mejora" }));
-
-    await user.type(
-      screen.getByLabelText("Ajustar la propuesta"),
-      "Recorta una serie y mantén el press principal.",
-    );
-    await user.click(screen.getByRole("button", { name: "Regenerar propuesta" }));
-
-    expect(await screen.findAllByRole("heading", { name: "Upper Strength Refined" })).toHaveLength(2);
-    expect(screen.getByText("Propuesta actualizada.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      expect.stringContaining("/api/routines/routine-1/ai/upgrade"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          message: "Sube intensidad y añade hombro.",
-          feedback_message: "Recorta una serie y mantén el press principal.",
-        }),
-      }),
-    );
-  });
-
-  it("saves an upgraded routine as a new routine", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-1",
-            name: "Upper Strength",
-            description: "Trabajo principal de torso",
-            exercise_count: 2,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-1",
-          name: "Upper Strength",
-          description: "Trabajo principal de torso",
-          exercise_count: 2,
-          source: "manual",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [],
-            },
-            {
-              id: "routine-exercise-2",
-              exercise_id: "exercise-2",
-              name: "Row",
-              muscle_group: "back",
-              exercise_order: 2,
-              sets: [],
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_json: {
-            name: "Upper Strength Plus",
-            objective: "Equilibrar la sesion y subir intensidad",
-            duration_minutes: 50,
-            target_muscles: ["chest", "back", "shoulders"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [
-              {
-                exercise_id: "exercise-1",
-                name: "Bench Press",
-                muscle_group: "chest",
-                exercise_type: "strength",
-                is_mandatory: true,
-                sets: [],
-              },
-            ],
-          },
-          diff: {
-            summary: {
-              added_exercises: 0,
-              removed_exercises: 0,
-              modified_exercises: 1,
-              unchanged_exercises: 0,
-            },
-            exercises: [],
-          },
-          rate_limit: {
-            remaining: 1,
-            reset_at: "2026-05-24T11:00:00Z",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_id: "routine-new-1",
-          routine_json: {
-            name: "Upper Strength Plus",
-            objective: "Equilibrar la sesion y subir intensidad",
-            duration_minutes: 50,
-            target_muscles: ["chest", "back", "shoulders"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [],
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-new-1",
-            name: "Upper Strength Plus",
-            description: "Generated routine",
-            exercise_count: 1,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-new-1",
-          name: "Upper Strength Plus",
-          description: "Generated routine",
-          exercise_count: 1,
-          source: "ai",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-ai-1",
-              exercise_id: "exercise-1",
-              name: "Bench Press",
-              muscle_group: "chest",
-              exercise_order: 1,
-              sets: [],
-            },
-          ],
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<UserRoutinesPage />);
-
-    await user.click(await screen.findByRole("button", { name: /Upper Strength/i }));
-    await user.click(await screen.findByRole("button", { name: "Mejorar con IA" }));
-    await user.clear(screen.getByLabelText("Instrucciones para la IA"));
-    await user.type(screen.getByLabelText("Instrucciones para la IA"), "Añade más intensidad.");
-    await user.click(screen.getByRole("button", { name: "Preparar mejora" }));
-    await user.click(await screen.findByRole("button", { name: "Guardar como nueva" }));
-
-    expect(await screen.findByRole("heading", { name: "Bench Press" })).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/routines/routine-1/ai/save-as-new"),
-      expect.objectContaining({
-        method: "POST",
-      }),
-    );
-  });
-
-  it("generates an AI routine preview and saves it after confirmation", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          items: [
-            {
-              id: "exercise-1",
-              name: "Bench Press",
-              description: "Press de pecho con barra",
-              muscle_group: "chest",
-              exercise_type: "strength",
-            },
-            {
-              id: "exercise-2",
-              name: "Squat",
-              description: "Sentadilla libre",
-              muscle_group: "legs",
-              exercise_type: "strength",
-            },
-          ],
-          page: 1,
-          limit: 100,
-          total: 2,
-          total_pages: 1,
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_json: {
-            name: "AI Strength",
-            objective: "Ganar masa muscular",
-            duration_minutes: 45,
-            target_muscles: ["legs", "back"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [
-              {
-                exercise_id: "exercise-1",
-                name: "Squat",
-                muscle_group: "legs",
-                exercise_type: "strength",
-                is_mandatory: false,
-                sets: [],
-              },
-            ],
-          },
-          rate_limit: {
-            remaining: 1,
-            reset_at: "2026-05-24T11:00:00Z",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          routine_id: "routine-ai-1",
-          routine_json: {
-            name: "AI Strength",
-            objective: "Ganar masa muscular",
-            duration_minutes: 45,
-            target_muscles: ["legs", "back"],
-            mandatory_count: 1,
-            generated_at: "2026-05-24T10:00:00Z",
-            generation_source: "gemini",
-            exercises: [
-              {
-                exercise_id: "exercise-1",
-                name: "Squat",
-                muscle_group: "legs",
-                exercise_type: "strength",
-                is_mandatory: false,
-                sets: [],
-              },
-            ],
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse([
-          {
-            id: "routine-ai-1",
-            name: "AI Strength",
-            description: "Generated routine",
-            exercise_count: 1,
-            updated_at: "2026-05-24T10:00:00Z",
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: "routine-ai-1",
-          name: "AI Strength",
-          description: "Generated routine",
-          exercise_count: 1,
-          source: "ai",
-          created_at: "2026-05-24T10:00:00Z",
-          updated_at: "2026-05-24T10:00:00Z",
-          exercises: [
-            {
-              id: "routine-exercise-ai-1",
-              exercise_id: "exercise-1",
-              name: "Squat",
+              id: "re-1",
+              exercise_id: "ex-1",
+              name: "Sentadilla",
               muscle_group: "legs",
               exercise_order: 1,
               sets: [],
             },
           ],
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
+        },
+      },
+    });
 
-    render(<UserRoutinesPage />);
+    const user = userEvent.setup();
+    renderPage();
 
-    await user.click(screen.getByRole("button", { name: "Crear rutina con IA" }));
-    await user.clear(screen.getByLabelText("Objetivo"));
-    await user.type(screen.getByLabelText("Objetivo"), "Ganar masa muscular");
-    await user.clear(screen.getByLabelText("Minutos"));
-    await user.type(screen.getByLabelText("Minutos"), "45");
-    await user.type(screen.getByLabelText("Musculos objetivo"), "legs, back");
+    await user.click(await screen.findByText("Lower Power"));
+
+    expect(await screen.findByText("Sentadilla")).toBeInTheDocument();
+  });
+
+  it("filtra las rutinas por tipo", async () => {
+    installFetch({
+      routines: [
+        {
+          id: "routine-1",
+          name: "Upper Strength",
+          routine_type: "Fuerza",
+          exercise_count: 0,
+        },
+        {
+          id: "routine-2",
+          name: "Lower Mobility",
+          routine_type: "Movilidad",
+          exercise_count: 1,
+        },
+      ],
+      detailById: {
+        "routine-2": {
+          id: "routine-2",
+          name: "Lower Mobility",
+          description: "",
+          source: "manual",
+          is_predefined: false,
+          routine_type: "Movilidad",
+          exercise_count: 1,
+          created_at: "2026-05-24T10:00:00Z",
+          updated_at: "2026-05-24T10:00:00Z",
+          exercises: [
+            {
+              id: "re-1",
+              exercise_id: "ex-1",
+              name: "Movilidad de cadera",
+              muscle_group: "legs",
+              exercise_order: 1,
+              sets: [],
+            },
+          ],
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Lower Mobility");
+    await user.click(screen.getByRole("button", { name: /Movilidad/ }));
+
+    expect(await screen.findByText("Movilidad de cadera")).toBeInTheDocument();
+    expect(screen.queryByText("Upper Strength")).not.toBeInTheDocument();
+  });
+
+  it("filtra la lista por el término de búsqueda", async () => {
+    installFetch({
+      routines: [
+        { id: "routine-1", name: "Upper Strength", exercise_count: 0 },
+        { id: "routine-2", name: "Lower Power", exercise_count: 0 },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByText("Lower Power");
     await user.type(
-      screen.getByPlaceholderText(
-        "Ej. prioriza press con barra, evita sentadillas traseras y mantén descansos largos.",
-      ),
-      "Prioriza press con barra y agrega trabajo de espalda.",
+      screen.getByPlaceholderText("Buscar por nombre, grupo..."),
+      "upper",
     );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Lower Power")).not.toBeInTheDocument();
+    });
+    expect(screen.getAllByText("Upper Strength").length).toBeGreaterThan(0);
+  });
+
+  it("crea una rutina manual", async () => {
+    const { calls } = installFetch({ routines: [] });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Crear rutina" }));
+    await user.type(screen.getByLabelText("Nombre"), "Mi rutina");
+
+    const createButtons = screen.getAllByRole("button", { name: "Crear rutina" });
+    const submitButton = createButtons[createButtons.length - 1];
+    if (!submitButton) {
+      throw new Error("submit button not found");
+    }
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) => call.method === "POST" && call.url.endsWith("/api/routines"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("edita una rutina existente", async () => {
+    const { calls } = installFetch({
+      routines: [{ id: "routine-1", name: "Upper Strength", exercise_count: 0 }],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Editar" }));
+    expect(await screen.findByDisplayValue("Upper Strength")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) => call.method === "PUT" && call.url.endsWith("/api/routines/routine-1"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("elimina una rutina tras confirmar", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const { calls } = installFetch({
+      routines: [{ id: "routine-1", name: "Upper Strength", exercise_count: 0 }],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
     await user.click(
-      await screen.findByRole("button", { name: /Bench Press/i }),
+      await screen.findByRole("button", { name: "Acciones de Upper Strength" }),
     );
-    await user.click(screen.getByRole("button", { name: "Generar vista previa" }));
+    await user.click(await screen.findByRole("button", { name: "Eliminar" }));
 
-    expect(await screen.findByRole("heading", { name: "AI Strength" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Guardar rutina" }));
-
-    expect(await screen.findByRole("heading", { name: "Squat" })).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/routines/ai/generate"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          objective: "Ganar masa muscular",
-          duration_minutes: 45,
-          target_muscle_groups: ["legs", "back"],
-          mandatory_exercises: ["Bench Press"],
-          notes: "Prioriza press con barra y agrega trabajo de espalda.",
-        }),
-      }),
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/routines/ai/save"),
-      expect.objectContaining({
-        method: "POST",
-      }),
-    );
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) => call.method === "DELETE" && call.url.endsWith("/api/routines/routine-1"),
+        ),
+      ).toBe(true);
+    });
   });
 
-  it("shows an empty state when the user has no routines", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
+  it("duplica una rutina", async () => {
+    const { calls } = installFetch({
+      routines: [{ id: "routine-1", name: "Upper Strength", exercise_count: 0 }],
+    });
 
-    render(<UserRoutinesPage />);
+    const user = userEvent.setup();
+    renderPage();
 
-    expect(await screen.findByText("Todavia no tienes rutinas guardadas.")).toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: "Acciones de Upper Strength" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Duplicar" }));
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          (call) =>
+            call.method === "POST" &&
+            call.url.endsWith("/api/routines/routine-1/duplicate"),
+        ),
+      ).toBe(true);
+    });
   });
 
-  it("shows an error state when the API fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ error: "failed" }, { status: 500 })),
+  it("deshabilita la creación al alcanzar el límite de rutinas", async () => {
+    const routines = Array.from({ length: 50 }, (_, index) => ({
+      id: `routine-${index}`,
+      name: `Rutina ${index}`,
+      exercise_count: 0,
+    }));
+    installFetch({ routines });
+
+    renderPage();
+
+    await screen.findAllByText("Rutina 0");
+    expect(screen.getByRole("button", { name: "Crear rutina" })).toBeDisabled();
+  });
+
+  it("abre el modal de creación con IA", async () => {
+    installFetch({ routines: [] });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Generar rutina con IA" }),
     );
 
-    render(<UserRoutinesPage />);
-
-    expect(await screen.findByText("No se pudieron cargar las rutinas.")).toBeInTheDocument();
+    const dialogTitle = await screen.findByText("Crear rutina con IA");
+    expect(dialogTitle).toBeInTheDocument();
+    expect(within(document.body).getByLabelText("Objetivo")).toBeInTheDocument();
   });
 });

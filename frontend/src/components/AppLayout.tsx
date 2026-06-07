@@ -120,7 +120,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
                   </NavLink>
               )}
 
-              <div ref={legalRef} className="relative">
+              <div ref={legalRef} className="relative flex">
                 <button
                     type="button"
                     aria-haspopup="menu"

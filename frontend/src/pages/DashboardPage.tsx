@@ -220,6 +220,18 @@ function formatMetricDelta(value?: number | null, suffix = "") {
   return `${sign}${value.toFixed(1)}${suffix}`;
 }
 
+function cleanDescription(description?: string | null) {
+  if (!description) return "";
+  return description
+    .split("\n")
+    .filter(
+      (line) =>
+        !line.startsWith("[Objetivo] ") && !line.startsWith("[Grupos musculares] "),
+    )
+    .join("\n")
+    .trim();
+}
+
 export default function DashboardPage() {
   const { user } = useOutletContext<OutletContext>();
   const navigate = useNavigate();
@@ -636,7 +648,7 @@ export default function DashboardPage() {
                         {routine.name}
                       </h4>
                       <p className="mt-1.5 text-[14px] font-semibold leading-[1.5] text-[#3a332c]/80 line-clamp-2">
-                        {routine.description || "Rutina lista para retomar cuando quieras."}
+                        {cleanDescription(routine.description) || "Esta rutina no tiene descripción."}
                       </p>
                     </li>
                   ))}

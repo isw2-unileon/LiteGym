@@ -1,18 +1,43 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../lib/api";
+import { exerciseTypeLabel, muscleGroupLabel } from "../lib/exerciseLabels";
 import AIRoutinePreviewModal, {
   type AIRoutinePreview,
   type AIRoutinePreviewSet,
 } from "../components/Routine/AIRoutinePreviewModal";
 import type { Exercise } from "../types/exercise";
+import {HelloHeader} from "@/components/HelloHeader.tsx";
+import {useOutletContext} from "react-router-dom";
+import type {LayoutUser} from "@/components/AppLayout.tsx";
+import {Stat} from "@/components/Stat.tsx";
+import {Card, CardHeader} from "@/components/Card.tsx";
+import {DialogPopup} from "@/components/DialogPopup.tsx";
+
+type RoutineFilter = {
+  key: string;
+  label: string;
+  count: number;
+};
 
 type RoutineSummary = {
+  is_predefined: boolean;
+  source: string;
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   exercise_count: number;
   updated_at?: string;
+  routine_type?: string;
 };
+
+type RoutineAction =
+    | "details"
+    | "edit"
+    | "improve"
+    | "plan"
+    | "duplicate"
+    | "delete";
+
 
 type RoutineSetDetail = {
   id: string;
@@ -32,12 +57,12 @@ type RoutineExerciseDetail = {
   id: string;
   exercise_id: string;
   name: string;
-  description?: string;
+  description: string | null;
   muscle_group: string;
   secondary_muscle_group?: string;
   exercise_type?: string;
   exercise_order: number;
-  notes?: string;
+  notes: string | null;
   sets: RoutineSetDetail[];
 };
 
@@ -103,6 +128,10 @@ type AIRoutineUpgradeResponse = {
   };
 };
 
+type OutletContext = {
+  user?: LayoutUser | null;
+};
+
 type AIRoutineUpgradeStatus = "idle" | "loading" | "success" | "error";
 type AIRoutineUpgradePersistAction = "idle" | "save_as_new" | "overwrite";
 
@@ -122,6 +151,18 @@ const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   year: "numeric",
 });
 
+function cleanDescription(description?: string | null) {
+  if (!description) return "";
+  return description
+    .split("\n")
+    .filter(
+      (line) =>
+        !line.startsWith("[Objetivo] ") && !line.startsWith("[Grupos musculares] "),
+    )
+    .join("\n")
+    .trim();
+}
+
 function formatRoutineDate(value?: string) {
   if (!value) {
     return "Sin fecha";
@@ -135,6 +176,34 @@ function formatRoutineDate(value?: string) {
   return dateFormatter.format(date);
 }
 
+// Valores del tipo ENUM public.tipo_rutina en la base de datos (en español).
+type RoutineFilterKey = "Fuerza" | "Movilidad" | "Resistencia" | "Sin clasificar";
+
+// Tipos de rutina disponibles para filtrar (sin contar "Todas").
+const ROUTINE_TYPE_FILTERS: { key: RoutineFilterKey; label: string }[] = [
+  { key: "Fuerza", label: "Fuerza" },
+  { key: "Movilidad", label: "Movilidad" },
+  { key: "Resistencia", label: "Resistencia" },
+  { key: "Sin clasificar", label: "Sin clasificar" },
+];
+
+function routineFilterKey(routine: RoutineSummary): RoutineFilterKey {
+  switch (routine.routine_type?.trim()) {
+    case "Fuerza":
+      return "Fuerza";
+    case "Movilidad":
+      return "Movilidad";
+    case "Resistencia":
+      return "Resistencia";
+    default:
+      return "Sin clasificar";
+  }
+}
+
+// TODO: límite de rutinas por usuario. Ajustar al valor real del requisito
+// (o cablearlo al backend cuando lo exponga).
+const MAX_ROUTINES_PER_USER = 50;
+
 export default function UserRoutinesPage() {
   const [routines, setRoutines] = useState<RoutineSummary[]>([]);
   const [status, setStatus] = useState<RoutineStatus>("idle");
@@ -143,7 +212,39 @@ export default function UserRoutinesPage() {
     null,
   );
   const [detailStatus, setDetailStatus] = useState<RoutineStatus>("idle");
+  const [routineActionStatus, setRoutineActionStatus] =
+    useState<RoutineStatus>("idle");
+  const [routineActionMessage, setRoutineActionMessage] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [routineSearch, setRoutineSearch] = useState("");
+  const [debouncedRoutineSearch, setDebouncedRoutineSearch] = useState("");
   const [isAIFormOpen, setIsAIFormOpen] = useState(false);
+  const [isManualFormOpen, setIsManualFormOpen] = useState(false);
+  const [editingRoutineId, setEditingRoutineId] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualObjective, setManualObjective] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+  const [manualType, setManualType] = useState<RoutineFilterKey>("Sin clasificar");
+  const [manualExercises, setManualExercises] = useState<ManualRoutineExerciseState[]>([]);
+  const [manualExerciseSearch, setManualExerciseSearch] = useState("");
+  const [manualStatus, setManualStatus] = useState<RoutineStatus>("idle");
+  const [manualMessage, setManualMessage] = useState("");
+  const [isExercisesCollapsed, setIsExercisesCollapsed] = useState(false);
+  const [isSetsCollapsed, setIsSetsCollapsed] = useState(false);
+  const [collapsedExerciseIds, setCollapsedExerciseIds] = useState<string[]>([]);
+
+  type ManualRoutineExerciseState = {
+    exercise_id: string;
+    name: string;
+    muscle_group: string;
+    exercise_type?: string | null;
+    sets: RoutineSetDetail[];
+  };
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [planDate, setPlanDate] = useState("");
+  const [planTime, setPlanTime] = useState("");
+  const [planStatus, setPlanStatus] = useState<RoutineStatus>("idle");
+  const [planMessage, setPlanMessage] = useState("");
   const [aiObjective, setAIObjective] = useState("Ganar fuerza");
   const [aiDuration, setAIDuration] = useState("60");
   const [aiMuscleGroups, setAIMuscleGroups] = useState("");
@@ -178,6 +279,8 @@ export default function UserRoutinesPage() {
   const fetchRoutineDetail = useCallback(async (routineID: string) => {
     setSelectedRoutineID(routineID);
     setDetailStatus("loading");
+    setRoutineActionStatus("idle");
+    setRoutineActionMessage("");
 
     try {
       const response = await fetch(apiUrl(`/api/routines/${routineID}`), {
@@ -199,13 +302,39 @@ export default function UserRoutinesPage() {
     }
   }, []);
 
+  const handleRoutineAction = (action: RoutineAction) => {
+    if (action === "improve") {
+      handleOpenAIUpgrade();
+      return;
+    }
+    if (action === "duplicate") {
+      void handleDuplicateRoutine();
+      return;
+    }
+    if (action === "delete") {
+      void handleDeleteRoutine();
+      return;
+    }
+    if (action === "edit") {
+      handleOpenEditRoutine();
+      return;
+    }
+    if (action === "plan") {
+      handleOpenPlanWorkout();
+      return;
+    }
+  };
+
   const fetchRoutines = useCallback(async () => {
     setStatus("loading");
 
     try {
-      const response = await fetch(apiUrl("/api/routines"), {
-        credentials: "include",
-      });
+      const response = await fetch(
+        apiUrl("/api/routines"),
+        {
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
         setRoutines([]);
@@ -221,6 +350,10 @@ export default function UserRoutinesPage() {
       setStatus("error");
     }
   }, []);
+
+  useEffect(() => {
+    void fetchRoutines();
+  }, [fetchRoutines]);
 
   const fetchAvailableExercises = useCallback(async () => {
     setAvailableExercisesStatus("loading");
@@ -261,11 +394,21 @@ export default function UserRoutinesPage() {
   }, []);
 
   useEffect(() => {
-    void fetchRoutines();
-  }, [fetchRoutines]);
+    if (routineSearch === debouncedRoutineSearch) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedRoutineSearch(routineSearch);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [routineSearch, debouncedRoutineSearch]);
 
   useEffect(() => {
-    if (!isAIFormOpen) {
+    if (!isAIFormOpen && !isManualFormOpen) {
       return;
     }
 
@@ -274,7 +417,7 @@ export default function UserRoutinesPage() {
     }
 
     void fetchAvailableExercises();
-  }, [availableExercisesStatus, fetchAvailableExercises, isAIFormOpen]);
+  }, [availableExercisesStatus, fetchAvailableExercises, isAIFormOpen, isManualFormOpen]);
 
   const toggleMandatoryExercise = (exerciseName: string) => {
     const normalizedName = exerciseName.trim();
@@ -292,6 +435,495 @@ export default function UserRoutinesPage() {
           )
         : [...current, normalizedName],
     );
+  };
+
+  const toggleExerciseCollapse = (exerciseId: string) => {
+    setCollapsedExerciseIds((current) =>
+      current.includes(exerciseId)
+        ? current.filter((id) => id !== exerciseId)
+        : [...current, exerciseId],
+    );
+  };
+
+  const toggleManualExercise = (exercise: Exercise) => {
+    setManualExercises((current) => {
+      const exists = current.some((ex) => ex.exercise_id === exercise.id);
+      if (exists) {
+        setCollapsedExerciseIds((ids) => ids.filter((id) => id !== exercise.id));
+        return current.filter((ex) => ex.exercise_id !== exercise.id);
+      }
+
+      const newState: ManualRoutineExerciseState = {
+        exercise_id: exercise.id,
+        name: exercise.name,
+        muscle_group: exercise.muscle_group,
+        exercise_type: exercise.exercise_type,
+        sets: [
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            set_number: 1,
+          },
+        ],
+      };
+      return [...current, newState];
+    });
+  };
+
+  const addManualSet = (exerciseId: string) => {
+    setManualExercises((current) =>
+      current.map((ex) => {
+        if (ex.exercise_id !== exerciseId) return ex;
+        const newSet: RoutineSetDetail = {
+          id: Math.random().toString(36).substring(2, 9),
+          set_number: ex.sets.length + 1,
+        };
+        return { ...ex, sets: [...ex.sets, newSet] };
+      }),
+    );
+  };
+
+  const removeManualSet = (exerciseId: string, setIndex: number) => {
+    setManualExercises((current) =>
+      current.map((ex) => {
+        if (ex.exercise_id !== exerciseId) return ex;
+        if (ex.sets.length <= 1) return ex;
+        const newSets = ex.sets
+          .filter((_, i) => i !== setIndex)
+          .map((set, i) => ({ ...set, set_number: i + 1 }));
+        return { ...ex, sets: newSets };
+      }),
+    );
+  };
+
+  const updateManualSet = (
+    exerciseId: string,
+    setIndex: number,
+    updates: Partial<RoutineSetDetail>,
+  ) => {
+    setManualExercises((current) =>
+      current.map((ex) => {
+        if (ex.exercise_id !== exerciseId) return ex;
+        const newSets = [...ex.sets];
+        const currentSet = newSets[setIndex];
+        if (!currentSet) return ex;
+
+        const updatedSet: RoutineSetDetail = { ...currentSet, ...updates };
+        newSets[setIndex] = updatedSet;
+        return { ...ex, sets: newSets };
+      }),
+    );
+  };
+
+  // Grupos musculares derivados de los ejercicios seleccionados (sin duplicados).
+  const manualMuscleGroupKeys = Array.from(
+    new Set(
+      manualExercises
+        .map((exercise) => exercise.muscle_group)
+        .filter((group) => group.trim() !== ""),
+    ),
+  );
+
+  const resetManualForm = () => {
+    setEditingRoutineId("");
+    setManualName("");
+    setManualObjective("");
+    setManualNotes("");
+    setManualType("Sin clasificar");
+    setManualExercises([]);
+    setManualExerciseSearch("");
+    setManualStatus("idle");
+    setManualMessage("");
+  };
+
+  const handleOpenCreateRoutine = () => {
+    resetManualForm();
+    setIsManualFormOpen(true);
+  };
+
+  const handleOpenEditRoutine = () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    resetManualForm();
+    setEditingRoutineId(selectedRoutine.id);
+    setManualName(selectedRoutine.name);
+    setManualExercises(
+      selectedRoutine.exercises.map((ex) => ({
+        exercise_id: ex.exercise_id,
+        name: ex.name,
+        muscle_group: ex.muscle_group,
+        exercise_type: ex.exercise_type,
+        sets: ex.sets.map((s) => ({
+          id: s.id,
+          set_number: s.set_number,
+          target_reps_min: s.target_reps_min ?? undefined,
+          target_reps_max: s.target_reps_max ?? undefined,
+          target_reps_text: s.target_reps_text,
+          target_weight_kg: s.target_weight_kg ?? undefined,
+          target_duration_seconds: s.target_duration_seconds ?? undefined,
+          target_distance_km: s.target_distance_km ?? undefined,
+          target_rir: s.target_rir ?? undefined,
+          rest_seconds: s.rest_seconds ?? undefined,
+          notes: s.notes,
+        })),
+      })),
+    );
+    setManualType(routineFilterKey(selectedRoutine));
+
+    // Parseamos las notas para recuperar objetivo y notas reales si existen.
+    // En el backend, las notas se guardan en el campo 'description'.
+    const lines = (selectedRoutine.description || "").split("\n");
+    let objective = "";
+    const cleanNotesLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith("[Objetivo] ")) {
+        objective = line.replace("[Objetivo] ", "").trim();
+      } else if (line.startsWith("[Grupos musculares] ")) {
+        // Ignorar, se deriva de los ejercicios.
+      } else {
+        cleanNotesLines.push(line);
+      }
+    }
+
+    setManualObjective(objective);
+    setManualNotes(cleanNotesLines.join("\n").trim());
+
+    setIsManualFormOpen(true);
+  };
+
+  const handleCloseManualForm = () => {
+    if (manualStatus === "loading") {
+      return;
+    }
+
+    setIsManualFormOpen(false);
+  };
+
+  const handleCreateManualRoutine = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    const trimmedName = manualName.trim();
+    const finalName =
+      trimmedName !== ""
+        ? trimmedName
+        : manualExercises.map((ex) => ex.name).join(", ");
+
+    if (finalName === "") {
+      setManualStatus("error");
+      setManualMessage("Ponle un nombre o selecciona algún ejercicio.");
+      return;
+    }
+
+    // Validación previa de rangos para evitar errores de base de datos
+    for (const ex of manualExercises) {
+      for (const s of ex.sets) {
+        if (
+          s.target_reps_min != null &&
+          s.target_reps_max != null &&
+          s.target_reps_min > s.target_reps_max
+        ) {
+          setManualStatus("error");
+          setManualMessage(
+            `En "${ex.name}", el mínimo de reps (${s.target_reps_min}) no puede ser mayor que el máximo (${s.target_reps_max}).`,
+          );
+          return;
+        }
+
+        if (s.target_rir != null && (s.target_rir < 0 || s.target_rir > 10)) {
+          setManualStatus("error");
+          setManualMessage(
+            `En "${ex.name}", el RIR (${s.target_rir}) debe estar entre 0 y 10.`,
+          );
+          return;
+        }
+      }
+    }
+
+    setManualStatus("loading");
+    setManualMessage("");
+
+    // El objetivo y los grupos musculares se incrustan en las notas con etiquetas.
+    const noteSections: string[] = [];
+    if (manualObjective.trim() !== "") {
+      noteSections.push(`[Objetivo] ${manualObjective.trim()}`);
+    }
+    if (manualMuscleGroupKeys.length > 0) {
+      noteSections.push(
+        `[Grupos musculares] ${manualMuscleGroupKeys
+          .map((group) => muscleGroupLabel(group))
+          .join(", ")}`,
+      );
+    }
+    if (manualNotes.trim() !== "") {
+      noteSections.push(manualNotes.trim());
+    }
+    const composedNotes = noteSections.join("\n");
+
+    const isEditing = editingRoutineId !== "";
+
+    try {
+      const response = await fetch(
+        isEditing
+          ? apiUrl(`/api/routines/${editingRoutineId}`)
+          : apiUrl("/api/routines"),
+        {
+          method: isEditing ? "PUT" : "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: finalName,
+            objective: manualObjective.trim(),
+            routine_type: manualType,
+            target_muscle_groups: manualMuscleGroupKeys,
+            notes: composedNotes,
+            exercises: manualExercises.map((ex) => ({
+              exercise_id: ex.exercise_id,
+              sets: ex.sets.map((s) => ({
+                set_number: s.set_number,
+                target_reps_min: s.target_reps_min && s.target_reps_min > 0 ? s.target_reps_min : null,
+                target_reps_max: s.target_reps_max && s.target_reps_max > 0 ? s.target_reps_max : null,
+                target_reps_text: s.target_reps_text,
+                target_weight_kg: s.target_weight_kg != null ? s.target_weight_kg : null,
+                target_duration_seconds: s.target_duration_seconds && s.target_duration_seconds > 0 ? s.target_duration_seconds : null,
+                target_distance_km: s.target_distance_km && s.target_distance_km > 0 ? s.target_distance_km : null,
+                target_rir: s.target_rir != null ? s.target_rir : null,
+                rest_seconds: s.rest_seconds != null ? s.rest_seconds : null,
+                notes: s.notes,
+              })),
+            })),
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | (AIRoutineSaveResponse & { error?: string; detail?: string })
+        | null;
+
+      if (!response.ok) {
+        setManualStatus("error");
+        setManualMessage(
+          payload?.detail ||
+            payload?.error ||
+            (isEditing
+              ? "No se pudo guardar la rutina."
+              : "No se pudo crear la rutina."),
+        );
+        return;
+      }
+
+      const routineToShow = isEditing ? editingRoutineId : payload?.routine_id;
+
+      setManualStatus("success");
+      setIsManualFormOpen(false);
+      resetManualForm();
+      await fetchRoutines();
+
+      if (routineToShow) {
+        await fetchRoutineDetail(routineToShow);
+      }
+    } catch {
+      setManualStatus("error");
+      setManualMessage(
+        isEditing
+          ? "No se pudo conectar para guardar la rutina."
+          : "No se pudo conectar para crear la rutina.",
+      );
+    }
+  };
+
+  const handleDuplicateRoutine = async () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    setRoutineActionStatus("loading");
+    setRoutineActionMessage("");
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/routines/${selectedRoutine.id}/duplicate`),
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | (AIRoutineSaveResponse & { error?: string; detail?: string })
+        | null;
+
+      if (!response.ok) {
+        setRoutineActionStatus("error");
+        setRoutineActionMessage(
+          payload?.detail || payload?.error || "No se pudo duplicar la rutina.",
+        );
+        return;
+      }
+
+      setRoutineActionStatus("idle");
+      setRoutineActionMessage("");
+      await fetchRoutines();
+
+      if (payload?.routine_id) {
+        await fetchRoutineDetail(payload.routine_id);
+      }
+    } catch {
+      setRoutineActionStatus("error");
+      setRoutineActionMessage("No se pudo conectar para duplicar la rutina.");
+    }
+  };
+
+  const handleDeleteRoutine = async () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    if (!window.confirm(`¿Eliminar la rutina "${selectedRoutine.name}"?`)) {
+      return;
+    }
+
+    setRoutineActionStatus("loading");
+    setRoutineActionMessage("");
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/routines/${selectedRoutine.id}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; detail?: string }
+          | null;
+        setRoutineActionStatus("error");
+        setRoutineActionMessage(
+          payload?.detail || payload?.error || "No se pudo eliminar la rutina.",
+        );
+        return;
+      }
+
+      setRoutineActionStatus("idle");
+      setRoutineActionMessage("");
+      setSelectedRoutineID("");
+      setSelectedRoutine(null);
+      setDetailStatus("idle");
+      await fetchRoutines();
+    } catch {
+      setRoutineActionStatus("error");
+      setRoutineActionMessage("No se pudo conectar para eliminar la rutina.");
+    }
+  };
+
+  const handleOpenPlanWorkout = () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    const today = new Date();
+    const year = String(today.getFullYear());
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+
+    setPlanDate(`${year}-${month}-${day}`);
+    setPlanTime("");
+    setPlanStatus("idle");
+    setPlanMessage("");
+    setIsPlanOpen(true);
+  };
+
+  const handleClosePlanWorkout = () => {
+    if (planStatus === "loading") {
+      return;
+    }
+
+    setIsPlanOpen(false);
+  };
+
+  const handlePlanWorkout = async () => {
+    if (selectedRoutine == null) {
+      return;
+    }
+
+    const [yearStr, monthStr, dayStr] = planDate.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+      setPlanStatus("error");
+      setPlanMessage("Introduce una fecha válida.");
+      return;
+    }
+
+    const [hourStr, minuteStr] = planTime.split(":");
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      setPlanStatus("error");
+      setPlanMessage("Introduce una hora válida.");
+      return;
+    }
+
+    const plannedAt = new Date(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      0,
+    ).toISOString();
+
+    setPlanStatus("loading");
+    setPlanMessage("");
+
+    try {
+      const response = await fetch(apiUrl("/api/workouts/planned"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          routine_id: selectedRoutine.id,
+          name: selectedRoutine.name,
+          planned_at: plannedAt,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; detail?: string }
+          | null;
+        setPlanStatus("error");
+        setPlanMessage(
+          payload?.detail ||
+            payload?.error ||
+            "No se pudo planificar el entreno.",
+        );
+        return;
+      }
+
+      setPlanStatus("success");
+      setIsPlanOpen(false);
+    } catch {
+      setPlanStatus("error");
+      setPlanMessage("No se pudo conectar para planificar el entreno.");
+    }
   };
 
   const handleGenerateAIRoutine = async (
@@ -677,56 +1309,834 @@ export default function UserRoutinesPage() {
     }
   };
 
-  const totalExercises = routines.reduce(
-    (total, routine) => total + routine.exercise_count,
-    0,
-  );
+  const { user } = useOutletContext<OutletContext>();
+
+  const routineLimitReached = routines.length >= MAX_ROUTINES_PER_USER;
+
+  const routineFilters: RoutineFilter[] = [
+    { key: "all", label: "Todas", count: routines.length },
+    ...ROUTINE_TYPE_FILTERS.map((filter) => ({
+      ...filter,
+      count: routines.filter((routine) => routineFilterKey(routine) === filter.key)
+        .length,
+    })),
+  ];
+
+  const visibleRoutines = routines.filter((routine) => {
+    const search = debouncedRoutineSearch.trim().toLowerCase();
+    const matchesSearch =
+      search === "" ||
+      routine.name.toLowerCase().includes(search) ||
+      (routine.description || "").toLowerCase().includes(search);
+
+    const matchesFilter =
+      activeFilter === "all" || routineFilterKey(routine) === activeFilter;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  // Mantiene una selección válida: si la seleccionada no está visible (al cargar,
+  // filtrar o buscar), pasa a la primera visible; si no queda ninguna, deselecciona.
+  useEffect(() => {
+    const stillVisible =
+      selectedRoutineID !== "" &&
+      visibleRoutines.some((routine) => routine.id === selectedRoutineID);
+
+    if (stillVisible) {
+      return;
+    }
+
+    const firstRoutine = visibleRoutines[0];
+    if (firstRoutine) {
+      void fetchRoutineDetail(firstRoutine.id);
+    } else if (selectedRoutineID !== "") {
+      setSelectedRoutineID("");
+      setSelectedRoutine(null);
+      setDetailStatus("idle");
+    }
+  }, [visibleRoutines, selectedRoutineID, fetchRoutineDetail]);
+
+  function countAIRoutines() {
+    return String(routines.filter((r) => r.source === "ai").length);
+  }
+
+  function countDefaultRoutines() {
+    return String(routines.filter((r) => r.is_predefined).length);
+  }
 
   return (
+      <main className="relative isolate overflow-x-hidden text-[#1f1b16] [font-family:'Inter',system-ui,sans-serif] antialiased pb-20">
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-8 top-12 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/20 blur-[1px]"
+        />
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
+        />
+        <div className="px-6 pt-8 sm:px-8">
+          <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
+            <div>
+              <HelloHeader page={"LISTADO DE RUTINAS"} user={user?.username ?? "Atleta"} />
+              <p className="mt-3.5 max-w-[640px] text-[15px] leading-[1.55] text-[#3a332c]">
+                Organiza, edita y planifica cualquier sesión con un solo click.
+              </p>
+              {status === "error" && (
+                  <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
+                    No se ha podido cargar toda la información de las rutinas.
+                  </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2.5">
+              <Stat n={String(routines?.length)} l="Rutinas totales" />
+              <Stat n={`${routines.length - parseInt(countDefaultRoutines())} / ${MAX_ROUTINES_PER_USER}`} l="Límite de rutinas propias" />
+              <Stat n={countDefaultRoutines()} l="Rutinas por defecto" />
+              <Stat n={countAIRoutines()} l="Rutinas con IA" />
+            </div>
+          </section>
+          <section className="mx-auto max-w-[1280px]">
+            <Toolbar
+                filters={routineFilters}
+                activeFilter={activeFilter}
+                onFilterChange={setActiveFilter}
+                search={routineSearch}
+                onSearchChange={setRoutineSearch}
+                onCreate={handleOpenCreateRoutine}
+                onCreateAI={() => setIsAIFormOpen(true)}
+                createDisabled={routineLimitReached}
+            />
+          </section>
+          <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-[18px] xl:grid-cols-[3fr_7fr]">
+            <div className="flex flex-col gap-[18px] mt-4">
+              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+                <CardHeader
+                    kicker={"Rutinas"}
+                    title={"Elige una rutina"}
+                />
+                <ul className="relative z-[2] mt-6 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+                  {visibleRoutines.length === 0 ? (
+                      <li className="rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                        {status === "loading"
+                          ? "Cargando rutinas..."
+                          : routineSearch.trim() !== ""
+                            ? "No hay rutinas que coincidan con la búsqueda."
+                            : routines.length === 0
+                              ? "Todavía no tienes rutinas guardadas."
+                              : "No hay rutinas de este tipo."}
+                      </li>
+                  ) : (
+                      visibleRoutines.map((routine) => (
+                      <li
+                          key={routine.id}
+                          onClick={() => void fetchRoutineDetail(routine.id)}
+                          className={[
+                            " cursor-pointer rounded-[16px] border bg-[#fffaf0]/75 p-4 transition hover:border-[#ea7130]/35 hover:bg-[#fff7ea] hover:shadow-[0_10px_22px_rgba(31,27,22,0.08)] has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:z-20",
+                            selectedRoutineID === routine.id
+                                ? "border-[#ea7130] shadow-[0_10px_22px_rgba(31,27,22,0.08)]"
+                                : "border-[#1f1b16]/10",
+                          ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center rounded-md bg-[#1f1b16] px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.16em] text-[#f1a45b]">
+                            {routine.is_predefined ? "Rutina por defecto" : "Rutina"}
+                          </span>
+                        </div>
+                        <h4 className="m-0 mt-2.5 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[18px] font-black leading-tight tracking-[-0.03em] text-[#1f1b16]">
+                          {routine.name}
+                        </h4>
+                        <p className="mt-1.5 text-[14px] font-semibold leading-[1.5] text-[#3a332c]/80 line-clamp-2">
+                          {cleanDescription(routine.description) || "Esta rutina no tiene descripción."}
+                        </p>
+                        <span className="mt-2 inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52]">
+                              {routine.exercise_count} {routine.exercise_count === 1 ? "ejercicio": "ejercicios"}
+                            </span>
+                      </li>
+                      ))
+                  )}
+
+                </ul>
+              </Card >
+            </div>
+            <div className="flex flex-col gap-[18px] mt-4">
+              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+                <CardHeader
+                    kicker={"Detalle"}
+                    title={selectedRoutine ? selectedRoutine.name : "Detalle de la rutina"}
+                    right={
+                      <RoutineActionsMenu
+                          routineName={selectedRoutine ? selectedRoutine.name : "Detalle de la rutina"}
+                          onSelect={(action) => handleRoutineAction(action)}
+                      />}
+                />
+                {detailStatus === "loading" ? (
+                    <p className="relative z-[2] mt-4 rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                      Cargando detalle...
+                    </p>
+                ) : detailStatus === "error" ? (
+                    <p className="relative z-[2] mt-4 rounded-[16px] border border-[#9f2f22]/20 bg-[#9f2f22]/8 p-6 text-center text-[14px] font-semibold text-[#9f2f22]">
+                      No se pudo cargar el detalle de la rutina.
+                    </p>
+                ) : selectedRoutine ? (
+                    <div className="relative mt-4 flex min-h-0 flex-1 flex-col gap-4">
+                      <div className="flex flex-wrap gap-2.5">
+                        <Stat n={formatRoutineDate(selectedRoutine.updated_at)} l="Última modificación" />
+                        <Stat n={selectedRoutine.source} l="Origen" />
+                        <Stat n={String(selectedRoutine.exercises.length)} l="Ejercicios" />
+                        <Stat n={String(selectedRoutine.exercises.reduce((total, exercise) => total + exercise.sets.length, 0))} l="Series" />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {ROUTINE_DETAIL_ACTIONS.map((action) => (
+                              <button
+                                  key={action.key}
+                                  type="button"
+                                  onClick={() => handleRoutineAction(action.key)}
+                                  className="inline-flex items-center gap-2 rounded-[10px] border border-[#1f1b16]/15 bg-[#fffaf0]/75 px-3.5 py-2 text-[14px] font-bold text-[#1f1b16] transition hover:-translate-y-px hover:border-[#ea7130]/40 hover:bg-[#f1a45b]/10"
+                              >
+                                {action.icon}
+                                {action.label}
+                              </button>
+                          ))}
+                        </div>
+                        <span className="ml-auto inline-flex items-center rounded-md bg-[#1f1b16] px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.16em] text-[#f1a45b]">
+                        {selectedRoutine.is_predefined ? "Rutina por defecto" : "Rutina"}
+                      </span>
+                        <span className="inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52]">
+                        {selectedRoutine.exercise_count} {selectedRoutine.exercise_count === 1 ? "ejercicio" : "ejercicios"}
+                      </span>
+                      </div>
+                      <p className="text-[15px] font-semibold leading-[0.75] text-[#3a332c]">
+                        {cleanDescription(selectedRoutine.description) || "Esta rutina no tiene descripción."}
+                      </p>
+                      {routineActionMessage && (
+                        <p
+                          className={`text-[13px] font-bold ${
+                            routineActionStatus === "error"
+                              ? "text-[#9f2f22]"
+                              : "text-[#265c52]"
+                          }`}
+                        >
+                          {routineActionMessage}
+                        </p>
+                      )}
+                      {selectedRoutine.exercises.length === 0 ? (
+                          <p className="rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                            Esta rutina no tiene ejercicios guardados.
+                          </p>
+                      ) : (
+                          <ul className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+                            {selectedRoutine.exercises.map((exercise) => {
+                              const firstSet = exercise.sets[0];
+                              return (
+                                  <li
+                                      key={exercise.id}
+                                      className="flex items-center justify-between gap-2 rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-4 text-[15px] font-bold text-[#1f1b16]"
+                                  >
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="[font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[20px] font-black text-[#265c52] opacity-80">#{exercise.exercise_order}</span>
+                                        <p className="text-[16px]">{exercise.name}</p>
+                                      </div>
+                                      <p className="text-[16px]">
+                                        {muscleGroupLabel(exercise.muscle_group)}
+                                        {exercise.secondary_muscle_group ? ` · ${muscleGroupLabel(exercise.secondary_muscle_group)}` : ""}
+                                      </p>
+                                      <p className="text-[16px]">{exercise.exercise_type ? exerciseTypeLabel(exercise.exercise_type) : "Sin tipo"}</p>
+                                    </div>
+                                    <span className="inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold uppercase tracking-wider text-[#265c52]">
+                                      {[
+                                        `${exercise.sets.length} ${exercise.sets.length === 1 ? "serie" : "series"}`,
+                                        firstSet ? formatReps(firstSet) : "",
+                                        firstSet?.target_rir != null ? `RIR ${firstSet.target_rir}` : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" · ")}
+                                    </span>
+                                  </li>
+                              );
+                            })}
+                          </ul>
+                      )}
+                    </div>
+                ) : (
+                    <p className="relative z-[2] mt-4 rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                      Selecciona una rutina del listado para ver sus datos aquí.
+                    </p>
+                )}
+
+              </Card>
+            </div>
+
+          </section>
+
+        </div>
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/88 p-6 shadow-[0_24px_60px_rgba(47,39,27,0.14)] lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-[#265c52]">
-            Biblioteca
-          </p>
-          <h1 className="mt-3 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-4xl font-black tracking-[-0.05em]">
-            Mis rutinas
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#5d5348]">
-            Rutinas guardadas para planificar entrenamientos y reutilizar
-            ejercicios.
-          </p>
-        </div>
+      {isManualFormOpen && (
+        <RoutineDialogShell
+          kicker={editingRoutineId !== "" ? "Editar rutina" : "Nueva rutina"}
+          kickerColor="#265c52"
+          title={editingRoutineId !== "" ? "Editar rutina" : "Crear rutina manual"}
+          maxWidthClass="max-w-3xl"
+          onClose={handleCloseManualForm}
+        >
+          <form className="grid gap-4" onSubmit={handleCreateManualRoutine}>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                  Nombre
+                </span>
+                <input
+                  className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
+                  placeholder="Opcional: se genera con los ejercicios"
+                  value={manualName}
+                  onChange={(event) => setManualName(event.target.value)}
+                />
+              </label>
 
-        <div className="space-y-3 lg:min-w-80">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-[#1f1b16]/10 bg-white/55 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7a6b5c]">
-                Rutinas
-              </p>
-              <p className="mt-2 text-3xl font-black">{routines.length}</p>
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                  Objetivo
+                </span>
+                <input
+                  className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
+                  placeholder="Ej. ganar fuerza"
+                  value={manualObjective}
+                  onChange={(event) => setManualObjective(event.target.value)}
+                />
+              </label>
             </div>
-            <div className="rounded-2xl border border-[#1f1b16]/10 bg-white/55 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#7a6b5c]">
-                Ejercicios
-              </p>
-              <p className="mt-2 text-3xl font-black">{totalExercises}</p>
-            </div>
-          </div>
 
-          <button
-            className="w-full rounded-2xl bg-[#265c52] px-4 py-3 text-sm font-black text-white shadow-[0_12px_25px_rgba(38,92,82,0.22)] transition hover:bg-[#1f1b16] disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            onClick={() => setIsAIFormOpen((current) => !current)}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                  Tipo de rutina
+                </span>
+                <select
+                  className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
+                  value={manualType}
+                  onChange={(event) =>
+                    setManualType(event.target.value as RoutineFilterKey)
+                  }
+                >
+                  {ROUTINE_TYPE_FILTERS.map((filter) => (
+                    <option key={filter.key} value={filter.key}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="block">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                  Grupos musculares
+                </span>
+                <div className="mt-2 flex min-h-[3.25rem] w-full flex-wrap items-center gap-2 rounded-2xl border border-[#1f1b16]/10 bg-white/60 px-4 py-3">
+                  {manualMuscleGroupKeys.length === 0 ? (
+                    <span className="text-sm font-medium text-[#3a332c]/50">
+                      Se completan al elegir ejercicios
+                    </span>
+                  ) : (
+                    <span className="text-sm font-bold capitalize text-[#1f1b16]">
+                      {manualMuscleGroupKeys
+                        .map((group) => muscleGroupLabel(group))
+                        .join(", ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
+                Notas
+              </span>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-semibold leading-6 outline-none transition placeholder:font-medium focus:border-[#265c52]"
+                placeholder="Notas o indicaciones para esta rutina."
+                value={manualNotes}
+                onChange={(event) => setManualNotes(event.target.value)}
+              />
+            </label>
+
+            <Card accent="#ea7130">
+              <div
+                onClick={() => setIsExercisesCollapsed(!isExercisesCollapsed)}
+                className="cursor-pointer"
+              >
+                <CardHeader
+                  kicker="Selección de ejercicios"
+                  title="Ejercicios"
+                  right={
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
+                        {manualExercises.length} seleccionados
+                      </span>
+                      <svg
+                        className={`h-5 w-5 transition-transform duration-300 ${
+                          isExercisesCollapsed ? "" : "rotate-180"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
+                  }
+                />
+              </div>
+
+              <div
+                className={`grid transition-[grid-template-rows] duration-300 ${
+                  isExercisesCollapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <label className="relative z-[2] mt-4 block">
+                    <span className="sr-only">Buscar ejercicios</span>
+                    <input
+                      className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition placeholder:font-medium focus:border-[#265c52]"
+                      placeholder="Buscar ejercicios por nombre o musculo"
+                      value={manualExerciseSearch}
+                      onChange={(event) =>
+                        setManualExerciseSearch(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <div className="relative z-[2] mt-4 max-h-72 overflow-y-auto pr-1">
+                    {availableExercisesStatus === "loading" && (
+                      <p className="rounded-2xl bg-white/70 p-4 text-sm font-semibold text-[#5d5348]">
+                        Cargando ejercicios disponibles...
+                      </p>
+                    )}
+
+                    {availableExercisesStatus === "error" && (
+                      <p className="rounded-2xl border border-[#9b2d20]/20 bg-[#fff0ed] p-4 text-sm font-semibold text-[#9b2d20]">
+                        {availableExercisesMessage}
+                      </p>
+                    )}
+
+                    {availableExercisesStatus === "success" &&
+                      (() => {
+                        const search = manualExerciseSearch.trim().toLowerCase();
+                        const filtered = availableExercises.filter(
+                          (exercise) => {
+                            if (search === "") {
+                              return true;
+                            }
+                            return (
+                              exercise.name.toLowerCase().includes(search) ||
+                              exercise.muscle_group
+                                .toLowerCase()
+                                .includes(search) ||
+                              (exercise.exercise_type ?? "")
+                                .toLowerCase()
+                                .includes(search)
+                            );
+                          },
+                        );
+
+                        if (filtered.length === 0) {
+                          return (
+                            <p className="rounded-2xl bg-white/70 p-4 text-sm font-semibold text-[#5d5348]">
+                              No hay ejercicios que coincidan con el filtro.
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            {filtered.map((exercise) => {
+                              const isSelected = manualExercises.some(
+                                (ex) => ex.exercise_id === exercise.id,
+                              );
+
+                              return (
+                                <button
+                                  key={exercise.id}
+                                  className={`flex w-full items-start gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+                                    isSelected
+                                      ? "border-[#ea7130] bg-[#fff4ea]"
+                                      : "border-[#1f1b16]/10 bg-white/90 hover:border-[#ea7130]/35 hover:bg-[#fff7ea]"
+                                  }`}
+                                  type="button"
+                                  onClick={() => toggleManualExercise(exercise)}
+                                >
+                                  <div className="min-w-0">
+                                    <p className="break-words text-sm font-black text-[#1f1b16]">
+                                      {exercise.name}
+                                    </p>
+                                    <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7a6b5c]">
+                                      {muscleGroupLabel(exercise.muscle_group)}
+                                      {exercise.exercise_type
+                                        ? ` · ${exerciseTypeLabel(
+                                            exercise.exercise_type,
+                                          )}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card accent="#ea7130">
+              <div
+                onClick={() => setIsSetsCollapsed(!isSetsCollapsed)}
+                className="cursor-pointer"
+              >
+                <CardHeader
+                  kicker="Configuración"
+                  title="Series y Repeticiones"
+                  right={
+                    <svg
+                      className={`h-5 w-5 transition-transform duration-300 ${
+                        isSetsCollapsed ? "" : "rotate-180"
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  }
+                />
+              </div>
+
+              <div
+                className={`grid transition-[grid-template-rows] duration-300 ${
+                  isSetsCollapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div className="relative z-[2] mt-4 space-y-6">
+                    {manualExercises.length === 0 ? (
+                      <p className="rounded-2xl border border-dashed border-[#1f1b16]/15 bg-white/50 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                        Selecciona ejercicios en la tarjeta anterior para configurar sus series.
+                      </p>
+                    ) : (
+                      manualExercises.map((ex) => {
+                        const isCollapsed = collapsedExerciseIds.includes(
+                          ex.exercise_id,
+                        );
+                        return (
+                          <div
+                            key={ex.exercise_id}
+                            className="rounded-2xl border border-[#1f1b16]/10 bg-white/50 p-4"
+                          >
+                            <div
+                              onClick={() =>
+                                toggleExerciseCollapse(ex.exercise_id)
+                              }
+                              className="flex cursor-pointer items-center justify-between gap-2"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <h5 className="text-sm font-black text-[#1f1b16]">
+                                  {ex.name}
+                                </h5>
+                                {isCollapsed && (
+                                  <span className="rounded-full bg-[#265c52]/10 px-2 py-0.5 text-[10px] font-black text-[#265c52]">
+                                    {ex.sets.length}{" "}
+                                    {ex.sets.length === 1 ? "serie" : "series"}
+                                  </span>
+                                )}
+                              </div>
+                              <svg
+                                className={`h-4 w-4 transition-transform duration-300 ${
+                                  isCollapsed ? "" : "rotate-180"
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2.5}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </div>
+
+                            <div
+                              className={`grid transition-[grid-template-rows] duration-300 ${
+                                isCollapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+                              }`}
+                            >
+                              <div className="min-h-0 overflow-hidden">
+                                <div className="mt-4 space-y-3">
+                                  {ex.sets.map((set, idx) => {
+                                    const isRangeInvalid =
+                                      set.target_reps_min != null &&
+                                      set.target_reps_max != null &&
+                                      set.target_reps_min > set.target_reps_max;
+
+                                    const isRirInvalid =
+                                      set.target_rir != null &&
+                                      (set.target_rir < 0 || set.target_rir > 10);
+
+                                    return (
+                                      <div key={set.id} className="space-y-1">
+                                        {/* Etiquetas superiores */}
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 pr-[92px]">
+                                          <span className="text-[10px] font-black uppercase tracking-wider text-[#7a6b5c]">
+                                            Min Reps
+                                          </span>
+                                          <span className="text-[10px] font-black uppercase tracking-wider text-[#7a6b5c]">
+                                            Max Reps
+                                          </span>
+                                          <span className="text-[10px] font-black uppercase tracking-wider text-[#7a6b5c]">
+                                            RIR
+                                          </span>
+                                        </div>
+
+                                        {/* Inputs y Botón centrado */}
+                                        <div className="flex items-center gap-3">
+                                          <div className="flex-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            <input
+                                              type="number"
+                                              className={`w-full rounded-lg border bg-white px-2 py-1.5 text-xs font-bold transition ${
+                                                isRangeInvalid
+                                                  ? "border-[#9b2d20] ring-1 ring-[#9b2d20]/20"
+                                                  : "border-[#1f1b16]/10"
+                                              }`}
+                                              value={set.target_reps_min ?? ""}
+                                              onChange={(e) =>
+                                                updateManualSet(ex.exercise_id, idx, {
+                                                  target_reps_min: e.target.value
+                                                    ? parseInt(e.target.value)
+                                                    : undefined,
+                                                })
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              className={`w-full rounded-lg border bg-white px-2 py-1.5 text-xs font-bold transition ${
+                                                isRangeInvalid
+                                                  ? "border-[#9b2d20] ring-1 ring-[#9b2d20]/20"
+                                                  : "border-[#1f1b16]/10"
+                                              }`}
+                                              value={set.target_reps_max ?? ""}
+                                              onChange={(e) =>
+                                                updateManualSet(ex.exercise_id, idx, {
+                                                  target_reps_max: e.target.value
+                                                    ? parseInt(e.target.value)
+                                                    : undefined,
+                                                })
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={10}
+                                              className={`w-full rounded-lg border bg-white px-2 py-1.5 text-xs font-bold transition ${
+                                                isRirInvalid
+                                                  ? "border-[#9b2d20] ring-1 ring-[#9b2d20]/20"
+                                                  : "border-[#1f1b16]/10"
+                                              }`}
+                                              value={set.target_rir ?? ""}
+                                              onChange={(e) => {
+                                                const val = e.target.value
+                                                  ? parseInt(e.target.value)
+                                                  : undefined;
+                                                updateManualSet(ex.exercise_id, idx, {
+                                                  target_rir: val,
+                                                });
+                                              }}
+                                            />
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              removeManualSet(ex.exercise_id, idx)
+                                            }
+                                            disabled={ex.sets.length <= 1}
+                                            className="px-3 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-lg bg-[#9b2d20]/10 text-[#9b2d20] transition hover:bg-[#9b2d20] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                          >
+                                            Eliminar
+                                          </button>
+                                        </div>
+
+                                        {(isRangeInvalid || isRirInvalid) && (
+                                          <div className="mt-2 space-y-1.5">
+                                            {isRangeInvalid && (
+                                              <div className="flex items-start gap-2 rounded-lg border border-[#9b2d20]/20 bg-[#9b2d20]/5 p-2">
+                                                <svg className="mt-0.5 w-3.5 h-3.5 text-[#9b2d20] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                <p className="text-[10px] font-black text-[#9b2d20] leading-[1.3] uppercase tracking-wide">
+                                                  Error de repeticiones: El mínimo ({set.target_reps_min}) no puede superar al máximo ({set.target_reps_max})
+                                                </p>
+                                              </div>
+                                            )}
+                                            {isRirInvalid && (
+                                              <div className="flex items-start gap-2 rounded-lg border border-[#9b2d20]/20 bg-[#9b2d20]/5 p-2">
+                                                <svg className="mt-0.5 w-3.5 h-3.5 text-[#9b2d20] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                <p className="text-[10px] font-black text-[#9b2d20] leading-[1.3] uppercase tracking-wide">
+                                                  Error de RIR: El valor ({set.target_rir}) debe estar entre 0 y 10
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  <button
+                                    type="button"
+                                    onClick={() => addManualSet(ex.exercise_id)}
+                                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#265c52] hover:text-[#1f1b16]"
+                                  >
+                                    <svg
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={3}
+                                      className="h-3 w-3"
+                                    >
+                                      <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                                    Añadir serie
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {manualMessage && (
+              <p
+                className={`text-sm font-black ${
+                  manualStatus === "error" ? "text-[#9b2d20]" : "text-[#265c52]"
+                }`}
+              >
+                {manualMessage}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-2xl border border-[#1f1b16]/10 px-4 py-3 text-sm font-black text-[#1f1b16] transition hover:border-[#1f1b16] hover:bg-[#1f1b16] hover:text-white"
+                type="button"
+                onClick={handleCloseManualForm}
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded-2xl bg-[#ea7130] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1f1b16] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={manualStatus === "loading"}
+                type="submit"
+              >
+                {editingRoutineId !== ""
+                  ? manualStatus === "loading"
+                    ? "Guardando..."
+                    : "Guardar cambios"
+                  : manualStatus === "loading"
+                    ? "Creando..."
+                    : "Crear rutina"}
+              </button>
+            </div>
+          </form>
+        </RoutineDialogShell>
+      )}
+
+      {isPlanOpen && selectedRoutine && (
+        <DialogPopup
+          kicker="Planificar entreno"
+          kickerColor="#ea7130"
+          title={selectedRoutine.name}
+          onClose={handleClosePlanWorkout}
+        >
+          <label
+            htmlFor="routine-plan-date"
+            className="block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold uppercase tracking-[0.16em] text-[#3a332c]"
           >
-            Crear rutina con IA
-          </button>
-        </div>
-      </div>
+            Día
+          </label>
+          <input
+            id="routine-plan-date"
+            type="date"
+            value={planDate}
+            onChange={(event) => setPlanDate(event.target.value)}
+            className="mt-2 w-full rounded-[14px] border border-[#1f1b16]/12 bg-white/85 px-4 py-3 text-[14px] font-semibold text-[#1f1b16] outline-none transition focus:border-[#ea7130] focus:ring-4 focus:ring-[#ea7130]/15"
+          />
+
+          <label
+            htmlFor="routine-plan-time"
+            className="mt-4 block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold uppercase tracking-[0.16em] text-[#3a332c]"
+          >
+            Hora estimada
+          </label>
+          <input
+            id="routine-plan-time"
+            type="time"
+            value={planTime}
+            onChange={(event) => setPlanTime(event.target.value)}
+            className="mt-2 w-full rounded-[14px] border border-[#1f1b16]/12 bg-white/85 px-4 py-3 text-[14px] font-semibold text-[#1f1b16] outline-none transition focus:border-[#ea7130] focus:ring-4 focus:ring-[#ea7130]/15"
+          />
+
+          {planMessage && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
+              {planMessage}
+            </p>
+          )}
+
+          <div className="mt-5 flex justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={handleClosePlanWorkout}
+              className="cursor-pointer rounded-[14px] border border-[#1f1b16]/18 bg-transparent px-4 py-3 text-[13px] font-extrabold tracking-[0.04em] text-[#9f2f22] transition hover:bg-[#1f1b16]/5"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => void handlePlanWorkout()}
+              disabled={planStatus === "loading" || !planDate || !planTime}
+              className="cursor-pointer rounded-[14px] bg-[#ea7130] px-5 py-3 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.30)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              {planStatus === "loading" ? "Guardando..." : "Guardar entreno"}
+            </button>
+          </div>
+        </DialogPopup>
+      )}
 
       {isAIFormOpen && (
+        <RoutineDialogShell
+          kicker="AI Routine"
+          kickerColor="#265c52"
+          title="Crear rutina con IA"
+          maxWidthClass="max-w-3xl"
+          onClose={() => setIsAIFormOpen(false)}
+        >
         <form
-          className="grid gap-4 rounded-[2rem] border border-[#265c52]/20 bg-[#ecf5ef] p-5 shadow-[0_18px_45px_rgba(47,39,27,0.10)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
           onSubmit={handleGenerateAIRoutine}
         >
           <div className="grid gap-4 lg:col-span-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
@@ -767,7 +2177,7 @@ export default function UserRoutinesPage() {
             </span>
             <input
               className="mt-2 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[#265c52]"
-              placeholder="chest, back, legs"
+              placeholder="Pecho, Espalda, Piernas ..."
               value={aiMuscleGroups}
               onChange={(event) => setAIMuscleGroups(event.target.value)}
             />
@@ -785,23 +2195,23 @@ export default function UserRoutinesPage() {
             />
           </label>
 
-          <section className="lg:col-span-2 rounded-[1.75rem] border border-[#1f1b16]/10 bg-white/70 p-4 shadow-[0_12px_28px_rgba(47,39,27,0.06)]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-                  Ejercicios obligatorios
+          <Card accent="#ea7130" className="lg:col-span-2">
+            <CardHeader
+              kicker="Selección de ejercicios"
+              title="Ejercicios obligatorios"
+              right={
+                <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
+                  {selectedMandatoryExercises.length} seleccionados
                 </span>
-                <p className="mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
-                  Selecciona ejercicios por nombre. La IA recibira exactamente
-                  esos nombres como referencia.
-                </p>
-              </div>
-              <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
-                {selectedMandatoryExercises.length} seleccionados
-              </span>
-            </div>
+              }
+            />
 
-            <label className="mt-4 block">
+            <p className="relative z-[2] mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
+              Selecciona ejercicios por nombre. La IA recibira exactamente esos
+              nombres como referencia.
+            </p>
+
+            <label className="relative z-[2] mt-4 block">
               <span className="sr-only">Buscar ejercicios</span>
               <input
                 className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm font-bold outline-none transition placeholder:font-medium focus:border-[#265c52]"
@@ -812,7 +2222,7 @@ export default function UserRoutinesPage() {
             </label>
 
             {selectedMandatoryExercises.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="relative z-[2] mt-4 flex flex-wrap gap-2">
                 {selectedMandatoryExercises.map((exerciseName) => (
                   <button
                     key={exerciseName}
@@ -826,7 +2236,7 @@ export default function UserRoutinesPage() {
               </div>
             )}
 
-            <div className="mt-4 max-h-72 overflow-y-auto rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-3">
+            <div className="relative z-[2] mt-4 max-h-72 overflow-y-auto pr-1">
               {availableExercisesStatus === "loading" && (
                 <p className="rounded-2xl bg-white/70 p-4 text-sm font-semibold text-[#5d5348]">
                   Cargando ejercicios disponibles...
@@ -886,10 +2296,10 @@ export default function UserRoutinesPage() {
                           return (
                             <button
                               key={exercise.id}
-                              className={`flex w-full items-start justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+                              className={`flex w-full items-start gap-4 rounded-2xl border px-4 py-3 text-left transition ${
                                 isSelected
-                                  ? "border-[#265c52] bg-[#ecf5ef]"
-                                  : "border-[#1f1b16]/10 bg-white/90 hover:border-[#265c52]/30 hover:bg-white"
+                                  ? "border-[#ea7130] bg-[#fff4ea]"
+                                  : "border-[#1f1b16]/10 bg-white/90 hover:border-[#ea7130]/35 hover:bg-[#fff7ea]"
                               }`}
                               type="button"
                               onClick={() => toggleMandatoryExercise(exercise.name)}
@@ -899,21 +2309,12 @@ export default function UserRoutinesPage() {
                                   {exercise.name}
                                 </p>
                                 <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7a6b5c]">
-                                  {exercise.muscle_group}
+                                  {muscleGroupLabel(exercise.muscle_group)}
                                   {exercise.exercise_type
-                                    ? ` · ${exercise.exercise_type}`
+                                    ? ` · ${exerciseTypeLabel(exercise.exercise_type)}`
                                     : ""}
                                 </p>
                               </div>
-                              <span
-                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
-                                  isSelected
-                                    ? "bg-[#265c52] text-white"
-                                    : "bg-[#265c52]/10 text-[#265c52]"
-                                }`}
-                              >
-                                {isSelected ? "Quitar" : "Añadir"}
-                              </span>
                             </button>
                           );
                         })}
@@ -922,7 +2323,7 @@ export default function UserRoutinesPage() {
                 </>
               )}
             </div>
-          </section>
+          </Card>
 
           <div className="flex flex-col gap-3 lg:col-span-2 sm:flex-row sm:items-center">
             <button
@@ -943,6 +2344,7 @@ export default function UserRoutinesPage() {
             )}
           </div>
         </form>
+        </RoutineDialogShell>
       )}
 
       <AIRoutinePreviewModal
@@ -953,210 +2355,6 @@ export default function UserRoutinesPage() {
         onClose={handleCloseAIRoutinePreview}
         onConfirm={() => void handleConfirmAIRoutine()}
       />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-        <div className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/88 p-5 shadow-[0_18px_45px_rgba(47,39,27,0.10)]">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-['Aptos_Display','Trebuchet_MS',sans-serif] text-2xl font-black">
-            Rutinas guardadas
-          </h2>
-          <button
-            className="rounded-2xl border border-[#1f1b16]/10 px-4 py-2 text-sm font-black text-[#265c52] transition hover:border-[#265c52] hover:bg-[#265c52] hover:text-white"
-            type="button"
-            onClick={() => void fetchRoutines()}
-          >
-            Actualizar
-          </button>
-        </div>
-
-        {status === "loading" && (
-          <p className="rounded-2xl bg-white/55 p-5 text-sm font-bold text-[#5d5348]">
-            Cargando rutinas...
-          </p>
-        )}
-
-        {status === "error" && (
-          <p className="rounded-2xl border border-[#9b2d20]/20 bg-[#fff0ed] p-5 text-sm font-bold text-[#9b2d20]">
-            No se pudieron cargar las rutinas.
-          </p>
-        )}
-
-        {status === "success" && routines.length === 0 && (
-          <p className="rounded-2xl bg-white/55 p-5 text-sm font-bold text-[#5d5348]">
-            Todavia no tienes rutinas guardadas.
-          </p>
-        )}
-
-        {status === "success" && routines.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-            {routines.map((routine) => (
-              <button
-                className={`rounded-2xl border p-5 text-left shadow-[0_12px_28px_rgba(47,39,27,0.08)] transition hover:border-[#265c52] hover:bg-white/85 ${
-                  selectedRoutineID === routine.id
-                    ? "border-[#265c52] bg-white/90"
-                    : "border-[#1f1b16]/10 bg-white/60"
-                }`}
-                key={routine.id}
-                type="button"
-                onClick={() => void fetchRoutineDetail(routine.id)}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-black text-[#1f1b16]">
-                      {routine.name}
-                    </h3>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#7a6b5c]">
-                      Actualizada {formatRoutineDate(routine.updated_at)}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
-                    {routine.exercise_count} ejercicios
-                  </span>
-                </div>
-
-                <p className="mt-4 text-sm font-semibold leading-6 text-[#5d5348]">
-                  {routine.description?.trim() ||
-                    "Rutina sin descripcion guardada."}
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
-        </div>
-
-        <aside className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/88 p-5 shadow-[0_18px_45px_rgba(47,39,27,0.10)]">
-          <h2 className="font-['Aptos_Display','Trebuchet_MS',sans-serif] text-2xl font-black">
-            Detalle
-          </h2>
-
-          {detailStatus === "idle" && (
-            <p className="mt-4 rounded-2xl bg-white/55 p-5 text-sm font-bold text-[#5d5348]">
-              Selecciona una rutina para ver sus ejercicios.
-            </p>
-          )}
-
-          {detailStatus === "loading" && (
-            <p className="mt-4 rounded-2xl bg-white/55 p-5 text-sm font-bold text-[#5d5348]">
-              Cargando detalle...
-            </p>
-          )}
-
-          {detailStatus === "error" && (
-            <p className="mt-4 rounded-2xl border border-[#9b2d20]/20 bg-[#fff0ed] p-5 text-sm font-bold text-[#9b2d20]">
-              No se pudo cargar el detalle de la rutina.
-            </p>
-          )}
-
-          {detailStatus === "success" && selectedRoutine && (
-            <div className="mt-4 space-y-4">
-              <div className="rounded-2xl bg-white/60 p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#265c52]">
-                      {selectedRoutine.source}
-                    </p>
-                    <h3 className="mt-2 text-2xl font-black">
-                      {selectedRoutine.name}
-                    </h3>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-[#5d5348]">
-                      {selectedRoutine.description?.trim() ||
-                        "Rutina sin descripcion guardada."}
-                    </p>
-                  </div>
-
-                  <button
-                    className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[#ea7130] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(234,113,48,0.26)] transition hover:bg-[#1f1b16]"
-                    type="button"
-                    onClick={handleOpenAIUpgrade}
-                  >
-                    Mejorar con IA
-                  </button>
-                </div>
-              </div>
-
-              {selectedRoutine.exercises.length === 0 ? (
-                <p className="rounded-2xl bg-white/55 p-5 text-sm font-bold text-[#5d5348]">
-                  Esta rutina no tiene ejercicios guardados.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {selectedRoutine.exercises.map((exercise) => (
-                    <article
-                      className="rounded-2xl border border-[#1f1b16]/10 bg-white/65 p-4"
-                      key={exercise.id}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-black">{exercise.name}</h4>
-                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-[#7a6b5c]">
-                            {exercise.muscle_group}
-                            {exercise.exercise_type
-                              ? ` · ${exercise.exercise_type}`
-                              : ""}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-[#1f1b16]/5 px-3 py-1 text-xs font-black">
-                          #{exercise.exercise_order}
-                        </span>
-                      </div>
-
-                      {exercise.notes && (
-                        <p className="mt-3 text-sm font-semibold text-[#5d5348]">
-                          {exercise.notes}
-                        </p>
-                      )}
-
-                      {exercise.sets.length > 0 && (
-                        <div className="mt-4 overflow-x-auto">
-                          <table className="w-full min-w-[520px] text-left text-sm">
-                            <thead className="text-xs uppercase tracking-[0.14em] text-[#7a6b5c]">
-                              <tr>
-                                <th className="py-2 pr-3">Serie</th>
-                                <th className="py-2 pr-3">Reps</th>
-                                <th className="py-2 pr-3">Peso</th>
-                                <th className="py-2 pr-3">RIR</th>
-                                <th className="py-2 pr-3">Descanso</th>
-                              </tr>
-                            </thead>
-                            <tbody className="font-bold text-[#1f1b16]">
-                              {exercise.sets.map((set) => (
-                                <tr
-                                  className="border-t border-[#1f1b16]/10"
-                                  key={set.id}
-                                >
-                                  <td className="py-2 pr-3">
-                                    {set.set_number}
-                                  </td>
-                                  <td className="py-2 pr-3">
-                                    {formatReps(set)}
-                                  </td>
-                                  <td className="py-2 pr-3">
-                                    {set.target_weight_kg != null
-                                      ? `${set.target_weight_kg} kg`
-                                      : "-"}
-                                  </td>
-                                  <td className="py-2 pr-3">
-                                    {set.target_rir ?? "-"}
-                                  </td>
-                                  <td className="py-2 pr-3">
-                                    {set.rest_seconds != null
-                                      ? `${set.rest_seconds}s`
-                                      : "-"}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </aside>
-      </div>
 
       {isAIUpgradeOpen && selectedRoutine && (
         <RoutineDialogShell
@@ -1283,7 +2481,7 @@ export default function UserRoutinesPage() {
                 badgeTone="neutral"
                 title={selectedRoutine?.name || "Rutina actual"}
                 description={
-                  selectedRoutine?.description?.trim() ||
+                  cleanDescription(selectedRoutine?.description) ||
                   "Rutina base seleccionada para preparar la mejora."
                 }
                 exerciseCount={selectedRoutine?.exercises.length ?? 0}
@@ -1486,26 +2684,27 @@ export default function UserRoutinesPage() {
         </RoutineDialogShell>
       )}
     </section>
+      </main>
   );
 }
 
 function formatReps(set: RoutineSetDetail) {
-  if (set.target_reps_text?.trim()) {
-    return set.target_reps_text;
-  }
-  if (set.target_reps_min != null && set.target_reps_max != null) {
-    return `${set.target_reps_min}-${set.target_reps_max}`;
-  }
-  if (set.target_reps_min != null) {
-    return `${set.target_reps_min}+`;
-  }
-  if (set.target_duration_seconds != null) {
-    return `${set.target_duration_seconds}s`;
-  }
   if (set.target_distance_km != null) {
     return `${set.target_distance_km} km`;
   }
-  return "-";
+  if (set.target_duration_seconds != null) {
+    return `${set.target_duration_seconds} segundos`;
+  }
+  if (set.target_reps_text?.trim()) {
+    return `${set.target_reps_text} repeticiones`;
+  }
+  if (set.target_reps_min != null && set.target_reps_max != null) {
+    return `${set.target_reps_min}-${set.target_reps_max} repeticiones`;
+  }
+  if (set.target_reps_min != null) {
+    return `${set.target_reps_min}+ repeticiones`;
+  }
+  return "";
 }
 
 function splitCommaList(value: string) {
@@ -1738,7 +2937,6 @@ function RoutineUpgradeSnapshotCard({
 
 function RoutineDialogShell({
   kicker,
-  kickerColor = "#265c52",
   title,
   maxWidthClass = "max-w-2xl",
   onClose,
@@ -1754,23 +2952,23 @@ function RoutineDialogShell({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
       <section
-        className={`w-full ${maxWidthClass} max-h-[calc(100vh-2rem)] overflow-hidden rounded-[28px] border border-[#1f1b16]/12 bg-[#fffaf0] shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]`}
+        className={`w-full ${maxWidthClass} max-h-[calc(100vh-10rem)] overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]`}
       >
-        <header className="grid grid-cols-[1fr_auto] items-center gap-4 bg-[#1f1b16] px-6 py-5 text-[#fffaf0]">
+        <header className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-t-[24px] bg-[#1f1b16] px-6 py-5 text-[#fffaf0]">
           <div>
             <div
-              className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-extrabold uppercase tracking-[0.30em]"
-              style={{ color: kickerColor }}
+              className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[16px] font-extrabold uppercase tracking-[0.30em]"
+              style={{ color: "#f1a45b" }}
             >
               {kicker}
             </div>
-            <h3 className="mt-1 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-[28px] font-black leading-none tracking-[-0.04em]">
+            <h3 className="mt-1 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-none tracking-[-0.04em]">
               {title}
             </h3>
           </div>
           <button
             aria-label="Cerrar modal de mejora con IA"
-            className="grid h-9 w-9 place-items-center rounded-[10px] border border-[#fffaf0]/20 bg-transparent text-[#fffaf0] transition hover:rotate-90 hover:bg-[#fffaf0]/10"
+            className="grid h-9 w-9 cursor-pointer place-items-center rounded-[10px] border border-[#fffaf0]/20 bg-transparent text-[#fffaf0] transition hover:rotate-90 hover:bg-[#fffaf0]/10"
             type="button"
             onClick={onClose}
           >
@@ -1786,10 +2984,256 @@ function RoutineDialogShell({
             </svg>
           </button>
         </header>
-        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5">
+        <div className="max-h-[calc(100vh-18rem)] overflow-y-auto bg-[#fffaf0] px-6 py-5">
           {children}
         </div>
       </section>
     </div>
   );
 }
+
+function Toolbar({
+                   filters,
+                   activeFilter,
+                   onFilterChange,
+                   search,
+                   onSearchChange,
+                   onCreate,
+                   onCreateAI,
+                   createDisabled = false,
+                 }: {
+  filters: RoutineFilter[];
+  activeFilter: string;
+  onFilterChange: (key: string) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onCreate: () => void;
+  onCreateAI: () => void;
+  createDisabled?: boolean;
+}) {
+  return (
+      <div className="flex flex-wrap items-center gap-2.5 rounded-[20px] border border-[#1f1b16]/12 bg-[#fffaf0]/75 p-2.5 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {filters.map((filter) => {
+            const isActive = filter.key === activeFilter;
+            return (
+                <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => onFilterChange(filter.key)}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-extrabold tracking-[-0.01em] transition",
+                      isActive
+                          ? "bg-[#1f1b16] text-[#fffaf0]"
+                          : "text-[#3a332c] hover:bg-[#1f1b16]/5",
+                    ].join(" ")}
+                >
+                  {filter.label}
+                  <span
+                      className={[
+                        "inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-black",
+                        isActive
+                            ? "bg-[#fffaf0]/20 text-[#fffaf0]"
+                            : "bg-[#1f1b16]/8 text-[#3a332c]",
+                      ].join(" ")}
+                  >
+                {filter.count}
+              </span>
+                </button>
+            );
+          })}
+        </div>
+
+        <label className="relative flex min-w-[220px] flex-1 items-center">
+          <span className="sr-only">Buscar rutina</span>
+          <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#3a332c]/50"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Buscar por nombre, grupo..."
+              className="w-full rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] py-2.5 pl-10 pr-4 text-[14px] font-bold text-[#1f1b16] outline-none transition placeholder:font-semibold placeholder:text-[#3a332c]/50 focus:border-[#265c52]"
+          />
+        </label>
+
+        <button
+            type="button"
+            onClick={onCreate}
+            disabled={createDisabled}
+            title={createDisabled ? "Has alcanzado el límite de rutinas propias" : undefined}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Crear rutina
+        </button>
+
+        <button
+            type="button"
+            onClick={onCreateAI}
+            disabled={createDisabled}
+            title={createDisabled ? "Has alcanzado el límite de rutinas" : undefined}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-2.5 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={0.75} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+            <path d="M12 2l1.9 5.6a3 3 0 0 0 1.9 1.9L21.5 11.5l-5.6 1.9a3 3 0 0 0-1.9 1.9L12 21l-1.9-5.6a3 3 0 0 0-1.9-1.9L2.5 11.5l5.6-1.9a3 3 0 0 0 1.9-1.9L12 2z" />
+          </svg>
+          Generar rutina con IA
+        </button>
+      </div>
+  );
+}
+
+function RoutineActionsMenu({
+                              routineName,
+                              onSelect,
+                            }: {
+  routineName: string;
+  onSelect: (action: RoutineAction) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const handleSelect = (action: RoutineAction) => {
+    setIsOpen(false);
+    onSelect(action);
+  };
+
+  return (
+      <div ref={menuRef} className={isOpen ? "relative z-50" : ""}>
+        <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={isOpen}
+            aria-label={`Acciones de ${routineName}`}
+            onClick={() => setIsOpen((open) => !open)}
+            className="grid h-[30px] w-[30px] place-items-center rounded-[10px] border border-[#1f1b16]/15 bg-[#fffaf0]/75 text-[#1f1b16] transition hover:-translate-y-px hover:bg-[#f1a45b]/10"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+            <circle cx="5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="19" cy="12" r="1.6" />
+          </svg>
+        </button>
+
+        {isOpen && (
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-48 overflow-hidden rounded-[14px] border border-[#1f1b16]/10 bg-[#fffaf0]/95 backdrop-blur-md shadow-[0_10px_30px_rgba(31,27,22,0.10)]">
+              {ROUTINE_MENU_ACTIONS.map((action) => (
+                  <button
+                      key={action.key}
+                      type="button"
+                      onClick={() => handleSelect(action.key)}
+                      className={[
+                        "flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-bold transition",
+                        action.destructive
+                            ? "border-t border-[#1f1b16]/10 text-[#9f2f22] hover:bg-[#9f2f22]/10"
+                            : "text-[#1f1b16]/80 hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]",
+                      ].join(" ")}
+                  >
+                    {action.icon}
+                    {action.label}
+                  </button>
+              ))}
+            </div>
+        )}
+      </div>
+  );
+}
+
+const ROUTINE_DETAIL_ACTIONS: {
+  key: RoutineAction;
+  label: string;
+  icon: ReactNode;
+}[] = [
+  {
+    key: "edit",
+    label: "Editar",
+    icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+    ),
+  },
+  {
+    key: "plan",
+    label: "Planificar",
+    icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0">
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4" />
+          <path d="M8 2v4" />
+          <path d="M3 10h18" />
+        </svg>
+    ),
+  },
+  {
+    key: "improve",
+    label: "Mejorar con IA",
+    icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={0.75} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0">
+          <path d="M12 2l1.9 5.6a3 3 0 0 0 1.9 1.9L21.5 11.5l-5.6 1.9a3 3 0 0 0-1.9 1.9L12 21l-1.9-5.6a3 3 0 0 0-1.9-1.9L2.5 11.5l5.6-1.9a3 3 0 0 0 1.9-1.9L12 2z" />
+        </svg>
+    ),
+  },
+];
+
+const ROUTINE_MENU_ACTIONS: {
+  key: RoutineAction;
+  label: string;
+  icon: ReactNode;
+  destructive?: boolean;
+}[] = [
+  {
+    key: "duplicate",
+    label: "Duplicar",
+    icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0">
+          <rect x="9" y="9" width="13" height="13" rx="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+    ),
+  },
+  {
+    key: "delete",
+    label: "Eliminar",
+    destructive: true,
+    icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0">
+          <path d="M3 6h18" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+    ),
+  },
+];

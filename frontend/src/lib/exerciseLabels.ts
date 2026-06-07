@@ -32,9 +32,25 @@ const exerciseTypeLabels: Record<string, string> = {
   cooldown: "Vuelta a la calma",
   technique: "Técnica",
   rehab: "Rehabilitación",
+  bodyweight: "Peso corporal",
+  hypertrophy: "Hipertrofia",
+  isometric: "Isométrico",
 };
 
 export function muscleGroupLabel(value: string): string {
+  if (!value) return value;
+
+  // Si vienen varios grupos separados por coma (agregados por el backend)
+  if (value.includes(",")) {
+    return value
+      .split(",")
+      .map((part) => {
+        const key = part.trim().toLowerCase();
+        return muscleGroupLabels[key] ?? part.trim();
+      })
+      .join(", ");
+  }
+
   const key = value.trim().toLowerCase();
   return muscleGroupLabels[key] ?? value;
 }
