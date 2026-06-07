@@ -92,7 +92,7 @@ function installFetch(options: InstallOptions = {}) {
 
     const byIdMatch = path.match(/^\/api\/routines\/([^/]+)$/);
     if (byIdMatch) {
-      const id = byIdMatch[1];
+      const id = byIdMatch[1] ?? "";
       if (method === "GET") {
         return jsonResponse(buildDetail(id, routines, options.detailById));
       }
@@ -308,7 +308,11 @@ describe("UserRoutinesPage", () => {
     await user.type(screen.getByLabelText("Nombre"), "Mi rutina");
 
     const createButtons = screen.getAllByRole("button", { name: "Crear rutina" });
-    await user.click(createButtons[createButtons.length - 1]);
+    const submitButton = createButtons[createButtons.length - 1];
+    if (!submitButton) {
+      throw new Error("submit button not found");
+    }
+    await user.click(submitButton);
 
     await waitFor(() => {
       expect(
