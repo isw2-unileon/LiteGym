@@ -3,7 +3,6 @@ CREATE SCHEMA public;
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE public.friendship_status AS ENUM ('pending', 'accepted', 'rejected');
 CREATE TYPE public.ticket_status AS ENUM ('open', 'in_progress', 'closed');
 CREATE TYPE public.user_role AS ENUM ('user', 'admin');
 CREATE TYPE public.routine_type AS ENUM ('Fuerza', 'Movilidad', 'Resistencia', 'Sin clasificar');
@@ -112,19 +111,6 @@ CREATE TABLE public.exercise_secondary_muscle_groups (
     UNIQUE (exercise_id, muscle_group)
 );
 
-CREATE TABLE public.friendships (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  requester_id UUID NOT NULL,
-  addressee_id UUID NOT NULL,
-  status public.friendship_status NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP NOT NULL DEFAULT now(),
-  CONSTRAINT friendships_requester_id_fkey
-    FOREIGN KEY (requester_id) REFERENCES public.users(id) ON DELETE CASCADE,
-  CONSTRAINT friendships_addressee_id_fkey
-    FOREIGN KEY (addressee_id) REFERENCES public.users(id) ON DELETE CASCADE
-);
-
 CREATE TABLE public.routines (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
@@ -175,20 +161,6 @@ CREATE TABLE public.routine_exercise_sets (
       OR target_reps_max IS NULL
       OR target_reps_min <= target_reps_max
     )
-);
-
-CREATE TABLE public.shared_routines (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  routine_id UUID NOT NULL,
-  owner_user_id UUID NOT NULL,
-  shared_with_user_id UUID NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
-  CONSTRAINT shared_routines_routine_id_fkey
-    FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE CASCADE,
-  CONSTRAINT shared_routines_owner_user_id_fkey
-    FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE CASCADE,
-  CONSTRAINT shared_routines_shared_with_user_id_fkey
-    FOREIGN KEY (shared_with_user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.support_tickets (

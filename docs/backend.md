@@ -163,8 +163,10 @@ Important handlers:
 
 - `auth_handler.go`
 - `user_handler.go`
+- `profile_handler.go`
 - `exercise_handler.go`
 - `routine_handler.go`
+- `routine_manual_handler.go`
 - `overview_handler.go`
 - `ticket_handler.go`
 - `workout_handler.go`

@@ -1,5 +1,9 @@
 # LiteGym
 
+> **University of León · Software Engineering II · 2025–2026**
+> Course project developed in the [`isw2-unileon`](https://github.com/isw2-unileon) GitHub organization.
+> Repository: [`isw2-unileon/LiteGym`](https://github.com/isw2-unileon/LiteGym)
+
 LiteGym is a full-stack fitness app for routines, workouts, progress tracking, and AI-assisted training plans. The repository is a monorepo with a Go API, a React frontend, PostgreSQL, and end-to-end tests.
 
 ## What It Covers
@@ -10,6 +14,18 @@ LiteGym is a full-stack fitness app for routines, workouts, progress tracking, a
 - workout sessions with exercises and sets
 - dashboard insights and support tickets
 - basic admin views
+
+## Team
+
+Developed by a team of students. Individual contribution is tracked through the Git commit history and GitHub Projects.
+
+| Name | GitHub                                   |
+|-----|------------------------------------------|
+| Raúl Sevilla Salto | [@rsevis00](https://github.com/rsevis00) |
+| Diego Hernández Gómez | [@dherng03](https://github.com/dherng03) |
+| David Fernández Janeiro | [@DFernJ](https://github.com/DFernJ)   |
+| Mario Arias García | [@MarioAriasGarcia](https://github.com/MarioAriasGarcia) |
+
 
 ## Requirements
 
@@ -22,7 +38,7 @@ LiteGym is a full-stack fitness app for routines, workouts, progress tracking, a
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/isw2-unileon/LiteGym.git
    cd LiteGym
    ```
 2. Create a local environment override file from the example:
@@ -83,12 +99,31 @@ Run E2E tests:
 make e2e
 ```
 
+## Deployment
+
+The application is deployed and accessible from the browser, always reflecting the latest version of the `main` branch:
+
+- Live app: `https://litegym.onrender.com`
+- Backend API: `https://litegym-backend.onrender.com`
+
+To run it locally instead, see [Local Setup](#local-setup).
+
+## CI/CD
+
+Continuous integration runs on GitHub Actions, with a separate pipeline per area:
+
+- `.github/workflows/backend.yml` — backend build and tests
+- `.github/workflows/frontend.yml` — frontend build and tests
+- `.github/workflows/e2e.yml` — end-to-end tests
+
 ## Contributing
 
+- Workflow: Trunk Based Development — short-lived branches per task, integrated frequently into `main`. No long-lived branches or GitFlow.
 - Branch names: use short, descriptive branches such as `feature/...`, `fix/...`, or `chore/...`.
-- Commit messages: keep them imperative and specific, for example `fix ai routine save rate limit`.
+- Commit messages: use types (feat:, fix:, chore:, refactor:, ...) keep them imperative and specific, for example `fix ai routine save rate limit`.
 - Pull requests: include a concise summary, the relevant test output, and screenshots or API examples when the change affects UI or payloads.
 - Before opening a PR, run the relevant backend, frontend, and integration tests for the area you changed.
+- Language: English is used across the whole repository — code, comments, documentation, branch names, commit messages, and issues.
 
 See the technical documentation in [`docs/index.md`](docs/index.md).
 
@@ -123,3 +158,7 @@ make reset-postgres-db
 - AI routine generation uses a preview-and-confirm flow.
 - The AI service can create user-owned exercises automatically when Gemini proposes a valid exercise that does not already exist.
 - AI routine endpoints are rate-limited in transport middleware.
+
+---
+
+_University of León · Software Engineering II · 2025–2026 · [github.com/isw2-unileon](https://github.com/isw2-unileon)_

@@ -48,13 +48,16 @@ Each layer does one job:
 
 The frontend is route-driven and mostly lives behind authentication:
 
-- `/` login
+- `/` login (public-only)
+- `/register` registration (public-only)
 - `/dashboard`
+- `/workouts/:id/fill` fill/execute a workout
 - `/profile`
 - `/routines`
 - `/exercises`
 - `/admin`
 - `/support`
+- `/legal/*` legal notice, privacy, cookies, and terms pages
 
 The application shell is provided by:
 
@@ -113,7 +116,6 @@ The system centers on these domains:
 - routines and routine exercises
 - workout sessions, workout exercises, and workout sets
 - support tickets
-- social sharing and friendships
 - AI routine generation
 
 ## Storage model

@@ -18,7 +18,6 @@ The schema models:
 - exercises
 - routines and routine exercise templates
 - workouts and performed sets
-- friendships and routine sharing
 - support tickets
 - AI generation logs
 
@@ -26,9 +25,9 @@ The schema models:
 
 The schema defines these enums:
 
-- `friendship_status`
 - `ticket_status`
 - `user_role`
+- `routine_type` (`'Fuerza'`, `'Movilidad'`, `'Resistencia'`, `'Sin clasificar'`)
 
 ## Core tables
 
@@ -91,6 +90,7 @@ Important columns:
 - `source`
 - `is_predefined`
 - `is_public`
+- `routine_type` (enum, defaults to `'Sin clasificar'`)
 
 ### `routine_exercises`
 
@@ -123,14 +123,6 @@ Exercises executed during a workout session.
 
 Performed set records for workout exercises. This table supports both target values and actual values.
 
-### `friendships`
-
-Social relationship table between users.
-
-### `shared_routines`
-
-Stores explicit routine sharing entries.
-
 ### `support_tickets`
 
 Stores support conversations in a lightweight ticket form.
@@ -155,7 +147,6 @@ users
 
 routines
   |-- routine_exercises
-  `-- shared_routines
 
 routine_exercises
   `-- routine_exercise_sets
@@ -175,7 +166,6 @@ The seed file includes:
 - user profiles
 - body metrics history
 - official and private exercises
-- sample friendships
 - sample routines
 - routine exercises and planned sets
 - support tickets

@@ -25,15 +25,19 @@ Routes are defined in:
 
 Current route map:
 
-- `/` -> login
+- `/` -> login (public-only)
+- `/register` -> registration (public-only)
 - `/dashboard` -> dashboard page
+- `/workouts/:id/fill` -> fill/execute a workout
 - `/exercises` -> exercise management and insights
 - `/profile` -> user profile page
 - `/routines` -> routine library and AI routine flow
 - `/admin` -> admin page
 - `/support` -> support page
+- `/legal/aviso-legal`, `/legal/privacidad`, `/legal/cookies`, `/legal/terminos` -> legal pages
 
-Any unknown route falls back through `NotFoundRedirect`.
+Public-only routes (`/`, `/register`) redirect to `/dashboard` when a session is
+already active. Any unknown route falls back through `NotFoundRedirect`.
 
 ## Authenticated application shell
 
