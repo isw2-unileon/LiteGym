@@ -570,7 +570,7 @@ export default function ExercisePage() {
             <div className="flex flex-wrap gap-2.5">
               <Stat n={String(exercises.length)} l="Ejercicios" />
               <Stat n={String(officialCount)} l="Ejercicios oficiales" />
-              <Stat n={String(customCount)} l="Ejercicios propios" />
+              <Stat n={String(customCount)} l="Ejercicios no oficiales" />
             </div>
           </section>
 
@@ -672,7 +672,7 @@ export default function ExercisePage() {
                     />
                     <InfoTile
                         label="Estado"
-                        value={selectedExercise.is_official === false ? "Propio" : "Oficial"}
+                        value={selectedExercise.is_official === false ? "No oficial" : "Oficial"}
                     />
                     <InfoTile
                         label="Descripción"

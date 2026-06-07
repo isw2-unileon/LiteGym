@@ -69,6 +69,15 @@ func (r *exerciseRepository) GetByID(ctx context.Context, id string) (*model.Exe
 	return &exercise, nil
 }
 
+// ownerUserIDParam returns nil for an empty user id so the owner filter is
+// skipped (admins see every exercise); otherwise it returns the id to filter by.
+func ownerUserIDParam(userID string) *string {
+	if strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	return &userID
+}
+
 func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	total, err := r.countExercises(ctx, filters)
 	if err != nil {
@@ -114,6 +123,7 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 				)
 			)
 			AND ($4::boolean IS NULL OR e.is_official = $4)
+			AND ($7::uuid IS NULL OR e.is_official = true OR e.owner_user_id = $7::uuid)
 		GROUP BY
 			e.id,
 			e.name,
@@ -135,6 +145,7 @@ func (r *exerciseRepository) List(ctx context.Context, filters model.ExerciseFil
 		filters.Official,
 		filters.Limit,
 		offset,
+		ownerUserIDParam(filters.UserID),
 	)
 	if err != nil {
 		return nil, 0, err
@@ -199,6 +210,7 @@ func (r *exerciseRepository) countExercises(ctx context.Context, filters model.E
 				)
 			)
 			AND ($4::boolean IS NULL OR e.is_official = $4)
+			AND ($5::uuid IS NULL OR e.is_official = true OR e.owner_user_id = $5::uuid)
 	`
 
 	var total int
@@ -210,6 +222,7 @@ func (r *exerciseRepository) countExercises(ctx context.Context, filters model.E
 		filters.Type,
 		filters.MuscleGroup,
 		filters.Official,
+		ownerUserIDParam(filters.UserID),
 	).Scan(&total)
 	if err != nil {
 		return 0, err
