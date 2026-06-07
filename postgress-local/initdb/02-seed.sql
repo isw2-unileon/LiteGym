@@ -76,12 +76,12 @@ VALUES
   ('77777777-7777-7777-7777-777777777772', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'pending'),
   ('77777777-7777-7777-7777-777777777773', '22222222-2222-2222-2222-222222222222', '44444444-4444-4444-4444-444444444444', 'accepted');
 
-INSERT INTO public.routines (id, user_id, name, description, is_predefined, is_public)
+INSERT INTO public.routines (id, user_id, name, description, routine_type, is_predefined, is_public)
 VALUES
-  ('88888888-8888-8888-8888-888888888881', '11111111-1111-1111-1111-111111111111', 'Push Pull Legs', 'Rutina dividida en 3 días', false, true),
-  ('88888888-8888-8888-8888-888888888882', '22222222-2222-2222-2222-222222222222', 'Full Body Inicio', 'Rutina sencilla de cuerpo completo', false, true),
-  ('88888888-8888-8888-8888-888888888883', '11111111-1111-1111-1111-111111111111', 'Torso Pierna', 'Rutina de 4 días', true, true),
-  ('88888888-8888-8888-8888-888888888884', '33333333-3333-3333-3333-333333333333', 'Definición Express', 'Rutina con superseries y cardio', false, false);
+  ('88888888-8888-8888-8888-888888888881', '11111111-1111-1111-1111-111111111111', 'Push Pull Legs', 'Rutina dividida en 3 días', 'Fuerza', false, true),
+  ('88888888-8888-8888-8888-888888888882', '22222222-2222-2222-2222-222222222222', 'Full Body Inicio', 'Rutina sencilla de cuerpo completo', 'Sin clasificar', false, true),
+  ('88888888-8888-8888-8888-888888888883', '11111111-1111-1111-1111-111111111111', 'Torso Pierna', 'Rutina de 4 días', 'Fuerza', true, true),
+  ('88888888-8888-8888-8888-888888888884', '33333333-3333-3333-3333-333333333333', 'Definición Express', 'Rutina con superseries y cardio', 'Resistencia', false, false);
 
 INSERT INTO public.routine_exercises (id, routine_id, exercise_id, exercise_order, notes)
 VALUES
@@ -243,3 +243,38 @@ VALUES
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee117', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 1, 9, 17.5, NULL, NULL, 2, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee118', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 2, 8, 18, NULL, NULL, 1, true),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeee119', 'dddddddd-dddd-dddd-dddd-ddddddddddea', 3, 12, 15, NULL, NULL, 2, true);
+
+-- Rutinas de ejemplo que cubren cada routine_type para el filtro de la Toolbar
+-- y el detalle (usuario: diego). Incluyen ejercicios y series planificadas.
+INSERT INTO public.routines (id, user_id, name, description, routine_type, is_predefined, is_public)
+VALUES
+  ('88888888-8888-8888-8888-888888888885', '11111111-1111-1111-1111-111111111111', 'Movilidad y core', 'Sesión de movilidad articular y core', 'Movilidad', false, false),
+  ('88888888-8888-8888-8888-888888888886', '11111111-1111-1111-1111-111111111111', 'Resistencia metabólica', 'Circuito de alta densidad', 'Resistencia', false, false),
+  ('88888888-8888-8888-8888-888888888887', '11111111-1111-1111-1111-111111111111', 'Rutina libre', 'Rutina sin clasificar todavía', 'Sin clasificar', false, false);
+
+INSERT INTO public.routine_exercises (id, routine_id, exercise_id, exercise_order, notes)
+VALUES
+  ('99999999-9999-9999-9999-9999999990a1', '88888888-8888-8888-8888-888888888885', '66666666-6666-6666-6666-666666666667', 1, 'Plancha lenta y controlada'),
+  ('99999999-9999-9999-9999-9999999990a2', '88888888-8888-8888-8888-888888888885', '66666666-6666-6666-6666-666666666668', 2, 'Activación de glúteo'),
+  ('99999999-9999-9999-9999-9999999990a3', '88888888-8888-8888-8888-888888888886', '66666666-6666-6666-6666-666666666664', 1, 'Al fallo técnico'),
+  ('99999999-9999-9999-9999-9999999990a4', '88888888-8888-8888-8888-888888888886', '66666666-6666-6666-6666-666666666670', 2, 'Ritmo alto'),
+  ('99999999-9999-9999-9999-9999999990a5', '88888888-8888-8888-8888-888888888886', '66666666-6666-6666-6666-666666666667', 3, 'Core final'),
+  ('99999999-9999-9999-9999-9999999990a6', '88888888-8888-8888-8888-888888888887', '66666666-6666-6666-6666-666666666661', 1, 'Press banca base');
+
+INSERT INTO public.routine_exercise_sets (
+  id, routine_exercise_id, set_number,
+  target_reps_min, target_reps_max, target_weight_kg, target_duration_seconds, target_rir, rest_seconds, notes
+)
+VALUES
+  -- Movilidad y core: Plancha (por tiempo) + Hip thrust
+  ('f1111111-1111-1111-1111-1111111111a1', '99999999-9999-9999-9999-9999999990a1', 1, NULL, NULL, NULL, 40, NULL, 45, 'Isométrico'),
+  ('f1111111-1111-1111-1111-1111111111a2', '99999999-9999-9999-9999-9999999990a1', 2, NULL, NULL, NULL, 40, NULL, 45, NULL),
+  ('f1111111-1111-1111-1111-1111111111a3', '99999999-9999-9999-9999-9999999990a2', 1, 12, 15, 60, NULL, 2, 60, NULL),
+  ('f1111111-1111-1111-1111-1111111111a4', '99999999-9999-9999-9999-9999999990a2', 2, 12, 15, 60, NULL, 2, 60, NULL),
+  -- Resistencia metabólica: Dominadas + Flexiones diamante + Plancha
+  ('f1111111-1111-1111-1111-1111111111a5', '99999999-9999-9999-9999-9999999990a3', 1, 8, 10, NULL, NULL, 1, 45, NULL),
+  ('f1111111-1111-1111-1111-1111111111a6', '99999999-9999-9999-9999-9999999990a4', 1, 12, 15, NULL, NULL, 2, 30, NULL),
+  ('f1111111-1111-1111-1111-1111111111a7', '99999999-9999-9999-9999-9999999990a5', 1, NULL, NULL, NULL, 30, NULL, 30, 'Bloque final'),
+  -- Rutina libre: Press banca
+  ('f1111111-1111-1111-1111-1111111111a8', '99999999-9999-9999-9999-9999999990a6', 1, 8, 10, 70, NULL, 2, 90, NULL),
+  ('f1111111-1111-1111-1111-1111111111a9', '99999999-9999-9999-9999-9999999990a6', 2, 8, 10, 72.5, NULL, 1, 90, NULL);

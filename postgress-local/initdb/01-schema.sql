@@ -6,6 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TYPE public.friendship_status AS ENUM ('pending', 'accepted', 'rejected');
 CREATE TYPE public.ticket_status AS ENUM ('open', 'in_progress', 'closed');
 CREATE TYPE public.user_role AS ENUM ('user', 'admin');
+CREATE TYPE public.routine_type AS ENUM ('Fuerza', 'Movilidad', 'Resistencia', 'Sin clasificar');
 
 CREATE TABLE public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,6 +110,7 @@ CREATE TABLE public.routines (
   name VARCHAR NOT NULL,
   description TEXT,
   source VARCHAR NOT NULL DEFAULT 'manual',
+  routine_type public.routine_type NOT NULL DEFAULT 'Sin clasificar',
   is_predefined BOOLEAN NOT NULL DEFAULT false,
   is_public BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMP NOT NULL DEFAULT now(),
