@@ -615,7 +615,7 @@ export default function Profile() {
                         </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => navigate(`/workout/${act.id}`)} className="inline-flex cursor-pointer rounded-[12px] border border-[#265c52]/25 bg-[#265c52]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#265c52] transition hover:bg-[#265c52]/15">
+                      <button type="button" onClick={() => navigate(`/workout/${act.id}/details`)} className="inline-flex cursor-pointer rounded-[12px] border border-[#265c52]/25 bg-[#265c52]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#265c52] transition hover:bg-[#265c52]/15">
                         Ver detalles
                       </button>
                     )}
