@@ -75,7 +75,7 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 
 	var emailService service.EmailService
 	if cfg.SMTPUser != "" && cfg.SMTPPass != "" {
-		emailService = service.NewSmtpEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
+		emailService = service.NewSMTPEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
 	} else {
 		emailService = service.NewMockEmailService()
 	}
