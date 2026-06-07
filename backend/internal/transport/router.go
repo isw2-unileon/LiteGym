@@ -221,6 +221,7 @@ func registerWorkoutRoutes(
 	protected.POST("/workouts/planned", workoutHandler.CreatePlannedWorkout)
 	protected.POST("/workout/start", workoutHandler.CreateWorkout)
 	protected.GET("/workout/:id", workoutHandler.GetWorkoutByID)
+	protected.GET("/workout/:id/detail", workoutHandler.GetWorkoutDetailByID)
 	protected.POST("/workout/:id/finish", workoutHandler.FinishWorkout)
 	protected.DELETE("/workout/:id", workoutHandler.RemoveWorkout)
 	protected.POST("/workout/:id/exercise", workoutHandler.CreateWorkoutExercise)
@@ -228,6 +229,7 @@ func registerWorkoutRoutes(
 	protected.POST("/workout/:id/exercises/:exercise_id/set", workoutHandler.CreateWorkoutSet)
 	protected.GET("/workout/:id/exercises/:exercise_id/sets", workoutHandler.GetWorkoutSetsByExerciseID)
 	protected.POST("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.UpdateWorkoutSet)
+	protected.DELETE("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.RemoveWorkoutSet)
 }
 
 func resolveCORSAllowOrigins(corsAllowOrigin []string) []string {
