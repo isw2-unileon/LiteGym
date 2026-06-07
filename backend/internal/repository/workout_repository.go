@@ -143,7 +143,14 @@ func (wr *workoutRepository) GetSessionDetailByID(ctx context.Context, id uuid.U
 			COALESCE(e.name, ''),
 			COALESCE(e.description, ''),
 			COALESCE(e.muscle_group, ''),
-			COALESCE(e.secondary_muscle_group, ''),
+			COALESCE(
+				(
+					SELECT string_agg(esmg.muscle_group, ', ' ORDER BY esmg.muscle_group)
+					FROM public.exercise_secondary_muscle_groups esmg
+					WHERE esmg.exercise_id = e.id
+				),
+				''
+			),
 			COALESCE(e.exercise_type, ''),
 			we.exercise_order,
 			COALESCE(we.notes, ''),
@@ -167,7 +174,7 @@ func (wr *workoutRepository) GetSessionDetailByID(ctx context.Context, id uuid.U
 			wset.created_at
 		FROM public.workout_sessions ws
 		LEFT JOIN public.workout_exercises we ON we.workout_session_id = ws.id
-		LEFT JOIN public.exercises e ON e.id = we.exercise_id
+		LEFT JOIN public.exercises e ON e.id = we.exercise_id AND e.deleted_at IS NULL
 		LEFT JOIN public.workout_sets wset ON wset.workout_exercise_id = we.id
 		WHERE ws.id = $1
 		ORDER BY we.exercise_order ASC, we.id::text ASC, wset.set_number ASC, wset.id::text ASC

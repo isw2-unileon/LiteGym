@@ -246,6 +246,8 @@ export default function DashboardPage() {
   const [selectedPlanTime, setSelectedPlanTime] = useState("18:00");
   const [planStatus, setPlanStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [calendarActionStatus, setCalendarActionStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [quickStartOpen, setQuickStartOpen] = useState(false);
+  const [quickStartStatus, setQuickStartStatus] = useState<"idle" | "loading" | "error">("idle");
   const [statsRange, setStatsRange] = useState<"year" | "month">("year");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const selectedPlanDate = calendarDialog?.type === "plan" ? calendarDialog.dateKey : null;
@@ -361,6 +363,20 @@ export default function DashboardPage() {
     setSelectedPlanTime("18:00");
     setPlanStatus("idle");
     setCalendarActionStatus("idle");
+    setQuickStartStatus("idle");
+  };
+
+  const handleOpenQuickStart = () => {
+    setQuickStartOpen(true);
+    setSelectedRoutineID("");
+    setQuickStartStatus("idle");
+    void fetchRoutines();
+  };
+
+  const handleCloseQuickStart = () => {
+    setQuickStartOpen(false);
+    setSelectedRoutineID("");
+    setQuickStartStatus("idle");
   };
 
   const handleCalendarDayClick = (
@@ -459,6 +475,42 @@ export default function DashboardPage() {
       await fetchDashboard();
     } catch {
       setCalendarActionStatus("error");
+    }
+  };
+
+  const handleStartWorkoutFromRoutine = async () => {
+    if (!selectedRoutineID) {
+      setQuickStartStatus("error");
+      return;
+    }
+
+    const routine = routines.find((item) => item.id === selectedRoutineID);
+    setQuickStartStatus("loading");
+
+    try {
+      const response = await fetch(apiUrl("/api/workout/start"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          routine_id: selectedRoutineID,
+          name: routine?.name ?? "Entrenamiento",
+          performed_at: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        setQuickStartStatus("error");
+        return;
+      }
+
+      const payload = (await response.json()) as { id: string };
+      setQuickStartOpen(false);
+      navigate(`/workouts/${payload.id}/fill`);
+    } catch {
+      setQuickStartStatus("error");
     }
   };
 
@@ -735,6 +787,15 @@ export default function DashboardPage() {
         </section>
       </div>
 
+      <button
+        type="button"
+        onClick={handleOpenQuickStart}
+        className="fixed bottom-8 right-8 z-30 inline-flex items-center gap-3 rounded-full bg-[#ea7130] px-5 py-4 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_24px_48px_rgba(234,113,48,0.35)] transition hover:-translate-y-px hover:bg-[#ff8b47]"
+      >
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1f1b16] text-[#fffaf0]">+</span>
+        Iniciar entrenamiento
+      </button>
+
       {selectedPlanDate && (
         <DialogPopup
           kicker="Planificar entreno"
@@ -804,6 +865,59 @@ export default function DashboardPage() {
         </DialogPopup>
       )}
 
+      {quickStartOpen && (
+        <DialogPopup
+          kicker="Nuevo entrenamiento"
+          kickerColor="#ea7130"
+          title="Elegir rutina"
+          onClose={handleCloseQuickStart}
+        >
+          <label
+            htmlFor="quick-start-routine"
+            className="mt-2 block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold uppercase tracking-[0.16em] text-[#3a332c]"
+          >
+            Rutina
+          </label>
+          <select
+            id="quick-start-routine"
+            value={selectedRoutineID}
+            onChange={(event) => setSelectedRoutineID(event.target.value)}
+            className="mt-2 w-full rounded-[14px] border border-[#1f1b16]/12 bg-white/85 px-4 py-3 text-[14px] font-semibold text-[#1f1b16] outline-none transition focus:border-[#ea7130] focus:ring-4 focus:ring-[#ea7130]/15"
+          >
+            <option value="">Selecciona una rutina</option>
+            {routines.map((routine) => (
+              <option key={routine.id} value={routine.id}>
+                {routine.name}
+              </option>
+            ))}
+          </select>
+
+          {quickStartStatus === "error" && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
+              No se ha podido iniciar el entrenamiento.
+            </p>
+          )}
+
+          <div className="mt-5 flex justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={handleCloseQuickStart}
+              className="cursor-pointer rounded-[14px] border border-[#1f1b16]/18 bg-transparent px-4 py-3 text-[13px] font-extrabold tracking-[0.04em] text-[#9f2f22] transition hover:bg-[#1f1b16]/5"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleStartWorkoutFromRoutine}
+              disabled={quickStartStatus === "loading" || !selectedRoutineID}
+              className="cursor-pointer rounded-[14px] bg-[#ea7130] px-5 py-3 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.30)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              {quickStartStatus === "loading" ? "Iniciando..." : "Empezar"}
+            </button>
+          </div>
+        </DialogPopup>
+      )}
+
       {calendarDialog?.type === "planned" &&  (
         <DialogPopup
           kicker="Entreno planificado"
@@ -842,13 +956,13 @@ export default function DashboardPage() {
                         Añadir a Calendar
                       </a>
                   )}
-                  {calendarDialog.dateKey <= todayKey && (
+                  {calendarDialog.dateKey === todayKey && (
                       <button
                           type="button"
-                          onClick={() => navigate(`/workout/${workout.id}`)}
+                          onClick={() => navigate(`/workouts/${workout.id}/fill?source=planned`)}
                           className="inline-flex cursor-pointer rounded-[12px] border border-[#ea7130]/25 bg-[#ea7130]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#ea7130] transition hover:bg-[#ea7130]/15"
                       >
-                        Rellenar
+                        Comenzar entrenamiento
                       </button>
                   )}
                   <button
@@ -904,10 +1018,10 @@ export default function DashboardPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate(`/workout/${workout.id}/details`)}
+                    onClick={() => navigate(`/workouts/${workout.id}/fill`)}
                     className="inline-flex cursor-pointer rounded-[12px] border border-[#265c52]/25 bg-[#265c52]/10 px-3.5 py-2 text-[12px] font-extrabold tracking-[0.04em] text-[#265c52] transition hover:bg-[#265c52]/15"
                   >
-                    Ver detalles
+                    Ver entrenamiento
                   </button>
                 </div>
               </li>
