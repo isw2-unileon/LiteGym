@@ -24,6 +24,11 @@ type Config struct {
 	AuthTokenTTL     time.Duration
 	GeminiAPIKey     string
 	GeminiModel      string
+	SMTPHost         string
+	SMTPPort         string
+	SMTPUser         string
+	SMTPPass         string
+	FrontendURL      string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -48,6 +53,11 @@ func Load() *Config {
 		AuthTokenTTL:     getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
 		GeminiModel:      getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+		SMTPHost:         getEnv("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:         getEnv("SMTP_PORT", "587"),
+		SMTPUser:         getEnv("SMTP_USER", ""),
+		SMTPPass:         getEnv("SMTP_PASS", ""),
+		FrontendURL:      getEnv("FRONTEND_URL", "http://localhost:5173"),
 	}
 }
 

@@ -27,7 +27,7 @@ func newRateLimitTestRouter() (*gin.Engine, *service.TokenService) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()

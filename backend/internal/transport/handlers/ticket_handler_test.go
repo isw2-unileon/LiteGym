@@ -65,7 +65,17 @@ func (m *MockUserRepo) GetByEmail(ctx context.Context, email string) (*model.Use
 	return nil, nil
 }
 func (m *MockUserRepo) ListAll(ctx context.Context) ([]*model.User, error) { return nil, nil }
-func (m *MockUserRepo) Delete(ctx context.Context, id string) error        { return nil }
+func (m *MockUserRepo) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockUserRepo) MarkAsVerified(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockUserRepo) UpdatePassword(ctx context.Context, id string, passwordHash string) error {
+	return nil
+}
 
 // --- TESTS ---
 
