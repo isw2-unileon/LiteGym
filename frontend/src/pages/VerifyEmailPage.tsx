@@ -1,4 +1,4 @@
-import * as React from "react";
+
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
