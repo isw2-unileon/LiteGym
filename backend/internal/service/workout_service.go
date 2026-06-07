@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -68,6 +69,27 @@ func (ws *WorkoutService) GetSessionByID(ctx context.Context, id uuid.UUID) (*mo
 	if err != nil {
 		return nil, err
 	}
+	if session == nil {
+		return nil, ErrWorkoutNotFound
+	}
+	return session, nil
+}
+
+// GetSessionDetailByID retrieves a workout session with all exercises and sets.
+func (ws *WorkoutService) GetSessionDetailByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error) {
+	if id == uuid.Nil {
+		return nil, ErrInvalidWorkoutSessionInput
+	}
+	session, err := ws.repo.GetSessionDetailByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrWorkoutNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if session == nil {
+		return nil, ErrWorkoutNotFound
+	}
 	return session, nil
 }
 
@@ -84,6 +106,27 @@ func (ws *WorkoutService) UpdateSessionByID(ctx context.Context, id uuid.UUID, s
 		return err
 	}
 	return nil
+}
+
+// FinishSession persists the final workout data while preserving existing session metadata.
+func (ws *WorkoutService) FinishSession(ctx context.Context, id uuid.UUID, input *model.WorkoutFinishInput) error {
+	if id == uuid.Nil || input == nil || input.Name == "" {
+		return ErrInvalidWorkoutSessionInput
+	}
+
+	current, err := ws.GetSessionByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	performedAt := time.Now()
+	current.Name = input.Name
+	current.PerformedAt = &performedAt
+	current.Duration = input.Duration
+	current.CaloriesBurned = input.CaloriesBurned
+	current.Notes = input.Notes
+
+	return ws.UpdateSessionByID(ctx, id, current)
 }
 
 // RemoveSessionByID deletes a workout session by its ID.

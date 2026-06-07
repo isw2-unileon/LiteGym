@@ -221,6 +221,7 @@ func registerWorkoutRoutes(
 	protected.POST("/workouts/planned", workoutHandler.CreatePlannedWorkout)
 	protected.POST("/workout/start", workoutHandler.CreateWorkout)
 	protected.GET("/workout/:id", workoutHandler.GetWorkoutByID)
+	protected.GET("/workout/:id/detail", workoutHandler.GetWorkoutDetailByID)
 	protected.POST("/workout/:id/finish", workoutHandler.FinishWorkout)
 	protected.DELETE("/workout/:id", workoutHandler.RemoveWorkout)
 	protected.POST("/workout/:id/exercise", workoutHandler.CreateWorkoutExercise)

@@ -203,6 +203,7 @@ func (m *MockBodyMetricRepository) ListRecentByUser(ctx context.Context, userID 
 type MockWorkoutRepository struct {
 	CreateSessionFunc                     func(ctx context.Context, workout *model.WorkoutSession) error
 	GetSessionByIDFunc                    func(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error)
+	GetSessionDetailByIDFunc              func(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error)
 	UpdateSessionByIDFunc                 func(ctx context.Context, id uuid.UUID, session *model.WorkoutSession) error
 	RemoveSessionByIDFunc                 func(ctx context.Context, id uuid.UUID) error
 	CreateWorkoutExerciseFunc             func(ctx context.Context, workoutExercise *model.WorkoutExercise) error
@@ -222,6 +223,13 @@ func (m *MockWorkoutRepository) CreateSession(ctx context.Context, workout *mode
 func (m *MockWorkoutRepository) GetSessionByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSession, error) {
 	if m.GetSessionByIDFunc != nil {
 		return m.GetSessionByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *MockWorkoutRepository) GetSessionDetailByID(ctx context.Context, id uuid.UUID) (*model.WorkoutSessionDetail, error) {
+	if m.GetSessionDetailByIDFunc != nil {
+		return m.GetSessionDetailByIDFunc(ctx, id)
 	}
 	return nil, nil
 }
@@ -829,6 +837,35 @@ func TestWorkoutGetByIDRoute(t *testing.T) {
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
 
 	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestWorkoutGetDetailByIDRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockDB := &MockDBPinger{}
+	mockUserRepo := &MockUserRepository{}
+	exerciseRepo := &MockExerciseRepository{}
+	workoutRepo := &MockWorkoutRepository{}
+	userService := service.NewUserService(mockUserRepo)
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	exerciseService := service.NewExerciseService(exerciseRepo)
+	workoutService := service.NewWorkoutService(workoutRepo)
+	userHandler := handlers.NewUserHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
+	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	healthHandler := handlers.NewHealthHandler()
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
+
+	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000/detail", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)

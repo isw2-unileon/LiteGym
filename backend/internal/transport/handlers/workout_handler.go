@@ -87,8 +87,30 @@ func (h *WorkoutHandler) CreateWorkout(c *gin.Context) {
 		return
 	}
 
+	userID := req.UserID
+	if userID == uuid.Nil {
+		userIDValue, ok := c.Get(middleware.ContextUserIDKey)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		userIDString, ok := userIDValue.(string)
+		if !ok || userIDString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		parsedUserID, err := uuid.Parse(userIDString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		userID = parsedUserID
+	}
+
 	workout := &model.WorkoutSession{
-		UserID:      req.UserID,
+		UserID:      userID,
 		RoutineID:   req.RoutineID,
 		Name:        req.Name,
 		PerformedAt: req.PerformedAt,
@@ -187,15 +209,14 @@ func (h *WorkoutHandler) FinishWorkout(c *gin.Context) {
 		return
 	}
 
-	updatedSession := &model.WorkoutSession{
+	input := &model.WorkoutFinishInput{
 		Name:           req.Name,
-		PerformedAt:    TimePointer(time.Now()),
 		Duration:       req.Duration,
 		CaloriesBurned: req.CaloriesBurned,
 		Notes:          req.Notes,
 	}
 
-	if err := h.service.UpdateSessionByID(c.Request.Context(), parsedWorkoutID, updatedSession); err != nil {
+	if err := h.service.FinishSession(c.Request.Context(), parsedWorkoutID, input); err != nil {
 		if errors.Is(err, service.ErrInvalidWorkoutSessionInput) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid workout id or missing required fields",
@@ -230,6 +251,21 @@ func (h *WorkoutHandler) GetWorkoutByID(c *gin.Context) {
 
 	session, err := h.service.GetSessionByID(c.Request.Context(), parsedWorkoutID)
 	if handleWorkoutError(c, err, "failed to retrieve workout session", "workout_id", c.Param("id")) {
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
+// GetWorkoutDetailByID handles the HTTP request for retrieving a workout with its exercises and sets.
+func (h *WorkoutHandler) GetWorkoutDetailByID(c *gin.Context) {
+	parsedWorkoutID, ok := ParseUUID(c.Param("id"))
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout id"})
+		return
+	}
+
+	session, err := h.service.GetSessionDetailByID(c.Request.Context(), parsedWorkoutID)
+	if handleWorkoutError(c, err, "failed to retrieve workout detail", "workout_id", c.Param("id")) {
 		return
 	}
 	c.JSON(http.StatusOK, session)
