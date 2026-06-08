@@ -10,6 +10,5 @@ type User struct {
 	Role         string    `json:"role"`
 	PasswordHash string    `json:"-"`
 	IsActive     bool      `json:"is_active"`
-	IsVerified   bool      `json:"is_verified"`
 	CreatedAt    time.Time `json:"created_at"`
 }
