@@ -13,12 +13,10 @@ import (
 
 // AuthHandler handles authentication HTTP requests.
 type AuthHandler struct {
-	tokenService        *service.TokenService
-	userService         *service.UserService
-	verificationService *service.VerificationService
-	passwordRecovery    *service.PasswordRecoveryService
-	cookieName          string
-	cookieSecure        bool
+	userService  *service.UserService
+	tokenService *service.TokenService
+	cookieName   string
+	cookieSecure bool
 }
 
 // LoginRequest represents the expected payload for login requests.
@@ -38,18 +36,14 @@ type RegisterRequest struct {
 func NewAuthHandler(
 	userService *service.UserService,
 	tokenService *service.TokenService,
-	verificationService *service.VerificationService,
-	passwordRecovery *service.PasswordRecoveryService,
 	cookieName string,
 	cookieSecure bool,
 ) *AuthHandler {
 	return &AuthHandler{
-		userService:         userService,
-		tokenService:        tokenService,
-		verificationService: verificationService,
-		passwordRecovery:    passwordRecovery,
-		cookieName:          cookieName,
-		cookieSecure:        cookieSecure,
+		userService:  userService,
+		tokenService: tokenService,
+		cookieName:   cookieName,
+		cookieSecure: cookieSecure,
 	}
 }
 
@@ -83,13 +77,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid credentials",
-			})
-			return
-		}
-
-		if errors.Is(err, service.ErrUnverifiedEmail) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "unverified email",
 			})
 			return
 		}
@@ -183,67 +170,30 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if h.verificationService != nil {
-		if err := h.verificationService.GenerateAndSendVerificationToken(c.Request.Context(), user); err != nil {
-			slog.Error("failed to generate verification token", "error", err, "user_id", user.ID)
-			// We still return 201 because the user is created, but maybe warn them
-		}
+	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username, user.Role)
+	if err != nil {
+		slog.Error("failed to generate auth token", "error", err, "user_id", user.ID)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate auth token",
+		})
+		return
 	}
+
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: h.sameSiteMode(),
+		MaxAge:   int(h.tokenService.TTL().Seconds()),
+	})
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "user created successfully, please check your email",
-		"user":    user,
+		"user": user,
 	})
-}
-
-// VerifyEmail verifies a user's email address using a token.
-func (h *AuthHandler) VerifyEmail(c *gin.Context) {
-	tokenStr := c.Query("token")
-	if tokenStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
-		return
-	}
-
-	if err := h.verificationService.VerifyToken(c.Request.Context(), tokenStr); err != nil {
-		if errors.Is(err, service.ErrInvalidToken) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired token"})
-			return
-		}
-		
-		slog.Error("failed to verify email", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify email"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
-}
-
-// ResendVerificationRequest represents the expected payload for resending verification email.
-type ResendVerificationRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-// ResendVerificationEmail resends the verification email to the user.
-func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
-	var req ResendVerificationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
-		return
-	}
-
-	if err := h.verificationService.ResendVerificationEmail(c.Request.Context(), req.Email); err != nil {
-		if err.Error() == "user is already verified" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "user is already verified"})
-			return
-		}
-		
-		slog.Error("failed to resend verification email", "error", err, "email", req.Email)
-		// Return 200 OK even if user doesn't exist to prevent email enumeration
-		c.JSON(http.StatusOK, gin.H{"message": "If the email is registered and unverified, a new link has been sent."})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "If the email is registered and unverified, a new link has been sent."})
 }
 
 // Me returns the current authenticated user from the request context.
@@ -295,53 +245,4 @@ func (h *AuthHandler) sameSiteMode() http.SameSite {
 	}
 
 	return http.SameSiteLaxMode
-}
-
-// ForgotPasswordRequest payload for requesting password reset.
-type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-// ForgotPassword handles initiating a password reset.
-func (h *AuthHandler) ForgotPassword(c *gin.Context) {
-	var req ForgotPasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
-		return
-	}
-
-	if err := h.passwordRecovery.RequestPasswordReset(c.Request.Context(), req.Email); err != nil {
-		slog.Error("failed to process forgot password request", "error", err, "email", req.Email)
-		// We still return 200 OK to prevent email enumeration
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "If the email is registered, a password reset link has been sent."})
-}
-
-// ResetPasswordRequest payload for setting a new password.
-type ResetPasswordRequest struct {
-	Token       string `json:"token" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required"`
-}
-
-// ResetPassword handles resetting the user's password using the token.
-func (h *AuthHandler) ResetPassword(c *gin.Context) {
-	var req ResetPasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload, password is required"})
-		return
-	}
-
-	if err := h.passwordRecovery.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
-		if errors.Is(err, service.ErrInvalidResetToken) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired token"})
-			return
-		}
-		
-		slog.Error("failed to reset password", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset password"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
 }

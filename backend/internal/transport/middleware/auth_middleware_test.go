@@ -33,9 +33,9 @@ func (r *staleTokenUserRepository) ListAll(ctx context.Context) ([]*model.User, 
 	return []*model.User{}, nil
 }
 
-func (r *staleTokenUserRepository) Delete(ctx context.Context, id string) error { return nil }
-func (r *staleTokenUserRepository) MarkAsVerified(ctx context.Context, id string) error { return nil }
-func (r *staleTokenUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error { return nil }
+func (r *staleTokenUserRepository) Delete(ctx context.Context, id string) error {
+	return pgx.ErrNoRows
+}
 
 func TestRequireAuthWithoutCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
