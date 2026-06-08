@@ -345,7 +345,7 @@ func TestHealthEndpoint(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -377,7 +377,7 @@ func TestCORSPreflightForLogin(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handler
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -433,7 +433,7 @@ func TestHelloEndpoint(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handler
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -470,7 +470,7 @@ func TestDBHealthEndpointSuccess(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -507,7 +507,7 @@ func TestDBHealthEndpointError(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -540,7 +540,7 @@ func TestExerciseListRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -582,7 +582,7 @@ func TestExerciseGetByIDRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -614,7 +614,7 @@ func TestLoginRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -647,7 +647,7 @@ func TestRegisterRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -681,7 +681,7 @@ func TestExerciseListRouteWithValidCookie(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -714,7 +714,7 @@ func TestAuthMeRouteRequiresAuthentication(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -745,7 +745,7 @@ func TestAuthMeRouteWithValidCookie(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -777,7 +777,7 @@ func TestWorkoutStartRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -809,7 +809,7 @@ func TestWorkoutFinishRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -841,7 +841,7 @@ func TestWorkoutGetByIDRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -849,35 +849,6 @@ func TestWorkoutGetByIDRoute(t *testing.T) {
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
 
 	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000", nil)
-	w := httptest.NewRecorder()
-
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
-	}
-}
-
-func TestWorkoutGetDetailByIDRoute(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	mockDB := &MockDBPinger{}
-	mockUserRepo := &MockUserRepository{}
-	exerciseRepo := &MockExerciseRepository{}
-	workoutRepo := &MockWorkoutRepository{}
-	userService := service.NewUserService(mockUserRepo)
-	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	exerciseService := service.NewExerciseService(exerciseRepo)
-	workoutService := service.NewWorkoutService(workoutRepo)
-	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
-	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-	healthHandler := handlers.NewHealthHandler()
-	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
-
-	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000/detail", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -902,7 +873,7 @@ func TestWorkoutRemoveRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -934,7 +905,7 @@ func TestWorkoutExerciseCreateRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -966,7 +937,7 @@ func TestWorkoutExerciseGetByWorkoutIDRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -998,7 +969,7 @@ func TestWorkoutSetCreateRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -1030,7 +1001,7 @@ func TestWorkoutSetGetByExerciseIDRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -1062,7 +1033,7 @@ func TestWorkoutSetUpdateRoute(t *testing.T) {
 	workoutService := service.NewWorkoutService(workoutRepo)
 	// Handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	healthHandler := handlers.NewHealthHandler()
@@ -1070,6 +1041,37 @@ func TestWorkoutSetUpdateRoute(t *testing.T) {
 	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
 
 	req := httptest.NewRequest("POST", "/api/workout/550e8400-e29b-41d4-a716-446655440000/exercises/550e8400-e29b-41d4-a716-446655440000/sets/550e8400-e29b-41d4-a716-446655440000", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func (m *MockUserRepository) MarkAsVerified(ctx context.Context, id string) error { return nil }
+func (m *MockUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error { return nil }
+func TestWorkoutGetDetailByIDRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockDB := &MockDBPinger{}
+	mockUserRepo := &MockUserRepository{}
+	exerciseRepo := &MockExerciseRepository{}
+	workoutRepo := &MockWorkoutRepository{}
+	userService := service.NewUserService(mockUserRepo)
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	exerciseService := service.NewExerciseService(exerciseRepo)
+	workoutService := service.NewWorkoutService(workoutRepo)
+	userHandler := handlers.NewUserHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, "auth_token")
+	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
+	healthHandler := handlers.NewHealthHandler()
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	router := SetupRouter(mockDB, userHandler, authHandler, authMiddleware, exerciseHandler, newTestRoutineHandler(), newTestOverviewHandler(), healthHandler, newTestTicketHandler(userService), workoutHandler, nil)
+
+	req := httptest.NewRequest("GET", "/api/workout/550e8400-e29b-41d4-a716-446655440000/detail", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)

@@ -51,6 +51,8 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
 	ticketRepo := repository.NewTicketRepository(db)
 	workoutRepo := repository.NewWorkoutRepository(db)
+	verificationTokenRepo := repository.NewVerificationTokenRepository(db)
+	passwordResetTokenRepo := repository.NewPasswordResetTokenRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -71,9 +73,30 @@ func main() { //nolint:funlen // Server bootstrap wires all repositories, servic
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
+	var emailService service.EmailService
+	if cfg.SMTPUser != "" && cfg.SMTPPass != "" {
+		emailService = service.NewSMTPEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
+	} else {
+		emailService = service.NewMockEmailService()
+	}
+
+	verificationService := service.NewVerificationService(
+		userRepo,
+		verificationTokenRepo,
+		emailService,
+		cfg.FrontendURL,
+	)
+
+	passwordRecoveryService := service.NewPasswordRecoveryService(
+		userRepo,
+		passwordResetTokenRepo,
+		emailService,
+		cfg.FrontendURL,
+	)
+
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
+	authHandler := handlers.NewAuthHandler(userService, tokenService, verificationService, passwordRecoveryService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 	routineHandler := handlers.NewRoutineHandler(routineService, routineAIService, manualRoutineService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 
 type RegisterStatus = "idle" | "loading" | "success" | "error";
@@ -46,7 +46,6 @@ function translateRegisterError(message?: string | null) {
 }
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -98,8 +97,7 @@ export default function RegisterPage() {
       }
 
       setRegisterStatus("success");
-      setRegisterMessage("Cuenta creada. Entrando al panel...");
-      navigate("/dashboard", { replace: true });
+      setRegisterMessage("Registro exitoso. Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.");
     } catch {
       setRegisterStatus("error");
       setRegisterMessage("No se pudo conectar con el backend.");

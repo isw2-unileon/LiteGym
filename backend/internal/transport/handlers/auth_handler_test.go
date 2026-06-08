@@ -59,6 +59,14 @@ func (m *MockAuthUserRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *MockAuthUserRepository) MarkAsVerified(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAuthUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error {
+	return nil
+}
+
 func TestLoginSuccessSetsCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -73,7 +81,7 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
-				Role:         "user",
+				Role: "user", IsVerified: true,
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -82,7 +90,7 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 
 	userService := service.NewUserService(mockRepo)
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -134,7 +142,7 @@ func TestRegisterSuccessCreatesUserAndSetsCookie(t *testing.T) {
 	}
 	userService := service.NewUserService(mockRepo)
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -166,12 +174,10 @@ func TestRegisterSuccessCreatesUserAndSetsCookie(t *testing.T) {
 		t.Fatalf("expected role user, got %s", payload.User.Role)
 	}
 
+	// No cookie is set during registration now
 	cookies := w.Result().Cookies()
-	if len(cookies) == 0 || cookies[0].Value == "" {
-		t.Fatal("expected auth cookie to be set after registration")
-	}
-	if cookies[0].SameSite != http.SameSiteLaxMode {
-		t.Fatalf("expected SameSite Lax for insecure cookie, got %v", cookies[0].SameSite)
+	if len(cookies) != 0 {
+		t.Fatalf("expected no auth cookie to be set after registration, but got %d", len(cookies))
 	}
 }
 
@@ -184,7 +190,7 @@ func TestRegisterConflictWhenUserAlreadyExists(t *testing.T) {
 		},
 	})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -213,7 +219,7 @@ func TestRegisterConflictWhenEmailAlreadyExists(t *testing.T) {
 		},
 	})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -247,7 +253,7 @@ func TestRegisterRejectsInvalidEmail(t *testing.T) {
 
 	userService := service.NewUserService(&MockAuthUserRepository{})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -281,7 +287,7 @@ func TestLoginInvalidCredentials(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
-				Role:         "user",
+				Role: "user", IsVerified: true,
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -290,7 +296,7 @@ func TestLoginInvalidCredentials(t *testing.T) {
 
 	userService := service.NewUserService(mockRepo)
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -316,7 +322,7 @@ func TestLoginRejectsInvalidEmail(t *testing.T) {
 
 	userService := service.NewUserService(&MockAuthUserRepository{})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -346,13 +352,13 @@ func TestMeReturnsAuthenticatedUser(t *testing.T) {
 				ID:        id,
 				Username:  "testuser",
 				Email:     "test@example.com",
-				Role:      "admin",
+				Role: "admin", IsVerified: true,
 				CreatedAt: time.Now(),
 			}, nil
 		},
 	})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -382,7 +388,7 @@ func TestLogoutClearsCookie(t *testing.T) {
 
 	userService := service.NewUserService(&MockAuthUserRepository{})
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", false)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -422,7 +428,7 @@ func TestLoginSecureCookieUsesSameSiteNone(t *testing.T) {
 				ID:           "550e8400-e29b-41d4-a716-446655440000",
 				Username:     "testuser",
 				Email:        email,
-				Role:         "user",
+				Role: "user", IsVerified: true,
 				PasswordHash: string(hashedPassword),
 				CreatedAt:    time.Now(),
 			}, nil
@@ -431,7 +437,7 @@ func TestLoginSecureCookieUsesSameSiteNone(t *testing.T) {
 
 	userService := service.NewUserService(mockRepo)
 	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
-	authHandler := NewAuthHandler(userService, tokenService, "auth_token", true)
+	authHandler := NewAuthHandler(userService, tokenService, nil, nil, "auth_token", true)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

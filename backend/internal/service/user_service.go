@@ -23,6 +23,9 @@ var (
 	// ErrUserNotFound indicates that the requested user does not exist.
 	ErrUserNotFound = errors.New("user not found")
 
+	// ErrUnverifiedEmail indicates that the user has not verified their email.
+	ErrUnverifiedEmail = errors.New("unverified email")
+
 	// ErrUserAlreadyExists indicates that the provided username or email is already registered.
 	ErrUserAlreadyExists = errors.New("user already exists")
 
@@ -127,6 +130,10 @@ func (s *UserService) Authenticate(ctx context.Context, email, password string) 
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
+	}
+
+	if !user.IsVerified {
+		return nil, ErrUnverifiedEmail
 	}
 
 	return user, nil
