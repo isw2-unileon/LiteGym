@@ -33,13 +33,13 @@ export default defineConfig({
       command: "go run ./backend/cmd/server",
       cwd: "..",
       port: 8080,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
     },
     {
       command: "cd frontend && npm run dev",
       cwd: "..",
       port: 5173,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
     },
   ],
 
