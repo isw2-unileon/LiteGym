@@ -18,6 +18,7 @@ type mockUserRepository struct {
 	getByEmailFunc func(ctx context.Context, email string) (*model.User, error)
 	listAllFunc    func(ctx context.Context) ([]*model.User, error)
 	deleteFunc     func(ctx context.Context, id string) error
+	updatePasswordFunc func(ctx context.Context, id string, passwordHash string) error
 }
 
 func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -51,6 +52,17 @@ func (m *mockUserRepository) ListAll(ctx context.Context) ([]*model.User, error)
 func (m *mockUserRepository) Delete(ctx context.Context, id string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *mockUserRepository) MarkAsVerified(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *mockUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error {
+	if m.updatePasswordFunc != nil {
+		return m.updatePasswordFunc(ctx, id, passwordHash)
 	}
 	return nil
 }
@@ -156,6 +168,7 @@ func TestUserServiceAuthenticateSuccess(t *testing.T) {
 				PasswordHash: string(hashedPassword),
 				Role:         "user",
 				IsActive:     true,
+				IsVerified:   true,
 			}, nil
 		},
 	}
@@ -187,6 +200,7 @@ func TestUserServiceAuthenticateInvalidCredentials(t *testing.T) {
 				PasswordHash: string(hashedPassword),
 				Role:         "user",
 				IsActive:     true,
+				IsVerified:   true,
 			}, nil
 		},
 	}

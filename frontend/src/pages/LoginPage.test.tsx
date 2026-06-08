@@ -19,9 +19,9 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-function renderLoginPage() {
+function renderLoginPage(initialEntries?: string[]) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries ?? ["/"]}>
       <LoginPage />
     </MemoryRouter>,
   );
@@ -39,10 +39,18 @@ describe("LoginPage", () => {
     expect(screen.getByText("LiteGym")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entra, entrena y controla tu progreso." })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.getByLabelText("Contrasena")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("••••••••")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Iniciar sesion" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Registrate" })).toHaveAttribute("href", "/register");
     expect(screen.queryByRole("button", { name: "Probar" })).not.toBeInTheDocument();
+  });
+
+  it("shows a password reset success message when redirected from reset flow", () => {
+    renderLoginPage(["/?reset=true"]);
+
+    expect(
+      screen.getByText("Tu contraseña ha sido actualizada con éxito. Ya puedes iniciar sesión."),
+    ).toBeInTheDocument();
   });
 
   it("logs in, sends credentials with cookies enabled and notifies success", async () => {
@@ -53,7 +61,7 @@ describe("LoginPage", () => {
 
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), " Raul@Example.com ");
-    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     await waitFor(() => {
@@ -80,7 +88,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     await user.type(screen.getByLabelText("Email"), "raul@example.com");
-    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByText("El correo o la contraseña no son correctos.")).toBeInTheDocument();
@@ -94,7 +102,7 @@ describe("LoginPage", () => {
 
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), "user@domain");
-    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(await screen.findByText("Introduce un email valido.")).toBeInTheDocument();
@@ -107,7 +115,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     await user.type(screen.getByLabelText("Email"), "raul@example.com");
-    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     expect(

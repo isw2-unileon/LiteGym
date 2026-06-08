@@ -98,8 +98,10 @@ export default function RegisterPage() {
       }
 
       setRegisterStatus("success");
-      setRegisterMessage("Cuenta creada. Entrando al panel...");
-      navigate("/dashboard", { replace: true });
+      setRegisterMessage("Cuenta creada. Revisa tu correo para verificar tu cuenta.");
+      setTimeout(() => {
+        navigate("/?registered=true", { replace: true });
+      }, 1800);
     } catch {
       setRegisterStatus("error");
       setRegisterMessage("No se pudo conectar con el backend.");

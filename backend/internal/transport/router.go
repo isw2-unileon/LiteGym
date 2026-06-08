@@ -111,6 +111,10 @@ func setupRouterInternal(
 	api.POST("/auth/register", rateLimiter.Register(), authHandler.Register)
 	api.POST("/auth/login", rateLimiter.Login(), authHandler.Login)
 	api.POST("/auth/logout", rateLimiter.PublicAuth(), authHandler.Logout)
+	api.GET("/auth/verify-email", authHandler.VerifyEmail)
+	api.POST("/auth/resend-verification", rateLimiter.PublicAuth(), authHandler.ResendVerificationEmail)
+	api.POST("/auth/forgot-password", rateLimiter.PublicAuth(), authHandler.ForgotPassword)
+	api.POST("/auth/reset-password", rateLimiter.PublicAuth(), authHandler.ResetPassword)
 
 	// --------------------
 	// Protected endpoints
@@ -171,19 +175,7 @@ func setupRouterInternal(
 	registerExerciseRoutes(protected, heavyReads, exerciseHandler)
 
 	// Routines
-	if routineHandler != nil {
-		heavyReads.GET("/routines", routineHandler.ListRoutines)
-		heavyReads.GET("/routines/:id", routineHandler.GetRoutine)
-		protected.POST("/routines", routineHandler.CreateRoutine)
-		protected.PUT("/routines/:id", routineHandler.UpdateRoutine)
-		protected.DELETE("/routines/:id", routineHandler.DeleteRoutine)
-		protected.POST("/routines/:id/duplicate", routineHandler.DuplicateRoutine)
-		aiLimited.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
-		protected.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
-		aiLimited.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)
-		protected.POST("/routines/:id/ai/save-as-new", routineHandler.SaveUpgradedRoutineAsNew)
-		protected.PUT("/routines/:id/ai/overwrite", routineHandler.OverwriteRoutineWithAI)
-	}
+	registerRoutineRoutes(protected, heavyReads, aiLimited, routineHandler)
 
 	// Dashboard
 	heavyReads.GET("/dashboard", overviewHandler.GetOverview)
@@ -230,6 +222,26 @@ func registerWorkoutRoutes(
 	protected.GET("/workout/:id/exercises/:exercise_id/sets", workoutHandler.GetWorkoutSetsByExerciseID)
 	protected.POST("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.UpdateWorkoutSet)
 	protected.DELETE("/workout/:id/exercises/:exercise_id/sets/:set_id", workoutHandler.RemoveWorkoutSet)
+}
+
+func registerRoutineRoutes(
+	protected, heavyReads, aiLimited gin.IRoutes,
+	routineHandler *handlers.RoutineHandler,
+) {
+	if routineHandler == nil {
+		return
+	}
+	heavyReads.GET("/routines", routineHandler.ListRoutines)
+	heavyReads.GET("/routines/:id", routineHandler.GetRoutine)
+	protected.POST("/routines", routineHandler.CreateRoutine)
+	protected.PUT("/routines/:id", routineHandler.UpdateRoutine)
+	protected.DELETE("/routines/:id", routineHandler.DeleteRoutine)
+	protected.POST("/routines/:id/duplicate", routineHandler.DuplicateRoutine)
+	aiLimited.POST("/routines/ai/generate", routineHandler.GenerateRoutineJSON)
+	protected.POST("/routines/ai/save", routineHandler.SaveAIRoutine)
+	aiLimited.POST("/routines/:id/ai/upgrade", routineHandler.UpgradeRoutineJSON)
+	protected.POST("/routines/:id/ai/save-as-new", routineHandler.SaveUpgradedRoutineAsNew)
+	protected.PUT("/routines/:id/ai/overwrite", routineHandler.OverwriteRoutineWithAI)
 }
 
 func resolveCORSAllowOrigins(corsAllowOrigin []string) []string {

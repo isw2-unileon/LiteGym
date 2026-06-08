@@ -59,6 +59,14 @@ func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *MockUserRepository) MarkAsVerified(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockUserRepository) UpdatePassword(ctx context.Context, id string, passwordHash string) error {
+	return nil
+}
+
 func TestCreateUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
