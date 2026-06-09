@@ -21,7 +21,7 @@ export default function ExerciseStatsCards({ insights }: ExerciseStatsCardsProps
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <InsightStatCard
         label="Peso maximo"
-        value={formatOptionalNumber(summary.max_weight_kg, " kg")}
+        value={formatOptionalNumber(summary.max_weight_kg, " kg máx.")}
         helper="Mejor repeticion con carga"
       />
       <InsightStatCard
@@ -31,7 +31,7 @@ export default function ExerciseStatsCards({ insights }: ExerciseStatsCardsProps
       />
       <InsightStatCard
         label="Volumen total"
-        value={`${numberFormatter.format(summary.total_volume_kg)} kg`}
+        value={formatTotalVolume(summary.total_volume_kg)}
         helper="Suma de todas las series"
       />
       <InsightStatCard
@@ -105,4 +105,12 @@ function formatBestSet(insights: ExerciseInsights) {
       : "sin peso";
 
   return `${weight} x ${reps}`;
+}
+
+function formatTotalVolume(value: number) {
+  if (value >= 1000) {
+    return `${numberFormatter.format(value / 1000)} mil`;
+  }
+
+  return `${numberFormatter.format(value)} kg`;
 }

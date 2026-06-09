@@ -99,7 +99,7 @@ export default function ExerciseInsightModal({
                 />
                 <MetricCard
                   label="Peso máximo"
-                  value={maxWeight == null ? "Sin datos" : `${numberFormatter.format(maxWeight)} kg`}
+                  value={maxWeight == null ? "Sin datos" : `${numberFormatter.format(maxWeight)} kg PR`}
                   helper={`${personalRecordCount} marcas personales`}
                 />
               </div>
