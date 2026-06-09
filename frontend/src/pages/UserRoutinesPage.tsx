@@ -176,10 +176,9 @@ function formatRoutineDate(value?: string) {
   return dateFormatter.format(date);
 }
 
-// Valores del tipo ENUM public.tipo_rutina en la base de datos (en español).
+// ENUM from database to filter
 type RoutineFilterKey = "Fuerza" | "Movilidad" | "Resistencia" | "Sin clasificar";
 
-// Tipos de rutina disponibles para filtrar (sin contar "Todas").
 const ROUTINE_TYPE_FILTERS: { key: RoutineFilterKey; label: string }[] = [
   { key: "Fuerza", label: "Fuerza" },
   { key: "Movilidad", label: "Movilidad" },
@@ -200,8 +199,6 @@ function routineFilterKey(routine: RoutineSummary): RoutineFilterKey {
   }
 }
 
-// TODO: límite de rutinas por usuario. Ajustar al valor real del requisito
-// (o cablearlo al backend cuando lo exponga).
 const MAX_ROUTINES_PER_USER = 50;
 
 export default function UserRoutinesPage() {
@@ -514,7 +511,6 @@ export default function UserRoutinesPage() {
     );
   };
 
-  // Grupos musculares derivados de los ejercicios seleccionados (sin duplicados).
   const manualMuscleGroupKeys = Array.from(
     new Set(
       manualExercises
@@ -571,8 +567,6 @@ export default function UserRoutinesPage() {
     );
     setManualType(routineFilterKey(selectedRoutine));
 
-    // Parseamos las notas para recuperar objetivo y notas reales si existen.
-    // En el backend, las notas se guardan en el campo 'description'.
     const lines = (selectedRoutine.description || "").split("\n");
     let objective = "";
     const cleanNotesLines: string[] = [];
@@ -581,7 +575,6 @@ export default function UserRoutinesPage() {
       if (line.startsWith("[Objetivo] ")) {
         objective = line.replace("[Objetivo] ", "").trim();
       } else if (line.startsWith("[Grupos musculares] ")) {
-        // Ignorar, se deriva de los ejercicios.
       } else {
         cleanNotesLines.push(line);
       }
@@ -618,7 +611,6 @@ export default function UserRoutinesPage() {
       return;
     }
 
-    // Validación previa de rangos para evitar errores de base de datos
     for (const ex of manualExercises) {
       for (const s of ex.sets) {
         if (
@@ -646,7 +638,6 @@ export default function UserRoutinesPage() {
     setManualStatus("loading");
     setManualMessage("");
 
-    // El objetivo y los grupos musculares se incrustan en las notas con etiquetas.
     const noteSections: string[] = [];
     if (manualObjective.trim() !== "") {
       noteSections.push(`[Objetivo] ${manualObjective.trim()}`);
@@ -1335,8 +1326,7 @@ export default function UserRoutinesPage() {
     return matchesSearch && matchesFilter;
   });
 
-  // Mantiene una selección válida: si la seleccionada no está visible (al cargar,
-  // filtrar o buscar), pasa a la primera visible; si no queda ninguna, deselecciona.
+
   useEffect(() => {
     const stillVisible =
       selectedRoutineID !== "" &&

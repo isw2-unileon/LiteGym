@@ -40,7 +40,7 @@ const exerciseTypeLabels: Record<string, string> = {
 export function muscleGroupLabel(value: string): string {
   if (!value) return value;
 
-  // Si vienen varios grupos separados por coma (agregados por el backend)
+  // When multiple groups arrive comma-separated (aggregated by the backend)
   if (value.includes(",")) {
     return value
       .split(",")
