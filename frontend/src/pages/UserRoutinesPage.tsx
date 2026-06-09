@@ -575,6 +575,7 @@ export default function UserRoutinesPage() {
       if (line.startsWith("[Objetivo] ")) {
         objective = line.replace("[Objetivo] ", "").trim();
       } else if (line.startsWith("[Grupos musculares] ")) {
+        // We skip this line since muscle groups are now stored in a structured way and shown separately in the form
       } else {
         cleanNotesLines.push(line);
       }
