@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
-import { legalLinks } from "./legalLinksData";
+import { legalLinks } from "../lib/legalLinksData";
 
 export type LayoutUser = {
   id: string;

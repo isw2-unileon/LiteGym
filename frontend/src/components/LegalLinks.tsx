@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { legalLinks } from "./legalLinksData";
+import { legalLinks } from "../lib/legalLinksData";
 
 type LegalLinksProps = {
   className?: string;

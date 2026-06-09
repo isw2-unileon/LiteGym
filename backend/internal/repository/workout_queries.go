@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
@@ -51,19 +53,54 @@ func listOverviewWorkoutSummaries(ctx context.Context, db *pgxpool.Pool, userID 
 }
 
 func listMuscleDistributionByUser(ctx context.Context, db *pgxpool.Pool, userID string, from, to time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
-	rows, err := db.Query(ctx, `
+	return listCompletedMuscleDistributionByUser(ctx, db, userID, &from, &to)
+}
+
+func listCompletedMuscleDistributionByUser(
+	ctx context.Context,
+	db *pgxpool.Pool,
+	userID string,
+	from, to *time.Time,
+) ([]model.OverviewMuscleGroupShare, int, error) {
+	queryBuilder := strings.Builder{}
+	queryBuilder.WriteString(`
 		SELECT
 			e.muscle_group,
-			COUNT(*)::int
+			COUNT(ws_sets.id)::int
 		FROM public.workout_sessions ws
 		INNER JOIN public.workout_exercises we ON we.workout_session_id = ws.id
+		INNER JOIN public.workout_sets ws_sets ON ws_sets.workout_exercise_id = we.id
 		INNER JOIN public.exercises e ON e.id = we.exercise_id
 		WHERE ws.user_id = $1::uuid
-			AND ws.performed_at >= $2
-			AND ws.performed_at < $3
+			AND ws_sets.completed = true
+	`)
+
+	args := []any{userID}
+	if from != nil {
+		args = append(args, *from)
+		placeholder := len(args)
+		queryBuilder.WriteString(`
+			AND ws.performed_at >= $`)
+		queryBuilder.WriteString(strconv.Itoa(placeholder))
+		queryBuilder.WriteString(`
+		`)
+	}
+	if to != nil {
+		args = append(args, *to)
+		placeholder := len(args)
+		queryBuilder.WriteString(`
+			AND ws.performed_at < $`)
+		queryBuilder.WriteString(strconv.Itoa(placeholder))
+		queryBuilder.WriteString(`
+		`)
+	}
+
+	queryBuilder.WriteString(`
 		GROUP BY e.muscle_group
 		ORDER BY COUNT(*) DESC, e.muscle_group ASC
-	`, userID, from, to)
+	`)
+
+	rows, err := db.Query(ctx, queryBuilder.String(), args...)
 	if err != nil {
 		return nil, 0, err
 	}
