@@ -53,7 +53,7 @@ type CalendarActivity struct {
 	IsPlanned     bool   `json:"is_planned"`
 }
 
-// ProfileStats representa los datos del dashboard
+// ProfileStats represents dashboard data
 type ProfileStats struct {
 	TotalWorkouts    int                `json:"total_workouts"`
 	TotalDuration    int                `json:"total_duration_minutes"`

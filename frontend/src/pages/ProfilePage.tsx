@@ -235,10 +235,8 @@ export default function Profile() {
     }
   };
 
-  // --- EXTRACCIÓN DE DATOS ---
+  // --- DATA EXTRACTION ---
   const radarData = useMemo(() => stats?.muscle_radar ?? [], [stats?.muscle_radar]);
-  // El backend ya filtra muscle_radar según statsRange (mes / todo el historial),
-  // así que el heptágono se alimenta del dato actual sin toggle propio.
   const muscleDistributionData = useMemo<MuscleDistributionData>(() => {
     const breakdown = radarData.map((m) => ({ name: m.muscle, count: m.value, percentage: 0 }));
     return { year: breakdown, month: breakdown, year_exercise_count: 0, month_exercise_count: 0 };
@@ -277,13 +275,13 @@ export default function Profile() {
     currentBMI = (lastMetric.weight_kg / (h * h)).toFixed(1);
   }
 
-  // --- CALENDARIO MENSUAL (navegable) ---
+  // --- CALENDAR (nav) ---
   const todayDate = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => toDateKey(todayDate), [todayDate]);
   const canShowNextMonth = true;
 
   const weekdayLabels = useMemo(() => {
-    const baseMonday = new Date(2026, 5, 1); // Un Lunes conocido
+    const baseMonday = new Date(2026, 5, 1);
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date(baseMonday);
       date.setDate(baseMonday.getDate() + index);
@@ -665,10 +663,6 @@ export default function Profile() {
     </div>
   );
 }
-
-// ============================================================================
-// UI COMPONENTS LOCALES (Calcados de DashboardPage.tsx para mantener el diseño)
-// ============================================================================
 
 function MetricTile({ label, value }: { label: string; value: string; }) {
   return (

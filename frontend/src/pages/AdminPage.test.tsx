@@ -89,7 +89,6 @@ describe("AdminPage", () => {
     // Verify that the tickets tab is active and shows the mocked ticket
     expect(await screen.findByText("[General] Problema app")).toBeInTheDocument();
     
-    // Verificamos que funciona el botón de cerrar
     const closeButton = screen.getByRole("button", { name: "Resolver ticket" });
     await user.click(closeButton);
 
