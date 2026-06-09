@@ -87,23 +87,23 @@ func (r *profileRepository) GetStats(ctx context.Context, userID string, timeRan
 	rows.Close()
 
 	// 3. Muscle radar
-	radarQuery := `
-		SELECT e.muscle_group, COUNT(ws.id) as value
-		FROM workout_sets ws
-		JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-		JOIN exercises e ON we.exercise_id = e.id
-		JOIN workout_sessions ses ON we.workout_session_id = ses.id
-		WHERE ses.user_id = $1::uuid AND ws.completed = true` + dateFilterSes + `
-		GROUP BY e.muscle_group
-	`
-	rows2, _ := r.db.Query(ctx, radarQuery, userID)
-	for rows2.Next() {
-		var radar model.MuscleRadarStat
-		if err := rows2.Scan(&radar.Muscle, &radar.Value); err == nil {
-			stats.MuscleRadar = append(stats.MuscleRadar, radar)
+	var radarFrom *time.Time
+	var radarTo *time.Time
+	if timeRange == "month" && year > 0 && month > 0 {
+		monthStart := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+		monthEnd := monthStart.AddDate(0, 1, 0)
+		radarFrom = &monthStart
+		radarTo = &monthEnd
+	}
+	muscleShares, _, err := listCompletedMuscleDistributionByUser(ctx, r.db, userID, radarFrom, radarTo)
+	if err == nil {
+		for _, share := range muscleShares {
+			stats.MuscleRadar = append(stats.MuscleRadar, model.MuscleRadarStat{
+				Muscle: share.Name,
+				Value:  share.Count,
+			})
 		}
 	}
-	rows2.Close()
 
 	// 4. Weight history for the chart (with height from user_profiles)
 	weightQuery := `
