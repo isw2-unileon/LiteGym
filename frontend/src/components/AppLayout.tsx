@@ -160,7 +160,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
 
   return (
       <main className={pageBackground}>
-        <header className="sticky top-0 z-30 mb-4 border-b border-[#1f1b16]/10 bg-[#fffaf0]/80 py-2.5 backdrop-blur-md shadow-[0_10px_30px_rgba(31,27,22,0.10)] md:mb-7">
+        <header className="sticky top-0 z-30 mb-3 border-b border-[#1f1b16]/10 bg-[#fffaf0]/88 py-2 backdrop-blur-md shadow-[0_10px_30px_rgba(31,27,22,0.10)] md:mb-7 md:py-2.5">
           <div className="grid grid-cols-[1fr_auto] items-center px-4 sm:px-6 md:grid-cols-3 md:px-8 lg:px-[10rem]">
             <div className="flex items-center gap-3 justify-self-start [font-family:'Bricolage_Grotesque','Aptos_Display','Trebuchet_MS',sans-serif] text-[22px] font-black tracking-[-0.04em]">
               <div className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-[#1f1b16] text-[18px] font-black tracking-[-0.06em] text-[#f1a45b] shadow-[0_8px_18px_rgba(31,27,22,0.18)]">
@@ -262,14 +262,14 @@ export default function AppLayout({ user }: AppLayoutProps) {
           </div>
         </header>
 
-        <div className="mx-auto max-w-7xl pb-[calc(6rem+env(safe-area-inset-bottom))] pt-1 md:pb-0 md:pt-3 lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]">
+        <div className="mx-auto max-w-7xl pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-1 md:pb-0 md:pt-3 lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]">
           <Outlet context={{ user }} />
         </div>
 
         <div
           role="toolbar"
           aria-label="Navegación móvil"
-          className="fixed inset-x-3 bottom-3 z-40 rounded-[22px] border border-[#1f1b16]/12 bg-[#fffaf0]/92 px-2 py-2 shadow-[0_18px_45px_rgba(31,27,22,0.20)] backdrop-blur-md md:hidden"
+          className="fixed inset-x-2 bottom-2 z-40 rounded-[20px] border border-[#1f1b16]/12 bg-[#fffaf0]/94 px-1.5 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_45px_rgba(31,27,22,0.20)] backdrop-blur-md md:hidden"
         >
           <div className="grid grid-cols-5 items-center gap-1">
             {mobileNavigationItems.map((item) => (
@@ -277,7 +277,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex min-h-[3.45rem] flex-col items-center justify-center rounded-[16px] px-1.5 text-[11px] font-black transition ${
+                  `flex min-h-[3.65rem] flex-col items-center justify-center rounded-[15px] px-1 text-[10px] font-black transition ${
                     isActive
                       ? "bg-[#f1a45b] text-[#1f1b16]"
                       : "text-[#1f1b16]/72 hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
@@ -295,7 +295,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
                 aria-haspopup="menu"
                 aria-expanded={isMobileMoreOpen}
                 onClick={() => setIsMobileMoreOpen((open) => !open)}
-                className="flex min-h-[3.45rem] w-full flex-col items-center justify-center rounded-[16px] px-1.5 text-[11px] font-black text-[#1f1b16]/72 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+                className="flex min-h-[3.65rem] w-full flex-col items-center justify-center rounded-[15px] px-1 text-[10px] font-black text-[#1f1b16]/72 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
               >
                 <MobileNavIcon name="more" />
                 <span className="mt-1.5 leading-none">Más</span>

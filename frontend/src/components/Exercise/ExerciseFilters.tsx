@@ -22,20 +22,20 @@ export default function ExerciseFilters({
     onMuscleFilterChange,
 }: ExerciseFiltersProps) {
     return (
-        <div className="grid gap-4">
+        <div className="grid gap-3 sm:gap-4">
             <input
-                type="text"
+                type="search"
                 placeholder="Buscar por nombre..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="mt-4 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3.5 text-base font-semibold text-[#1f1b16] outline-none placeholder:text-[#3a332c]/45 sm:mt-4 sm:py-3 sm:text-sm"
             />
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                 <select
                     value={typeFilter}
                     onChange={(e) => onTypeFilterChange(e.target.value)}
-                    className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                    className="min-w-0 rounded-2xl border border-[#1f1b16]/10 bg-white px-3 py-3.5 text-sm font-bold text-[#1f1b16] outline-none sm:px-4 sm:py-3"
                 >
                     <option value="">Todos los tipos</option>
                     {exerciseTypes.length === 0 && (
@@ -53,7 +53,7 @@ export default function ExerciseFilters({
                 <select
                     value={muscleFilter}
                     onChange={(e) => onMuscleFilterChange(e.target.value)}
-                    className="rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                    className="min-w-0 rounded-2xl border border-[#1f1b16]/10 bg-white px-3 py-3.5 text-sm font-bold text-[#1f1b16] outline-none sm:px-4 sm:py-3"
                 >
                     <option value="">Todos los músculos</option>
                     {muscleGroups.length === 0 && (

@@ -678,6 +678,19 @@ export default function ExercisePage() {
                       {metadataMessage}
                     </p>
                 )}
+                {(search || typeFilter || muscleFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSearchChange("");
+                      handleTypeFilterChange("");
+                      handleMuscleFilterChange("");
+                    }}
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-[14px] border border-[#1f1b16]/12 bg-white/70 px-4 py-3 text-sm font-black text-[#1f1b16] md:hidden"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
               </Card>
             </div>
           </section>
@@ -906,6 +919,18 @@ export default function ExercisePage() {
             message={exerciseInsightsMessage}
             onClose={() => setIsInsightsModalOpen(false)}
         />
+        <button
+          type="button"
+          data-ui="create-exercise-floating-mobile"
+          onClick={() => {
+            setCreateErrorMessage("");
+            setIsCreateModalOpen(true);
+          }}
+          className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 grid h-14 w-14 place-items-center rounded-[18px] bg-[#ea7130] text-2xl font-black text-[#1f1b16] shadow-[0_18px_42px_rgba(234,113,48,0.32)] md:hidden"
+          aria-label="Crear ejercicio rápido"
+        >
+          +
+        </button>
         {isMobileExerciseDetailOpen && selectedExercise && (
           <DialogPopup
             kicker="Ejercicio"
@@ -925,6 +950,12 @@ export default function ExercisePage() {
                   {[selectedExercise.muscle_group, ...secondaryMuscleGroupValues].filter(Boolean).map(muscleGroupLabel).join(", ") || "Sin grupo"}
                 </p>
               </div>
+              <div className="rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-3">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.16em] text-[#265c52]">Descripción</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-[#1f1b16]">
+                  {selectedExercise.description?.trim() || "Sin descripción."}
+                </p>
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => { setIsMobileExerciseDetailOpen(false); setIsInsightsModalOpen(true); }} className="rounded-[14px] bg-[#ea7130] px-3 py-3 text-sm font-black text-[#1f1b16]">
@@ -933,6 +964,33 @@ export default function ExercisePage() {
               <button type="button" onClick={() => { setIsMobileExerciseDetailOpen(false); setEditErrorMessage(""); setIsEditModalOpen(true); }} disabled={!canEditSelectedExercise} className="rounded-[14px] border border-[#1f1b16]/15 px-3 py-3 text-sm font-black text-[#1f1b16] disabled:opacity-50">
                 Editar
               </button>
+            </div>
+            <div className="mt-4 rounded-[18px] border border-[#1f1b16]/10 bg-white/70 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.16em] text-[#265c52]">
+                  Sesiones
+                </p>
+                <span className="rounded-full bg-[#265c52]/10 px-2.5 py-1 text-xs font-black text-[#265c52]">
+                  {exerciseWorkoutSessions.length}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {exerciseWorkoutSessionsStatus === "loading" && (
+                  <p className="text-sm font-bold text-[#3a332c]/70">Cargando sesiones...</p>
+                )}
+                {exerciseWorkoutSessionsStatus === "success" && exerciseWorkoutSessions.length === 0 && (
+                  <p className="text-sm font-bold text-[#3a332c]/70">Sin sesiones registradas.</p>
+                )}
+                {exerciseWorkoutSessionsStatus === "success" &&
+                  exerciseWorkoutSessions.slice(0, 3).map((session) => (
+                    <div key={session.id} className="rounded-[14px] border border-[#1f1b16]/10 bg-[#fffaf0]/70 p-3">
+                      <p className="truncate text-sm font-black text-[#1f1b16]">{session.name || session.routine_name || "Entreno"}</p>
+                      <p className="mt-1 text-xs font-bold text-[#3a332c]/70">
+                        {workoutSessionDateFormatter.format(new Date(session.started_at))} · {session.set_count} {session.set_count === 1 ? "set" : "sets"}
+                      </p>
+                    </div>
+                  ))}
+              </div>
             </div>
           </DialogPopup>
         )}

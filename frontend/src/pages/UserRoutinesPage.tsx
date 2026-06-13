@@ -2766,19 +2766,62 @@ export default function UserRoutinesPage() {
             <button type="button" onClick={() => { setIsMobileRoutineDetailOpen(false); handleRoutineAction("edit"); }} className="rounded-[14px] border border-[#1f1b16]/15 px-3 py-3 text-sm font-black text-[#1f1b16]">
               Editar
             </button>
+            <button type="button" onClick={() => { setIsMobileRoutineDetailOpen(false); handleRoutineAction("improve"); }} className="rounded-[14px] border border-[#1f1b16]/15 bg-white/65 px-3 py-3 text-sm font-black text-[#1f1b16]">
+              Mejorar IA
+            </button>
+            <button type="button" onClick={() => { setIsMobileRoutineDetailOpen(false); handleRoutineAction("duplicate"); }} disabled={routineActionStatus === "loading"} className="rounded-[14px] border border-[#1f1b16]/15 bg-white/65 px-3 py-3 text-sm font-black text-[#1f1b16] disabled:opacity-50">
+              Duplicar
+            </button>
           </div>
+          {routineActionMessage && (
+            <p className="mt-3 rounded-[14px] border border-[#1f1b16]/10 bg-white/70 px-3 py-2 text-sm font-bold text-[#3a332c]">
+              {routineActionMessage}
+            </p>
+          )}
           <div className="mt-4 grid gap-3">
             {selectedRoutine.exercises.map((exercise) => (
               <div key={exercise.id} className="rounded-[16px] border border-[#1f1b16]/10 bg-white/70 p-3">
-                <p className="m-0 text-sm font-black text-[#1f1b16]">{exercise.name}</p>
-                <p className="mt-1 text-xs font-bold text-[#3a332c]/70">
-                  {exercise.sets.length} {exercise.sets.length === 1 ? "serie" : "series"}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="m-0 truncate text-sm font-black text-[#1f1b16]">{exercise.name}</p>
+                    <p className="mt-1 text-xs font-bold text-[#3a332c]/70">
+                      {muscleGroupLabel(exercise.muscle_group)} · {exercise.exercise_type ? exerciseTypeLabel(exercise.exercise_type) : "Sin tipo"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#265c52]/10 px-2.5 py-1 text-xs font-black text-[#265c52]">
+                    {exercise.sets.length} {exercise.sets.length === 1 ? "serie" : "series"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-bold leading-5 text-[#3a332c]/70">
+                  {exercise.sets.slice(0, 3).map(formatReps).filter(Boolean).join(" · ") || "Sin objetivo de repeticiones"}
                 </p>
               </div>
             ))}
           </div>
+          {!selectedRoutine.is_predefined && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileRoutineDetailOpen(false);
+                handleRoutineAction("delete");
+              }}
+              disabled={routineActionStatus === "loading"}
+              className="mt-4 w-full rounded-[14px] border border-[#9f2f22]/20 bg-[#9f2f22]/10 px-3 py-3 text-sm font-black text-[#9f2f22] disabled:opacity-50"
+            >
+              Eliminar rutina
+            </button>
+          )}
         </DialogPopup>
       )}
+      <button
+        type="button"
+        onClick={handleOpenCreateRoutine}
+        disabled={routineLimitReached}
+        className="fixed bottom-[calc(5.9rem+env(safe-area-inset-bottom))] right-4 z-30 grid h-14 w-14 place-items-center rounded-[18px] bg-[#ea7130] text-2xl font-black text-[#1f1b16] shadow-[0_18px_42px_rgba(234,113,48,0.32)] disabled:opacity-50 md:hidden"
+        aria-label="Crear rutina rápida"
+      >
+        +
+      </button>
     </section>
       </main>
   );
@@ -3109,7 +3152,7 @@ function Toolbar({
 }) {
   return (
       <div className="flex flex-wrap items-center gap-2.5 rounded-[20px] border border-[#1f1b16]/12 bg-[#fffaf0]/75 p-2.5 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex w-full items-center gap-1.5 overflow-x-auto pb-1 md:w-auto md:flex-wrap md:overflow-visible md:pb-0">
           {filters.map((filter) => {
             const isActive = filter.key === activeFilter;
             return (
@@ -3118,7 +3161,7 @@ function Toolbar({
                     type="button"
                     onClick={() => onFilterChange(filter.key)}
                     className={[
-                      "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-extrabold tracking-[-0.01em] transition",
+                      "inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[14px] font-extrabold transition",
                       isActive
                           ? "bg-[#1f1b16] text-[#fffaf0]"
                           : "text-[#3a332c] hover:bg-[#1f1b16]/5",
@@ -3160,7 +3203,7 @@ function Toolbar({
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Buscar por nombre, grupo..."
-              className="w-full rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] py-2.5 pl-10 pr-4 text-[14px] font-bold text-[#1f1b16] outline-none transition placeholder:font-semibold placeholder:text-[#3a332c]/50 focus:border-[#265c52]"
+              className="w-full rounded-full border border-[#1f1b16]/10 bg-[#fffaf0] py-3 pl-10 pr-4 text-[16px] font-bold text-[#1f1b16] outline-none transition placeholder:font-semibold placeholder:text-[#3a332c]/50 focus:border-[#265c52] md:py-2.5 md:text-[14px]"
           />
         </label>
 

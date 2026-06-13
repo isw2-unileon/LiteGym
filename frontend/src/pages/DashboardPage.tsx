@@ -915,6 +915,22 @@ export default function DashboardPage() {
         Iniciar entrenamiento
       </button>
 
+      <button
+        type="button"
+        onClick={handleOpenQuickStart}
+        className="fixed inset-x-4 bottom-[calc(5.9rem+env(safe-area-inset-bottom))] z-30 flex items-center justify-between rounded-[18px] bg-[#1f1b16] px-4 py-3 text-left text-sm font-black text-[#fffaf0] shadow-[0_18px_42px_rgba(31,27,22,0.22)] md:hidden"
+      >
+        <span>
+          <span className="block [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] uppercase tracking-[0.16em] text-[#f1a45b]">
+            Entrenar ahora
+          </span>
+          <span className="mt-0.5 block">Elegir rutina e iniciar</span>
+        </span>
+        <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#ea7130] text-lg font-black text-[#1f1b16]">
+          +
+        </span>
+      </button>
+
       {selectedPlanDate && (
         <DialogPopup
           kicker="Planificar entreno"
