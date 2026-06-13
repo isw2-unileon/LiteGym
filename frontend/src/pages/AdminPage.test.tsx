@@ -25,11 +25,6 @@ function setupFetchMock() {
       return Promise.resolve(jsonResponse({ message: "Deleted" }, { status: 200 }));
     }
 
-    // --- EXERCISE MOCKS ---
-    if (url.endsWith("/api/exercises") && method === "POST") {
-      return Promise.resolve(jsonResponse({ message: "Created" }, { status: 201 }));
-    }
-
     // --- TICKET MOCKS ---
     if (url.endsWith("/api/tickets") && method === "GET") {
       return Promise.resolve(jsonResponse([
@@ -76,11 +71,11 @@ describe("AdminPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("redirects to exercises if user is not an admin", async () => {
+  it("redirects to dashboard if user is not an admin", async () => {
     setupFetchMock();
     renderAdminPage("user");
 
-    expect(await screen.findByText("Exercises Page Mock")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard Page Mock")).toBeInTheDocument();
   });
 
   // --- TICKET TESTS ---
@@ -89,13 +84,12 @@ describe("AdminPage", () => {
     const fetchMock = setupFetchMock();
     renderAdminPage();
 
-    expect(await screen.findByRole("heading", { name: "Centro de Mando" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "CENTRO DE MANDO" })).toBeInTheDocument();
     
     // Verify that the tickets tab is active and shows the mocked ticket
     expect(await screen.findByText("[General] Problema app")).toBeInTheDocument();
     
-    // Verificamos que funciona el botón de cerrar
-    const closeButton = screen.getByRole("button", { name: "Marcar como resuelto" });
+    const closeButton = screen.getByRole("button", { name: "Resolver ticket" });
     await user.click(closeButton);
 
     await waitFor(() => {
@@ -130,7 +124,7 @@ describe("AdminPage", () => {
 
     await user.type(screen.getByPlaceholderText("Nombre de usuario"), "newcomer");
     await user.type(screen.getByPlaceholderText("Correo electrónico"), "new@test.com");
-    await user.type(screen.getByPlaceholderText("Contraseña"), "pass123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "pass123");
     await user.click(screen.getByRole("button", { name: "Crear Usuario" }));
 
     await waitFor(() => {
@@ -174,32 +168,5 @@ describe("AdminPage", () => {
     });
 
     expect(await screen.findByText("Usuario eliminado.")).toBeInTheDocument();
-  });
-
-  // --- EXERCISE TESTS ---
-  it("switches to exercises tab and creates an exercise", async () => {
-    const user = userEvent.setup();
-    const fetchMock = setupFetchMock();
-    renderAdminPage();
-
-    const exercisesTab = await screen.findByRole("button", { name: "Ejercicios Globales" });
-    await user.click(exercisesTab);
-
-    await user.type(screen.getByPlaceholderText("Nombre del ejercicio (ej: Press Banca)"), "Sentadilla");
-    await user.type(screen.getByPlaceholderText("Grupo muscular (ej: Pecho)"), "Piernas");
-    await user.type(screen.getByPlaceholderText("Detalle (ej: Tracción horizontal)"), "Empuje vertical");
-    await user.click(screen.getByRole("button", { name: "Publicar Ejercicio" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/exercises"),
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"is_official":true'),
-        }),
-      );
-    });
-
-    expect(await screen.findByText("Ejercicio global creado correctamente.")).toBeInTheDocument();
   });
 });

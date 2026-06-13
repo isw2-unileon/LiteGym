@@ -13,14 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
 
 type MockExerciseRepository struct {
-	createFunc         func(ctx context.Context, exercise *model.Exercise) error
-	getByIDFunc        func(ctx context.Context, id string) (*model.Exercise, error)
-	listFunc           func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
-	updateExerciseFunc func(ctx context.Context, exercise *model.Exercise) error
-	deleteExerciseFunc func(ctx context.Context, id string) error
+	createFunc                        func(ctx context.Context, exercise *model.Exercise) error
+	getByIDFunc                       func(ctx context.Context, id string) (*model.Exercise, error)
+	nameExistsFunc                    func(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error)
+	listFunc                          func(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error)
+	listWorkoutSessionsByExerciseFunc func(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error)
+	getInsightsFunc                   func(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error)
+	updateExerciseFunc                func(ctx context.Context, exercise *model.Exercise) error
+	deleteExerciseFunc                func(ctx context.Context, id string) error
 }
 
 func (m *MockExerciseRepository) Create(ctx context.Context, exercise *model.Exercise) error {
@@ -37,11 +41,32 @@ func (m *MockExerciseRepository) GetByID(ctx context.Context, id string) (*model
 	return nil, nil
 }
 
+func (m *MockExerciseRepository) NameExists(ctx context.Context, name string, ownerUserID *string, excludeID string) (bool, error) {
+	if m.nameExistsFunc != nil {
+		return m.nameExistsFunc(ctx, name, ownerUserID, excludeID)
+	}
+	return false, nil
+}
+
 func (m *MockExerciseRepository) List(ctx context.Context, filters model.ExerciseFilter) ([]model.Exercise, int, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, filters)
 	}
 	return []model.Exercise{}, 0, nil
+}
+
+func (m *MockExerciseRepository) ListWorkoutSessionsByExercise(ctx context.Context, exerciseID, userID string, limit int) ([]model.ExerciseWorkoutSessionSummary, error) {
+	if m.listWorkoutSessionsByExerciseFunc != nil {
+		return m.listWorkoutSessionsByExerciseFunc(ctx, exerciseID, userID, limit)
+	}
+	return []model.ExerciseWorkoutSessionSummary{}, nil
+}
+
+func (m *MockExerciseRepository) GetInsights(ctx context.Context, exerciseID, userID string) (model.ExerciseInsights, error) {
+	if m.getInsightsFunc != nil {
+		return m.getInsightsFunc(ctx, exerciseID, userID)
+	}
+	return model.ExerciseInsights{}, nil
 }
 
 func (m *MockExerciseRepository) UpdateExercise(ctx context.Context, exercise *model.Exercise) error {
@@ -213,6 +238,7 @@ func TestListExercises(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
 
 	exerciseHandler.ListExercises(c)
 
@@ -245,6 +271,7 @@ func TestListExercisesInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/exercises?page=1&limit=20", nil)
+	c.Set(middleware.ContextUserIDKey, "550e8400-e29b-41d4-a716-446655440111")
 
 	exerciseHandler.ListExercises(c)
 
@@ -325,6 +352,62 @@ func TestUpdateExerciseOfficialRequiresAdmin(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestUpdateExerciseUnmarkOfficialAssignsOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminID := "550e8400-e29b-41d4-a716-446655440111"
+
+	var captured *model.Exercise
+	mockRepo := &MockExerciseRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Exercise, error) {
+			return &model.Exercise{
+				ID:           id,
+				Name:         "Bench Press",
+				MuscleGroup:  "chest",
+				ExerciseType: "strength",
+				IsOfficial:   true,
+			}, nil
+		},
+		updateExerciseFunc: func(ctx context.Context, exercise *model.Exercise) error {
+			captured = exercise
+			return nil
+		},
+	}
+
+	exerciseService := service.NewExerciseService(mockRepo)
+	exerciseHandler := NewExerciseHandler(exerciseService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+	c.Set("user_role", "admin")
+	c.Set(middleware.ContextUserIDKey, adminID)
+	c.Request = httptest.NewRequest(
+		http.MethodPut,
+		"/api/exercises/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewBufferString(`{"name":"Bench Press","muscle_group":"chest","exercise_type":"strength","is_official":false}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	exerciseHandler.UpdateExercise(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	if captured == nil {
+		t.Fatal("expected repository UpdateExercise to be called")
+	}
+
+	if captured.IsOfficial {
+		t.Error("expected exercise to be marked as non-official")
+	}
+
+	if captured.OwnerUserID == nil || *captured.OwnerUserID != adminID {
+		t.Errorf("expected owner to be assigned to the editor %q, got %v", adminID, captured.OwnerUserID)
 	}
 }
 

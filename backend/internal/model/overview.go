@@ -25,11 +25,14 @@ type OverviewCalendar struct {
 
 // OverviewRoutineSummary represents a lightweight routine card in the overview.
 type OverviewRoutineSummary struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Description   string    `json:"description,omitempty"`
-	ExerciseCount int       `json:"exercise_count"`
-	UpdatedAt     time.Time `json:"updated_at"`
+        ID            string    `json:"id"`
+        Name          string    `json:"name"`
+        Description   string    `json:"description,omitempty"`
+        Source        string    `json:"source"`
+        IsPredefined  bool      `json:"is_predefined"`
+        RoutineType   string    `json:"routine_type"`
+        ExerciseCount int       `json:"exercise_count"`
+        UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // OverviewWorkoutSummary represents a lightweight training session card in the overview.

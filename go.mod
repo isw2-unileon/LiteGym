@@ -4,12 +4,13 @@ go 1.25.0
 
 require github.com/gin-gonic/gin v1.12.0
 
-require github.com/jackc/pgx/v5 v5.9.2
+require github.com/jackc/pgx/v5 v5.10.0
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.48.0
+	golang.org/x/time v0.11.0
 )
 
 require (

@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,13 +32,13 @@ func LoadIntegrationDBURL(t *testing.T) string {
 	if ok {
 		helperDir := filepath.Dir(filename)
 		repoRoot := filepath.Clean(filepath.Join(helperDir, "..", "..", ".."))
-		_ = godotenv.Load(
+		_ = godotenv.Overload(
 			filepath.Join(repoRoot, ".env.local"),
 			filepath.Join(repoRoot, ".env"),
 			filepath.Join(repoRoot, "backend", ".env"),
 		)
 	} else {
-		_ = godotenv.Load(".env.local", ".env", "backend/.env")
+		_ = godotenv.Overload(".env.local", ".env", "backend/.env")
 	}
 
 	testDBURL := strings.TrimSpace(os.Getenv("TEST_DB_URL"))
@@ -45,7 +46,7 @@ func LoadIntegrationDBURL(t *testing.T) string {
 		testDBURL = strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	}
 	if testDBURL == "" {
-		t.Skip("skipping integration test: TEST_DB_URL/DATABASE_URL not set. To run them, start Postgres with `make start-postgres-db` and run `make test-integration`.")
+		skipIntegrationTest(t, "TEST_DB_URL/DATABASE_URL not set. To run them, start Postgres with `make start-postgres-db` and run `make test-integration`.")
 	}
 
 	parsed, err := url.Parse(testDBURL)
@@ -88,7 +89,7 @@ func NewIntegrationTestPool(t *testing.T) *pgxpool.Pool {
 	if err := db.Ping(t.Context()); err != nil {
 		db.Close()
 		if canSkipIntegrationDBError(err) {
-			t.Skipf("skipping integration test: test database is not reachable (%v). Start it with `make start-postgres-db`, then run `make test-integration`.", err)
+			skipIntegrationTest(t, "test database is not reachable (%v). Start it with `make start-postgres-db`, then run `make test-integration`.", err)
 		}
 		t.Fatalf("error haciendo ping a la base de test: %v", err)
 	}
@@ -125,4 +126,16 @@ func canSkipIntegrationDBError(err error) bool {
 		strings.Contains(message, "socket: operation not permitted") ||
 		strings.Contains(message, "dial error") ||
 		strings.Contains(message, "timeout")
+}
+
+func skipIntegrationTest(t *testing.T, format string, args ...any) {
+	t.Helper()
+
+	message := fmt.Sprintf(format, args...)
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("CI")), "true") {
+		t.Fatalf("integration test cannot be skipped in CI: %s", message)
+	}
+
+	t.Logf("warning: skipping integration test: %s", message)
+	t.Skipf("skipping integration test: %s", message)
 }

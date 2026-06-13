@@ -19,8 +19,37 @@ func (m *mockRoutineRepository) ListRecentByUser(ctx context.Context, userID str
 	return []model.OverviewRoutineSummary{}, nil
 }
 
-func (m *mockRoutineRepository) ListByUser(ctx context.Context, userID string) ([]model.OverviewRoutineSummary, error) {
+func (m *mockRoutineRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
 	return []model.OverviewRoutineSummary{}, nil
+}
+
+func (m *mockRoutineRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+	return nil, nil
+}
+
+func (m *mockRoutineRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	return 0, nil
+}
+
+func (m *mockRoutineRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
+func (m *mockRoutineRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	return nil
+}
+
+func (m *mockRoutineRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	return nil
+}
+
+func (m *mockRoutineRepository) ListAvailableExercisesForAI(
+	ctx context.Context,
+	userID string,
+	targetMuscleGroups []string,
+	limit int,
+) ([]model.Exercise, error) {
+	return []model.Exercise{}, nil
 }
 
 type mockOverviewWorkoutRepository struct {
@@ -120,7 +149,10 @@ func newOverviewServiceTestSubject(referenceDate time.Time) (*OverviewService, f
 }
 
 func overviewMuscleDistributionFixture(from time.Time) ([]model.OverviewMuscleGroupShare, int, error) {
-	if from.Month() == time.April && from.Day() == 1 {
+	// The month range is anchored to the first day of the month in Madrid time,
+	// which the service then queries as the equivalent UTC instant.
+	fromMadrid := from.In(madridLocation)
+	if fromMadrid.Month() == time.April && fromMadrid.Day() == 1 {
 		return []model.OverviewMuscleGroupShare{
 			{Name: "back", Count: 2, Percentage: 67},
 			{Name: "chest", Count: 1, Percentage: 33},

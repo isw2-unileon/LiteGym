@@ -3,13 +3,50 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProfilePage from "./ProfilePage";
 
-function setupFetchMock(mockData: unknown, isOk = true) {
-  const fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify(mockData), {
-      status: isOk ? 200 : 401,
-      headers: { "Content-Type": "application/json" },
-    }),
-  );
+function jsonResponse(body: unknown, init?: ResponseInit) {
+  return new Response(JSON.stringify(body), {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    ...init,
+  });
+}
+
+type ProfileFetchSetup = {
+  me?: unknown;
+  stats?: unknown;
+  meStatus?: number;
+  statsStatus?: number;
+  aiStatus?: number;
+  aiResponse?: unknown;
+};
+
+function setupProfileFetchMock({
+  me,
+  stats,
+  meStatus = 200,
+  statsStatus = 200,
+  aiStatus = 200,
+  aiResponse,
+}: ProfileFetchSetup) {
+  const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+
+    if (url.includes("/api/auth/me")) {
+      return Promise.resolve(jsonResponse(me ?? { user: null }, { status: meStatus }));
+    }
+
+    if (url.includes("/api/profile/dashboard")) {
+      return Promise.resolve(jsonResponse(stats ?? {}, { status: statsStatus }));
+    }
+
+    if (url.includes("/api/profile/ai-analysis")) {
+      return Promise.resolve(jsonResponse(aiResponse ?? { analysis: "Analysis OK" }, { status: aiStatus }));
+    }
+
+    return Promise.resolve(jsonResponse({}, { status: 200 }));
+  });
+
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -30,19 +67,19 @@ describe("ProfilePage", () => {
   });
 
   it("renders the loading state initially", () => {
-    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    vi.stubGlobal("fetch", () => new Promise(() => { }));
 
     renderProfilePage();
 
-    expect(screen.getByText("Loading profile...")).toBeInTheDocument();
+    expect(screen.getByText("Cargando perfil...")).toBeInTheDocument();
   });
 
   it("renders an error message if the fetch fails", async () => {
-    setupFetchMock({ error: "unauthorized" }, false);
+    setupProfileFetchMock({ me: { error: "unauthorized" }, meStatus: 401 });
 
     renderProfilePage();
 
-    expect(await screen.findByText("Error: Profile not found or unauthorized")).toBeInTheDocument();
+    expect(await screen.findByText("No se pudo cargar el perfil del usuario.")).toBeInTheDocument();
   });
 
   it("renders user data correctly for a normal user", async () => {
@@ -55,18 +92,30 @@ describe("ProfilePage", () => {
         created_at: "2026-04-24T10:00:00Z",
       },
     };
-    setupFetchMock(mockUser, true);
+    const mockStats = {
+      total_workouts: 0,
+      total_duration_minutes: 0,
+      total_volume_kg: 0,
+      total_sets: 0,
+      streak_days: [],
+      streak_activities: [],
+      top_exercises: [],
+      muscle_radar: [],
+      weight_history: [],
+      goals: null,
+    };
+    setupProfileFetchMock({ me: mockUser, stats: mockStats });
 
     renderProfilePage();
 
-    expect(await screen.findByRole("heading", { name: "atleta_pro" })).toBeInTheDocument();
-    expect(screen.getByText("atleta@test.com")).toBeInTheDocument();
-    expect(screen.getByText("Rol actual: user")).toBeInTheDocument();
-    expect(screen.getByText("a")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Panel de Administración" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola,\s*atleta_pro/i })).toBeInTheDocument();
+    expect(screen.getByText(/atleta@test\.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/Rol:/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mes anterior" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mes siguiente" })).toBeInTheDocument();
   });
 
-  it("renders the Admin Panel button if the user is an admin", async () => {
+  it("renders user data correctly for an admin", async () => {
     const mockAdmin = {
       user: {
         id: "uuid-9999",
@@ -76,15 +125,47 @@ describe("ProfilePage", () => {
         created_at: "2026-01-01T10:00:00Z",
       },
     };
-    setupFetchMock(mockAdmin, true);
+    const mockStats = {
+      total_workouts: 0,
+      total_duration_minutes: 0,
+      total_volume_kg: 0,
+      total_sets: 0,
+      streak_days: [],
+      streak_activities: [],
+      top_exercises: [],
+      muscle_radar: [],
+      weight_history: [],
+      goals: null,
+    };
+    setupProfileFetchMock({ me: mockAdmin, stats: mockStats });
 
     renderProfilePage();
 
-    expect(await screen.findByRole("heading", { name: "super_admin" })).toBeInTheDocument();
-    expect(screen.getByText("Rol actual: admin")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Hola,\s*super_admin/i })).toBeInTheDocument();
+    expect(screen.getByText("Rol: admin")).toBeInTheDocument();
+  });
 
-    const adminLink = screen.getByRole("link", { name: "Panel de Administración" });
-    expect(adminLink).toBeInTheDocument();
-    expect(adminLink.getAttribute("href")).toBe("/admin");
+  it("shows rate limit message when AI analysis returns 429", async () => {
+    const mockUser = { user: { id: "uuid-1234", username: "user1", email: "u@u.com", role: "user" } };
+    setupProfileFetchMock({ me: mockUser, stats: {}, aiStatus: 429 });
+
+    renderProfilePage();
+
+    const analyzeBtn = await screen.findByRole("button", { name: /Generar Análisis/i });
+    analyzeBtn.click();
+
+    expect(await screen.findByText("¡Uf! He estado analizando muchos perfiles hoy y necesito un breve descanso para recuperar energía. Vuelve a intentarlo en un ratito, ¡y seguiremos dándolo todo!")).toBeInTheDocument();
+  });
+
+  it("shows generic error message when AI analysis connection fails", async () => {
+    const mockUser = { user: { id: "uuid-1234", username: "user1", email: "u@u.com", role: "user" } };
+    setupProfileFetchMock({ me: mockUser, stats: {}, aiStatus: 500 });
+
+    renderProfilePage();
+
+    const analyzeBtn = await screen.findByRole("button", { name: /Generar Análisis/i });
+    analyzeBtn.click();
+
+    expect(await screen.findByText("Parece que hubo un pequeño problema de conexión con tu entrenador. Inténtalo de nuevo más tarde.")).toBeInTheDocument();
   });
 });

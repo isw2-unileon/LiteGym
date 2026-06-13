@@ -1,0 +1,122 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
+	"github.com/jackc/pgx/v5"
+)
+
+type routineServiceTestRepository struct {
+	getByIDFunc    func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error)
+	listByUserFunc func(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error)
+}
+
+func (r *routineServiceTestRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]model.OverviewRoutineSummary, error) {
+	return []model.OverviewRoutineSummary{}, nil
+}
+
+func (r *routineServiceTestRepository) ListByUser(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
+	if r.listByUserFunc != nil {
+		return r.listByUserFunc(ctx, userID, search)
+	}
+	return []model.OverviewRoutineSummary{}, nil
+}
+
+func (r *routineServiceTestRepository) GetByID(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+	if r.getByIDFunc != nil {
+		return r.getByIDFunc(ctx, userID, routineID)
+	}
+	return nil, nil
+}
+
+func (r *routineServiceTestRepository) SaveGeneratedAIRoutine(ctx context.Context, routine model.AIRoutineToSave) (string, error) {
+	return "", nil
+}
+
+func (r *routineServiceTestRepository) OverwriteGeneratedAIRoutine(ctx context.Context, routineID, userID string, routine model.AIRoutineToSave) error {
+	return nil
+}
+
+func (r *routineServiceTestRepository) CountAIGenerationsInWindow(ctx context.Context, userID string, since time.Time) (int, error) {
+	return 0, nil
+}
+
+func (r *routineServiceTestRepository) LogAIGeneration(ctx context.Context, userID string, createdAt time.Time) error {
+	return nil
+}
+
+func (r *routineServiceTestRepository) ListAvailableExercisesForAI(ctx context.Context, userID string, targetMuscleGroups []string, limit int) ([]model.Exercise, error) {
+	return []model.Exercise{}, nil
+}
+
+func TestRoutineServiceGetByID(t *testing.T) {
+	svc := NewRoutineService(&routineServiceTestRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return &model.RoutineDetail{ID: routineID, Name: "Push Day"}, nil
+		},
+	})
+
+	routine, err := svc.GetByID(context.Background(), "user-1", "routine-1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if routine == nil || routine.Name != "Push Day" {
+		t.Fatalf("expected routine Push Day, got %#v", routine)
+	}
+}
+
+func TestRoutineServiceListByUserForwardsSearch(t *testing.T) {
+	var capturedSearch string
+	svc := NewRoutineService(&routineServiceTestRepository{
+		listByUserFunc: func(ctx context.Context, userID, search string) ([]model.OverviewRoutineSummary, error) {
+			capturedSearch = search
+			return []model.OverviewRoutineSummary{{ID: "r1", Name: "Push"}}, nil
+		},
+	})
+
+	routines, err := svc.ListByUser(context.Background(), "user-1", "  push  ")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if capturedSearch != "push" {
+		t.Fatalf("expected trimmed search 'push', got %q", capturedSearch)
+	}
+	if len(routines) != 1 {
+		t.Fatalf("expected 1 routine, got %d", len(routines))
+	}
+}
+
+func TestRoutineServiceListByUserInvalidInput(t *testing.T) {
+	svc := NewRoutineService(&routineServiceTestRepository{})
+
+	_, err := svc.ListByUser(context.Background(), "  ", "")
+	if !errors.Is(err, ErrInvalidUserInput) {
+		t.Fatalf("expected ErrInvalidUserInput, got %v", err)
+	}
+}
+
+func TestRoutineServiceGetByIDInvalidInput(t *testing.T) {
+	svc := NewRoutineService(&routineServiceTestRepository{})
+
+	_, err := svc.GetByID(context.Background(), "", "routine-1")
+	if !errors.Is(err, ErrInvalidRoutineInput) {
+		t.Fatalf("expected ErrInvalidRoutineInput, got %v", err)
+	}
+}
+
+func TestRoutineServiceGetByIDNotFound(t *testing.T) {
+	svc := NewRoutineService(&routineServiceTestRepository{
+		getByIDFunc: func(ctx context.Context, userID, routineID string) (*model.RoutineDetail, error) {
+			return nil, pgx.ErrNoRows
+		},
+	})
+
+	_, err := svc.GetByID(context.Background(), "user-1", "routine-1")
+	if !errors.Is(err, ErrRoutineNotFound) {
+		t.Fatalf("expected ErrRoutineNotFound, got %v", err)
+	}
+}

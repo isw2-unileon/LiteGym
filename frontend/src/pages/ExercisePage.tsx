@@ -1,758 +1,866 @@
 import * as React from "react";
 import CreateExerciseModal, {
-    type CreateExercisePayload,
+  type CreateExercisePayload,
 } from "../components/Exercise/CreateExerciseModal";
-import { Link } from "react-router-dom";
 import ExerciseFilters from "../components/Exercise/ExerciseFilters";
 import ExerciseHeader from "../components/Exercise/ExerciseHeader";
+import ExerciseInsightModal from "../components/Exercise/ExerciseInsightModal";
 import ExerciseList from "../components/Exercise/ExerciseList";
 import { apiUrl } from "../lib/api";
 import type {
-    Exercise,
-    ExerciseMetadataResponse,
-    ExerciseStatus,
-    SelectOption,
+  Exercise,
+  ExerciseInsights,
+  ExerciseMetadataResponse,
+  ExerciseStatus,
+  ExerciseWorkoutSessionSummary,
+  SelectOption,
 } from "../types/exercise";
+import {HelloHeader} from "@/components/HelloHeader.tsx";
+import {Stat} from "@/components/Stat.tsx";
+import {Card, CardHeader} from "@/components/Card.tsx";
+import { exerciseTypeLabel, muscleGroupLabel } from "../lib/exerciseLabels";
 
 type CurrentUser = {
-    id: string;
-    email: string;
-    username: string;
-    role: string;
+  id: string;
+  email: string;
+  username: string;
+  role: string;
 };
 
 type ExerciseListResponse = {
-    items: Exercise[];
-    page: number;
-    limit: number;
-    total: number;
-    total_pages: number;
+  items: Exercise[];
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
 };
 
+const workoutSessionDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 export default function ExercisePage() {
-    const [exercises, setExercises] = React.useState<Exercise[]>([]);
-    const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(
-        null,
-    );
-    const [status, setStatus] = React.useState<ExerciseStatus>("idle");
-    const [message, setMessage] = React.useState("");
-    const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
-    const [createErrorMessage, setCreateErrorMessage] = React.useState("");
-    const [isCreatingExercise, setIsCreatingExercise] = React.useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
-    const [editErrorMessage, setEditErrorMessage] = React.useState("");
-    const [isUpdatingExercise, setIsUpdatingExercise] = React.useState(false);
-    const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
+  const [exercises, setExercises] = React.useState<Exercise[]>([]);
+  const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(
+    null,
+  );
+  const [status, setStatus] = React.useState<ExerciseStatus>("idle");
+  const [message, setMessage] = React.useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
+  const [createErrorMessage, setCreateErrorMessage] = React.useState("");
+  const [isCreatingExercise, setIsCreatingExercise] = React.useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+  const [editErrorMessage, setEditErrorMessage] = React.useState("");
+  const [isUpdatingExercise, setIsUpdatingExercise] = React.useState(false);
+  const [isDeletingExercise, setIsDeletingExercise] = React.useState(false);
+  const [selectedExerciseId, setSelectedExerciseId] = React.useState("");
+  const [exerciseWorkoutSessions, setExerciseWorkoutSessions] = React.useState<
+    ExerciseWorkoutSessionSummary[]
+  >([]);
+  const [exerciseWorkoutSessionsStatus, setExerciseWorkoutSessionsStatus] =
+    React.useState<ExerciseStatus>("idle");
+  const [exerciseWorkoutSessionsMessage, setExerciseWorkoutSessionsMessage] =
+    React.useState("");
+  const [exerciseInsights, setExerciseInsights] =
+    React.useState<ExerciseInsights | null>(null);
+  const [exerciseInsightsStatus, setExerciseInsightsStatus] =
+    React.useState<ExerciseStatus>("idle");
+  const [exerciseInsightsMessage, setExerciseInsightsMessage] =
+    React.useState("");
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = React.useState(false);
 
-    const [search, setSearch] = React.useState("");
-    const [typeFilter, setTypeFilter] = React.useState("");
-    const [muscleFilter, setMuscleFilter] = React.useState("");
-    const [exerciseTypeOptions, setExerciseTypeOptions] = React.useState<
-        SelectOption[]
-    >([]);
-    const [muscleGroupOptions, setMuscleGroupOptions] = React.useState<
-        SelectOption[]
-    >([]);
-    const [metadataMessage, setMetadataMessage] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("");
+  const [muscleFilter, setMuscleFilter] = React.useState("");
+  const [exerciseTypeOptions, setExerciseTypeOptions] = React.useState<
+    SelectOption[]
+  >([]);
+  const [muscleGroupOptions, setMuscleGroupOptions] = React.useState<
+    SelectOption[]
+  >([]);
+  const [metadataMessage, setMetadataMessage] = React.useState("");
 
-    const [page, setPage] = React.useState(1);
-    const [limit] = React.useState(20);
-    const [total, setTotal] = React.useState(0);
-    const [totalPages, setTotalPages] = React.useState(0);
+  const [page, setPage] = React.useState(1);
+  const [limit] = React.useState(200);
 
-    React.useEffect(() => {
-        const fetchCurrentUser = async () => {
-            try {
-                const response = await fetch(apiUrl("/api/auth/me"), {
-                    credentials: "include",
-                });
+  React.useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch(apiUrl("/api/auth/me"), {
+          credentials: "include",
+        });
 
-                if (!response.ok) {
-                    return;
-                }
-
-                const data = (await response.json()) as { user: CurrentUser };
-                setCurrentUser(data.user);
-            } catch (error) {
-                console.error(error);
-            }
-        };
-
-        void fetchCurrentUser();
-    }, []);
-
-    React.useEffect(() => {
-        const fetchExerciseMetadata = async () => {
-            setMetadataMessage("");
-
-            try {
-                const response = await fetch(apiUrl("/api/exercises/metadata"), {
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    setMetadataMessage(
-                        "No se pudieron cargar las opciones de ejercicios.",
-                    );
-                    return;
-                }
-
-                const data =
-                    (await response.json()) as ExerciseMetadataResponse;
-                setExerciseTypeOptions(data.exercise_types);
-                setMuscleGroupOptions(data.muscle_groups);
-            } catch (error) {
-                console.error(error);
-                setMetadataMessage(
-                    "No se pudieron cargar las opciones de ejercicios.",
-                );
-            }
-        };
-
-        void fetchExerciseMetadata();
-    }, []);
-
-    const fetchExercises = React.useCallback(async () => {
-        setStatus("loading");
-        setMessage("");
-
-        try {
-            const params = new URLSearchParams();
-
-            if (search.trim() !== "") {
-                params.set("search", search.trim());
-            }
-
-            if (typeFilter !== "") {
-                params.set("type", typeFilter);
-            }
-
-            if (muscleFilter !== "") {
-                params.set("muscle_group", muscleFilter);
-            }
-
-            params.set("page", String(page));
-            params.set("limit", String(limit));
-
-            const response = await fetch(
-                apiUrl(`/api/exercises?${params.toString()}`),
-                {
-                    credentials: "include",
-                },
-            );
-
-            if (response.status === 401) {
-                setMessage("No autorizado. Por favor, inicia sesión.");
-                setStatus("error");
-                return;
-            }
-
-            if (!response.ok) {
-                setStatus("error");
-                setMessage("No se pudieron cargar los ejercicios.");
-                return;
-            }
-
-            const data = (await response.json()) as ExerciseListResponse;
-
-            setExercises(data.items);
-            setTotal(data.total);
-            setTotalPages(data.total_pages);
-
-            setSelectedExerciseId((current) => {
-                const stillExists = data.items.some(
-                    (exercise) => exercise.id === current,
-                );
-
-                if (stillExists) {
-                    return current;
-                }
-
-                const firstExercise = data.items[0];
-
-                return firstExercise ? firstExercise.id : "";
-            });
-
-            setStatus("success");
-        } catch (error) {
-            console.error(error);
-            setMessage(
-                "Error al cargar los ejercicios. Por favor, intenta de nuevo.",
-            );
-            setStatus("error");
+        if (!response.ok) {
+          return;
         }
-    }, [search, typeFilter, muscleFilter, page, limit]);
 
-    React.useEffect(() => {
-        void fetchExercises();
-    }, [fetchExercises]);
-
-    const handleSearchChange = (value: string) => {
-        setSearch(value);
-        setPage(1);
+        const data = (await response.json()) as { user: CurrentUser };
+        setCurrentUser(data.user);
+      } catch (error) {
+        console.error(error);
+      }
     };
 
-    const handleTypeFilterChange = (value: string) => {
-        setTypeFilter(value);
-        setPage(1);
+    void fetchCurrentUser();
+  }, []);
+
+  React.useEffect(() => {
+    const fetchExerciseMetadata = async () => {
+      setMetadataMessage("");
+
+      try {
+        const response = await fetch(apiUrl("/api/exercises/metadata"), {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          setMetadataMessage(
+            "No se pudieron cargar las opciones de ejercicios.",
+          );
+          return;
+        }
+
+        const data = (await response.json()) as ExerciseMetadataResponse;
+        setExerciseTypeOptions(data.exercise_types);
+        setMuscleGroupOptions(data.muscle_groups);
+      } catch (error) {
+        console.error(error);
+        setMetadataMessage("No se pudieron cargar las opciones de ejercicios.");
+      }
     };
 
-    const handleMuscleFilterChange = (value: string) => {
-        setMuscleFilter(value);
-        setPage(1);
+    void fetchExerciseMetadata();
+  }, []);
+
+  React.useEffect(() => {
+    if (search === debouncedSearch) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
     };
+  }, [search, debouncedSearch]);
 
-    const buildExercisePayload = React.useCallback(
-        (exercise: Exercise): CreateExercisePayload => {
-            const secondaryMuscleGroups =
-                exercise.secondary_muscle_groups?.filter(Boolean) ??
-                (exercise.secondary_muscle_group
-                    ? exercise.secondary_muscle_group
-                          .split(",")
-                          .map((value) => value.trim())
-                          .filter(Boolean)
-                    : []);
+  const isSearchDebouncing = search !== debouncedSearch;
 
-            return {
-                name: exercise.name,
-                description: exercise.description ?? "",
-                muscle_group: exercise.muscle_group,
-                secondary_muscle_groups:
-                    secondaryMuscleGroups.length > 0
-                        ? secondaryMuscleGroups
-                        : [""],
-                exercise_type: exercise.exercise_type ?? "",
-                is_official: exercise.is_official === true,
-            };
+  const fetchExercises = React.useCallback(async () => {
+    setStatus("loading");
+    setMessage("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (debouncedSearch.trim() !== "") {
+        params.set("search", debouncedSearch.trim());
+      }
+
+      if (typeFilter !== "") {
+        params.set("type", typeFilter);
+      }
+
+      if (muscleFilter !== "") {
+        params.set("muscle_group", muscleFilter);
+      }
+
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+
+      const response = await fetch(
+        apiUrl(`/api/exercises?${params.toString()}`),
+        {
+          credentials: "include",
         },
-        [],
-    );
+      );
 
-    const filteredExercises = exercises;
+      if (response.status === 401) {
+        setMessage("No autorizado. Por favor, inicia sesión.");
+        setStatus("error");
+        return;
+      }
 
-    const selectedExercise = React.useMemo(() => {
-        const selected = filteredExercises.find(
-            (exercise) => exercise.id === selectedExerciseId,
+      if (!response.ok) {
+        setStatus("error");
+        setMessage("No se pudieron cargar los ejercicios.");
+        return;
+      }
+
+      const data = (await response.json()) as ExerciseListResponse;
+
+      setExercises(data.items);
+
+      setSelectedExerciseId((current) => {
+        const stillExists = data.items.some(
+          (exercise) => exercise.id === current,
         );
 
-        if (selected) {
-            return selected;
+        if (stillExists) {
+          return current;
         }
 
-        const firstExercise = filteredExercises[0];
+        const firstExercise = data.items[0];
 
-        return firstExercise ?? null;
-    }, [filteredExercises, selectedExerciseId]);
+        return firstExercise ? firstExercise.id : "";
+      });
 
-    const handleCreateExercise = async (payload: CreateExercisePayload) => {
-        setIsCreatingExercise(true);
-        setCreateErrorMessage("");
+      setStatus("success");
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        "Error al cargar los ejercicios. Por favor, intenta de nuevo.",
+      );
+      setStatus("error");
+    }
+  }, [debouncedSearch, typeFilter, muscleFilter, page, limit]);
 
-        try {
-            const response = await fetch(apiUrl("/api/exercises"), {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
+  React.useEffect(() => {
+    if (isSearchDebouncing) {
+      return;
+    }
 
-            if (response.status === 401) {
-                setCreateErrorMessage(
-                    "Tu sesion ha expirado. Inicia sesion otra vez.",
-                );
-                return;
-            }
+    void fetchExercises();
+  }, [fetchExercises, isSearchDebouncing]);
 
-            if (!response.ok) {
-                const errorBody = (await response.json().catch(() => null)) as {
-                    error?: string;
-                } | null;
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
-                setCreateErrorMessage(
-                    errorBody?.error ?? "No se pudo crear el ejercicio.",
-                );
-                return;
-            }
+  const handleTypeFilterChange = (value: string) => {
+    setTypeFilter(value);
+    setPage(1);
+  };
 
-            const createdExercise = (await response.json()) as Exercise;
+  const handleMuscleFilterChange = (value: string) => {
+    setMuscleFilter(value);
+    setPage(1);
+  };
 
-            setExercises((current) => [createdExercise, ...current]);
-            setSelectedExerciseId(createdExercise.id);
-            setTotal((current) => current + 1);
-            setStatus("success");
-            setMessage("");
-            setIsCreateModalOpen(false);
-        } catch (error) {
-            console.error(error);
-            setCreateErrorMessage(
-                "No se pudo crear el ejercicio. Revisa la conexion con el backend.",
-            );
-        } finally {
-            setIsCreatingExercise(false);
+  const buildExercisePayload = React.useCallback(
+    (exercise: Exercise): CreateExercisePayload => {
+      const secondaryMuscleGroups =
+        exercise.secondary_muscle_groups?.filter(Boolean) ??
+        (exercise.secondary_muscle_group
+          ? exercise.secondary_muscle_group
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean)
+          : []);
+
+      return {
+        name: exercise.name,
+        description: exercise.description ?? "",
+        muscle_group: exercise.muscle_group,
+        secondary_muscle_groups:
+          secondaryMuscleGroups.length > 0 ? secondaryMuscleGroups : [""],
+        exercise_type: exercise.exercise_type ?? "",
+        is_official: exercise.is_official === true,
+      };
+    },
+    [],
+  );
+
+  const filteredExercises = React.useMemo(() => {
+    const isCustom = (exercise: Exercise) => exercise.is_official === false;
+    return [...exercises].sort(
+      (a, b) => Number(isCustom(b)) - Number(isCustom(a)),
+    );
+  }, [exercises]);
+
+  const selectedExercise = React.useMemo(() => {
+    const selected = filteredExercises.find(
+      (exercise) => exercise.id === selectedExerciseId,
+    );
+
+    if (selected) {
+      return selected;
+    }
+
+    const firstExercise = filteredExercises[0];
+
+    return firstExercise ?? null;
+  }, [filteredExercises, selectedExerciseId]);
+
+  React.useEffect(() => {
+    if (!selectedExercise?.id) {
+      setExerciseWorkoutSessions([]);
+      setExerciseWorkoutSessionsStatus("idle");
+      setExerciseWorkoutSessionsMessage("");
+      setExerciseInsights(null);
+      setExerciseInsightsStatus("idle");
+      setExerciseInsightsMessage("");
+      setIsInsightsModalOpen(false);
+      return;
+    }
+
+    let ignore = false;
+
+    const fetchExerciseWorkoutSessions = async () => {
+      setExerciseWorkoutSessions([]);
+      setExerciseWorkoutSessionsStatus("loading");
+      setExerciseWorkoutSessionsMessage("");
+
+      try {
+        const response = await fetch(
+          apiUrl(`/api/exercises/${selectedExercise.id}/workout-sessions`),
+          {
+            credentials: "include",
+          },
+        );
+
+        if (ignore) {
+          return;
         }
+
+        if (response.status === 401) {
+          setExerciseWorkoutSessions([]);
+          setExerciseWorkoutSessionsStatus("error");
+          setExerciseWorkoutSessionsMessage(
+            "No autorizado. Por favor, inicia sesión.",
+          );
+          return;
+        }
+
+        if (!response.ok) {
+          setExerciseWorkoutSessions([]);
+          setExerciseWorkoutSessionsStatus("error");
+          setExerciseWorkoutSessionsMessage(
+            "No se pudieron cargar los entrenos de este ejercicio.",
+          );
+          return;
+        }
+
+        const data =
+          (await response.json()) as ExerciseWorkoutSessionSummary[];
+        setExerciseWorkoutSessions(data);
+        setExerciseWorkoutSessionsStatus("success");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        console.error(error);
+        setExerciseWorkoutSessions([]);
+        setExerciseWorkoutSessionsStatus("error");
+        setExerciseWorkoutSessionsMessage(
+          "No se pudieron cargar los entrenos de este ejercicio.",
+        );
+      }
     };
 
-    const handleUpdateExercise = async (payload: CreateExercisePayload) => {
-        if (!selectedExercise) {
-            return;
+    void fetchExerciseWorkoutSessions();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedExercise?.id]);
+
+  React.useEffect(() => {
+    if (!selectedExercise?.id) {
+      return;
+    }
+
+    let ignore = false;
+
+    const fetchExerciseInsights = async () => {
+      setExerciseInsights(null);
+      setExerciseInsightsStatus("loading");
+      setExerciseInsightsMessage("");
+
+      try {
+        const response = await fetch(
+          apiUrl(`/api/exercises/${selectedExercise.id}/insights`),
+          {
+            credentials: "include",
+          },
+        );
+
+        if (ignore) {
+          return;
         }
 
-        setIsUpdatingExercise(true);
-        setEditErrorMessage("");
-
-        try {
-            const response = await fetch(
-                apiUrl(`/api/exercises/${selectedExercise.id}`),
-                {
-                    method: "PUT",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                },
-            );
-
-            if (response.status === 401) {
-                setEditErrorMessage(
-                    "Tu sesion ha expirado. Inicia sesion otra vez.",
-                );
-                return;
-            }
-
-            if (!response.ok) {
-                const errorBody = (await response.json().catch(() => null)) as {
-                    error?: string;
-                } | null;
-
-                setEditErrorMessage(
-                    errorBody?.error ?? "No se pudo actualizar el ejercicio.",
-                );
-                return;
-            }
-
-            const updatedExercise = (await response.json()) as Exercise;
-
-            setExercises((current) =>
-                current.map((exercise) =>
-                    exercise.id === updatedExercise.id
-                        ? updatedExercise
-                        : exercise,
-                ),
-            );
-            setSelectedExerciseId(updatedExercise.id);
-            setIsEditModalOpen(false);
-        } catch (error) {
-            console.error(error);
-            setEditErrorMessage(
-                "No se pudo actualizar el ejercicio. Revisa la conexion con el backend.",
-            );
-        } finally {
-            setIsUpdatingExercise(false);
+        if (response.status === 401) {
+          setExerciseInsights(null);
+          setExerciseInsightsStatus("error");
+          setExerciseInsightsMessage(
+            "No autorizado. Por favor, inicia sesión.",
+          );
+          return;
         }
+
+        if (!response.ok) {
+          setExerciseInsights(null);
+          setExerciseInsightsStatus("error");
+          setExerciseInsightsMessage(
+            "No se pudieron cargar las estadisticas del ejercicio.",
+          );
+          return;
+        }
+
+        const data = (await response.json()) as ExerciseInsights;
+        setExerciseInsights(data);
+        setExerciseInsightsStatus("success");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        console.error(error);
+        setExerciseInsights(null);
+        setExerciseInsightsStatus("error");
+        setExerciseInsightsMessage(
+          "No se pudieron cargar las estadisticas del ejercicio.",
+        );
+      }
     };
 
-    const officialCount = exercises.filter(
-        (exercise) => exercise.is_official !== false,
-    ).length;
-    const customCount = exercises.length - officialCount;
-    const canCreateOfficial = currentUser?.role === "admin";
-    const canEditSelectedExercise =
-        selectedExercise != null &&
-        (selectedExercise.is_official === false ||
-            currentUser?.role === "admin");
-    const editInitialPayload = selectedExercise
-        ? buildExercisePayload(selectedExercise)
-        : undefined;
+    void fetchExerciseInsights();
 
-    return (
-        <main
-            className="min-h-screen overflow-hidden bg-[#f4efe2] text-[#1f1b16]"
-            data-section="exercise-page"
-        >
-            <section
-                className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-16"
-                data-block="page-layout"
-            >
-                <div
-                    className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(234,113,48,0.30),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(38,92,82,0.35),_transparent_32%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_44%,_#d8e1d0_100%)]"
-                    data-block="background-gradient"
-                />
-                <div
-                    className="absolute left-8 top-10 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/25 blur-sm"
-                    data-block="background-circle"
-                />
-                <div
-                    className="absolute bottom-8 right-10 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
-                    data-block="background-shape"
-                />
+    return () => {
+      ignore = true;
+    };
+  }, [selectedExercise?.id]);
 
-                <div
-                    className="mx-auto max-w-[min(1600px,96vw)]"
-                    data-block="page-container"
+  const handleCreateExercise = async (payload: CreateExercisePayload) => {
+    setIsCreatingExercise(true);
+    setCreateErrorMessage("");
+
+    try {
+      const response = await fetch(apiUrl("/api/exercises"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 401) {
+        setCreateErrorMessage("Tu sesion ha expirado. Inicia sesion otra vez.");
+        return;
+      }
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+
+        setCreateErrorMessage(
+          errorBody?.error ?? "No se pudo crear el ejercicio.",
+        );
+        return;
+      }
+
+      const createdExercise = (await response.json()) as Exercise;
+
+      setExercises((current) => [createdExercise, ...current]);
+      setSelectedExerciseId(createdExercise.id);
+      setStatus("success");
+      setMessage("");
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      setCreateErrorMessage(
+        "No se pudo crear el ejercicio. Revisa la conexion con el backend.",
+      );
+    } finally {
+      setIsCreatingExercise(false);
+    }
+  };
+
+  const handleUpdateExercise = async (payload: CreateExercisePayload) => {
+    if (!selectedExercise) {
+      return;
+    }
+
+    setIsUpdatingExercise(true);
+    setEditErrorMessage("");
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/exercises/${selectedExercise.id}`),
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (response.status === 401) {
+        setEditErrorMessage("Tu sesion ha expirado. Inicia sesion otra vez.");
+        return;
+      }
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+
+        setEditErrorMessage(
+          errorBody?.error ?? "No se pudo actualizar el ejercicio.",
+        );
+        return;
+      }
+
+      const updatedExercise = (await response.json()) as Exercise;
+
+      setExercises((current) =>
+        current.map((exercise) =>
+          exercise.id === updatedExercise.id ? updatedExercise : exercise,
+        ),
+      );
+      setSelectedExerciseId(updatedExercise.id);
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      setEditErrorMessage(
+        "No se pudo actualizar el ejercicio. Revisa la conexion con el backend.",
+      );
+    } finally {
+      setIsUpdatingExercise(false);
+    }
+  };
+
+  const handleDeleteExercise = async () => {
+    if (!selectedExercise) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Seguro que quieres eliminar "${selectedExercise.name}"? Esta acción no se puede deshacer.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingExercise(true);
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/exercises/${selectedExercise.id}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+
+        window.alert(errorBody?.error ?? "No se pudo eliminar el ejercicio.");
+        return;
+      }
+
+      const deletedId = selectedExercise.id;
+      setExercises((current) =>
+        current.filter((exercise) => exercise.id !== deletedId),
+      );
+      setSelectedExerciseId("");
+    } catch (error) {
+      console.error(error);
+      window.alert(
+        "No se pudo eliminar el ejercicio. Revisa la conexion con el backend.",
+      );
+    } finally {
+      setIsDeletingExercise(false);
+    }
+  };
+
+  const officialCount = exercises.filter(
+    (exercise) => exercise.is_official !== false,
+  ).length;
+  const customCount = exercises.length - officialCount;
+  const canCreateOfficial = currentUser?.role === "admin";
+  const canEditSelectedExercise =
+    selectedExercise != null &&
+    (selectedExercise.is_official === false || currentUser?.role === "admin");
+  const editInitialPayload = selectedExercise
+    ? buildExercisePayload(selectedExercise)
+    : undefined;
+  const secondaryMuscleGroupValues = selectedExercise
+    ? selectedExercise.secondary_muscle_groups?.filter(Boolean) ??
+      (selectedExercise.secondary_muscle_group
+        ? selectedExercise.secondary_muscle_group
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [])
+    : [];
+
+  return (
+      <main className="relative isolate overflow-x-hidden text-[#1f1b16] [font-family:'Inter',system-ui,sans-serif] antialiased pb-20">
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-8 top-12 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/20 blur-[1px]"
+        />
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
+        />
+        <div className="px-6  pt-8 sm:px-8">
+          <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
+            <div>
+              <HelloHeader page={"PANEL PRINCIPAL"} user={currentUser?.username ?? "Atleta"} />
+              <ExerciseHeader />
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              <Stat n={String(exercises.length)} l="Ejercicios" />
+              <Stat n={String(officialCount)} l="Ejercicios oficiales" />
+              <Stat n={String(customCount)} l="Ejercicios no oficiales" />
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-[1280px]">
+            <div className="grid grid-cols-1 justify-center gap-[18px] rounded-[20px] border border-[#1f1b16]/12 bg-[#fffaf0]/75 p-2.5 backdrop-blur xl:[grid-template-columns:3fr_7fr]">
+              <Card accent="#ea7130" className="flex flex-col" dark={true}>
+                <CardHeader kicker={"Control"} title={"Crea un ejercicio"} onDark={true} />
+                <button
+                    data-ui="create-exercise-button"
+                    type="button"
+                    className="mt-4 shrink-0 group relative cursor-pointer overflow-hidden rounded-[14px] bg-[#ea7130] px-6 py-4 text-[13px] font-extrabold tracking-[0.04em] text-[#1f1b16] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:opacity-50"
+                    onClick={() => {
+                      setCreateErrorMessage("");
+                      setIsCreateModalOpen(true);
+                    }}
                 >
-                    <div className="mb-6 flex justify-end">
-                        <Link
-                            to="/profile"
-                            className="inline-flex items-center gap-2 rounded-full border border-[#1f1b16]/15 bg-white/35 px-5 py-2 text-sm font-bold text-[#265c52] shadow-sm backdrop-blur transition hover:bg-white/50 hover:text-[#1f1b16]"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                            >
-                                <path
-                                    fillRule="evenodd"
-                                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                                    clipRule="evenodd"
-                                />
-                            </svg>
-                            Mi perfil
-                        </Link>
-                    </div>
-
-                    <ExerciseHeader />
-
-                    <div
-                        className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)_320px]"
-                        data-block="exercise-shell"
+                  Crear nuevo ejercicio
+                </button>
+              </Card>
+              <Card accent="#ea7130" className="flex flex-col">
+                <CardHeader kicker={"Filtro y Búsqueda"} title={""} />
+                <ExerciseFilters
+                    search={search}
+                    typeFilter={typeFilter}
+                    muscleFilter={muscleFilter}
+                    exerciseTypes={exerciseTypeOptions}
+                    muscleGroups={muscleGroupOptions}
+                    onSearchChange={handleSearchChange}
+                    onTypeFilterChange={handleTypeFilterChange}
+                    onMuscleFilterChange={handleMuscleFilterChange}
+                />
+                {metadataMessage && (
+                    <p
+                        data-ui="exercise-metadata-message"
+                        className="mt-3 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] pl-3 pr-3 py-2 text-xs font-semibold text-[#9f2f22]"
                     >
-                        <aside
-                            className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.14)] backdrop-blur-md"
-                            data-block="exercise-sidebar"
-                        >
-                            <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner">
-                                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">
-                                    Control
-                                </p>
-                                <h2 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]">
-                                    Explora o crea
-                                </h2>
-                                <p className="mt-3 text-sm leading-6 text-[#efe4d2]">
-                                    Filtra tu biblioteca y abre nuevos
-                                    movimientos desde un solo panel.
-                                </p>
-                            </div>
-
-                            <div className="mt-6 grid gap-4">
-                                <button
-                                    type="button"
-                                    className="rounded-2xl bg-[#ea7130] px-5 py-4 text-sm font-black text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
-                                    onClick={() => {
-                                        setCreateErrorMessage("");
-                                        setIsCreateModalOpen(true);
-                                    }}
-                                >
-                                    Crear nuevo ejercicio
-                                </button>
-
-                                {status === "success" && (
-                                    <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/65 p-4">
-                                        <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                            Buscar y filtrar
-                                        </p>
-                                        <ExerciseFilters
-                                            search={search}
-                                            typeFilter={typeFilter}
-                                            muscleFilter={muscleFilter}
-                                            exerciseTypes={exerciseTypeOptions}
-                                            muscleGroups={muscleGroupOptions}
-                                            onSearchChange={handleSearchChange}
-                                            onTypeFilterChange={
-                                                handleTypeFilterChange
-                                            }
-                                            onMuscleFilterChange={
-                                                handleMuscleFilterChange
-                                            }
-                                        />
-                                        {metadataMessage && (
-                                            <p className="mt-3 rounded-2xl border border-[#9f2f22]/15 bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#9f2f22]">
-                                                {metadataMessage}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="grid gap-3 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-4 text-center">
-                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                        Biblioteca
-                                    </p>
-                                    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                                        <StatTile
-                                            label="Resultados"
-                                            value={String(total)}
-                                        />
-                                        <StatTile
-                                            label="En página"
-                                            value={String(exercises.length)}
-                                        />
-                                        <StatTile
-                                            label="Oficiales página"
-                                            value={String(officialCount)}
-                                        />
-                                        <StatTile
-                                            label="Propios página"
-                                            value={String(customCount)}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </aside>
-
-                        <section
-                            className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.20)] backdrop-blur-md sm:p-8"
-                            data-block="exercises-panel"
-                        >
-                            <div
-                                className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[#1f1b16] p-6 text-[#fffaf0] shadow-inner"
-                                data-block="panel-header"
-                            >
-                                <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-                                    <div>
-                                        <p
-                                            className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f1a45b]"
-                                            data-block="panel-label"
-                                        >
-                                            Ejercicios
-                                        </p>
-
-                                        <h2
-                                            className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]"
-                                            data-block="panel-title"
-                                        >
-                                            Lista disponible
-                                        </h2>
-                                    </div>
-
-                                    <p className="max-w-xs text-sm leading-6 text-[#efe4d2]">
-                                        Selecciona una tarjeta para ver su ficha
-                                        completa sin salir de la página.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex items-center justify-between gap-4 rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-white/55 px-4 py-3">
-                                <div>
-                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                        Resultado actual
-                                    </p>
-                                    <p className="mt-1 text-sm text-[#5d5348]">
-                                        {total} ejercicios encontrados con los
-                                        filtros aplicados.
-                                    </p>
-                                </div>
-
-                                {selectedExercise && (
-                                    <span className="rounded-full bg-[#1f1b16] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#fffaf0]">
-                                        Seleccionado: {selectedExercise.name}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="mt-6">
-                                <ExerciseList
-                                    status={status}
-                                    message={message}
-                                    exercises={filteredExercises}
-                                    selectedExerciseId={selectedExercise?.id}
-                                    onSelectExercise={(exercise) =>
-                                        setSelectedExerciseId(exercise.id)
-                                    }
-                                />
-                            </div>
-
-                            {status === "success" && totalPages > 1 && (
-                                <div className="mt-6 flex items-center justify-between rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/60 px-4 py-3">
-                                    <button
-                                        type="button"
-                                        disabled={page <= 1}
-                                        onClick={() =>
-                                            setPage((current) =>
-                                                Math.max(1, current - 1),
-                                            )
-                                        }
-                                        className="rounded-xl border border-[#1f1b16]/15 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        Anterior
-                                    </button>
-
-                                    <p className="text-sm font-bold text-[#5d5348]">
-                                        Página {page} de {totalPages}
-                                    </p>
-
-                                    <button
-                                        type="button"
-                                        disabled={page >= totalPages}
-                                        onClick={() =>
-                                            setPage((current) =>
-                                                Math.min(
-                                                    totalPages,
-                                                    current + 1,
-                                                ),
-                                            )
-                                        }
-                                        className="rounded-xl border border-[#1f1b16]/15 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        Siguiente
-                                    </button>
-                                </div>
-                            )}
-                        </section>
-
-                        <aside
-                            className="rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0]/80 p-5 shadow-[0_30px_80px_rgba(47,39,27,0.14)] backdrop-blur-md"
-                            data-block="exercise-detail-panel"
-                        >
-                            <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-[linear-gradient(180deg,#265c52_0%,#173e37_100%)] p-6 text-[#fffaf0] shadow-inner">
-                                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#f6c98d]">
-                                    Panel Detalles
-                                </p>
-                                <h2 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.04em]">
-                                    Ficha rápida
-                                </h2>
-                            </div>
-
-                            {selectedExercise ? (
-                                <div className="mt-6 grid gap-4">
-                                    <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-5">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                                    Nombre
-                                                </p>
-                                                <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] text-[#1f1b16]">
-                                                    {selectedExercise.name}
-                                                </h3>
-                                                <p className="mt-2 text-sm font-semibold text-[#5d5348]">
-                                                    {
-                                                        selectedExercise.muscle_group
-                                                    }
-                                                </p>
-                                            </div>
-
-                                            {canEditSelectedExercise && (
-                                                <button
-                                                    type="button"
-                                                    className="rounded-2xl border border-[#1f1b16]/15 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#1f1b16] transition hover:bg-[#1f1b16] hover:text-[#fffaf0]"
-                                                    onClick={() => {
-                                                        setEditErrorMessage("");
-                                                        setIsEditModalOpen(
-                                                            true,
-                                                        );
-                                                    }}
-                                                >
-                                                    Editar
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                                        <InfoTile
-                                            label="Tipo"
-                                            value={
-                                                selectedExercise.exercise_type ??
-                                                "Sin especificar"
-                                            }
-                                        />
-                                        <InfoTile
-                                            label="Musculo secundario"
-                                            value={
-                                                selectedExercise.secondary_muscle_group ||
-                                                "No definido"
-                                            }
-                                        />
-                                        <InfoTile
-                                            label="Estado"
-                                            value={
-                                                selectedExercise.is_official ===
-                                                false
-                                                    ? "Ejercicio propio"
-                                                    : "Ejercicio oficial"
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="rounded-[1.5rem] border border-dashed border-[#1f1b16]/15 bg-[#fff8ea] p-5">
-                                        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#265c52]">
-                                            Descripcion
-                                        </p>
-                                        <p className="mt-3 text-sm leading-7 text-[#5d5348]">
-                                            {selectedExercise.description ||
-                                                "Todavia no hay una descripcion para este ejercicio. Puedes completarla cuando edites o crees uno nuevo."}
-                                        </p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="mt-6 rounded-[1.5rem] border border-dashed border-[#1f1b16]/20 bg-white/60 p-5">
-                                    <p className="text-sm font-bold text-[#5d5348]">
-                                        Selecciona un ejercicio de la lista para
-                                        ver su detalle completo aquí.
-                                    </p>
-                                </div>
-                            )}
-                        </aside>
-                    </div>
+                      {metadataMessage}
+                    </p>
+                )}
+              </Card>
+            </div>
+          </section>
+          <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-[18px] xl:grid-cols-[7fr_3fr]">
+            <div className="flex flex-col gap-[18px] mt-4">
+              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+                <CardHeader kicker={"EJERCICIOS"} title={"Elige un ejercicio"} />
+                <ExerciseList
+                    status={status}
+                    message={message}
+                    exercises={filteredExercises}
+                    selectedExerciseId={selectedExercise?.id}
+                    onSelectExercise={(exercise) =>
+                        setSelectedExerciseId(exercise.id)
+                    }
+                />
+              </Card>
+            </div>
+            <div className="flex flex-col gap-[18px] mt-4">
+              <Card accent="#ea7130" className={"flex flex-col h-[70vh]"}>
+                <CardHeader
+                    kicker={"DETALLE"}
+                    title={selectedExercise?.name ?? "Detalle del ejercicio"}
+                    right={
+                      <button
+                          type="button"
+                          onClick={handleDeleteExercise}
+                          disabled={!canEditSelectedExercise || isDeletingExercise}
+                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] border border-[#9f2f22]/25 bg-[#fff0ec] px-3.5 py-2 text-[14px] font-bold text-[#9f2f22] transition hover:-translate-y-px hover:border-[#9f2f22]/45 hover:bg-[#9f2f22]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isDeletingExercise ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    }
+                />
+                <div className="relative z-[2] mt-4 grid grid-cols-2 gap-2.5">
+                  <button
+                      type="button"
+                      onClick={() => setIsInsightsModalOpen(true)}
+                      disabled={!selectedExercise}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#1f1b16]/15 bg-[#fffaf0]/75 px-3.5 py-2 text-[14px] font-bold text-[#1f1b16] transition hover:-translate-y-px hover:border-[#ea7130]/40 hover:bg-[#f1a45b]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Ver rendimiento
+                  </button>
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setEditErrorMessage("");
+                        setIsEditModalOpen(true);
+                      }}
+                      disabled={!canEditSelectedExercise}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#1f1b16]/15 bg-[#fffaf0]/75 px-3.5 py-2 text-[14px] font-bold text-[#1f1b16] transition hover:-translate-y-px hover:border-[#ea7130]/40 hover:bg-[#f1a45b]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Editar
+                  </button>
                 </div>
-            </section>
+                {selectedExercise ? (
+                  <div className="relative z-[2] mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                    <InfoTile
+                        label="Tipo"
+                        value={selectedExercise.exercise_type ? exerciseTypeLabel(selectedExercise.exercise_type) : "—"}
+                    />
+                    <InfoTile
+                        label="Grupos musculares"
+                        value={
+                          [selectedExercise.muscle_group, ...secondaryMuscleGroupValues]
+                            .filter(Boolean)
+                            .map(muscleGroupLabel)
+                            .join(", ") || "—"
+                        }
+                    />
+                    <InfoTile
+                        label="Estado"
+                        value={selectedExercise.is_official === false ? "No oficial" : "Oficial"}
+                    />
+                    <InfoTile
+                        label="Descripción"
+                        value={selectedExercise.description?.trim() || "Sin descripción."}
+                    />
 
-            <CreateExerciseModal
-                isOpen={isCreateModalOpen}
-                isSubmitting={isCreatingExercise}
-                errorMessage={createErrorMessage}
-                canCreateOfficial={canCreateOfficial}
-                mode="create"
-                exerciseTypeOptions={exerciseTypeOptions}
-                muscleGroupOptions={muscleGroupOptions}
-                onClose={() => {
-                    setCreateErrorMessage("");
-                    setIsCreateModalOpen(false);
-                }}
-                onSubmit={handleCreateExercise}
-            />
+                    {currentUser?.role === "admin" && selectedExercise.owner_user_id && (
+                      <InfoTile
+                          label="Propietario"
+                          value={`${selectedExercise.owner_user_id} · ${selectedExercise.owner_email ?? "—"}`}
+                      />
+                    )}
 
-            <CreateExerciseModal
-                isOpen={isEditModalOpen}
-                isSubmitting={isUpdatingExercise}
-                errorMessage={editErrorMessage}
-                canCreateOfficial={canCreateOfficial}
-                mode="edit"
-                initialPayload={editInitialPayload}
-                exerciseTypeOptions={exerciseTypeOptions}
-                muscleGroupOptions={muscleGroupOptions}
-                onClose={() => {
-                    setEditErrorMessage("");
-                    setIsEditModalOpen(false);
-                }}
-                onSubmit={handleUpdateExercise}
-            />
-        </main>
-    );
-}
+                    <Card accent="#ea7130">
+                      <CardHeader kicker={"SESIONES"} title={""} right={selectedExercise ? (
+                          <span className="rounded-full bg-[#265c52]/10 px-3 py-1 text-xs font-black text-[#265c52]">
+                          {exerciseWorkoutSessions.length}
+                        </span>
+                      ) : undefined}/>
 
-function StatTile({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="rounded-2xl border border-[#1f1b16]/10 bg-[#fffaf0] p-4 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#265c52]">
-                {label}
-            </p>
-            <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-[#1f1b16]">
-                {value}
-            </p>
+                      <div className="relative z-[2] mt-4 max-h-64 overflow-y-auto pr-1">
+                        {exerciseWorkoutSessionsStatus === "loading" && (
+                          <p className="text-[14px] font-semibold text-[#3a332c]/70">
+                            Cargando sesiones...
+                          </p>
+                        )}
+
+                        {exerciseWorkoutSessionsStatus === "error" && (
+                          <p className="text-[14px] font-bold text-[#9f2f22]">
+                            {exerciseWorkoutSessionsMessage}
+                          </p>
+                        )}
+
+                        {exerciseWorkoutSessionsStatus === "success" &&
+                          exerciseWorkoutSessions.length === 0 && (
+                            <p className="rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                              Este ejercicio todavía no aparece en ninguna sesión registrada.
+                            </p>
+                          )}
+
+                        {exerciseWorkoutSessionsStatus === "success" &&
+                          exerciseWorkoutSessions.length > 0 && (
+                            <ul className="grid gap-2.5">
+                              {exerciseWorkoutSessions.map((session) => (
+                                <li
+                                    key={session.id}
+                                    className="rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-4"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52]">
+                                      {session.routine_name || "Sesión libre"}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-md bg-[#1f1b16] px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.16em] text-[#f1a45b]">
+                                      {session.set_count} {session.set_count === 1 ? "set" : "sets"}
+                                    </span>
+                                  </div>
+                                  <h4 className="m-0 mt-2.5 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[18px] font-black leading-tight tracking-[-0.03em] text-[#1f1b16]">
+                                    {session.name || "Entreno"}
+                                  </h4>
+                                  <p className="mt-1.5 text-[14px] font-semibold text-[#3a332c]/80">
+                                    {workoutSessionDateFormatter.format(new Date(session.started_at))} · {session.duration_minutes} min
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                      </div>
+                    </Card>
+                  </div>
+                ) : (
+                  <p className="relative z-[2] mt-4 rounded-[16px] border border-dashed border-[#1f1b16]/15 bg-[#fffaf0]/60 p-6 text-center text-[14px] font-semibold text-[#3a332c]/70">
+                    Selecciona un ejercicio del listado para ver su detalle aquí.
+                  </p>
+                )}
+              </Card>
+            </div>
+          </section>
+
+
         </div>
-    );
+        <CreateExerciseModal
+            isOpen={isCreateModalOpen}
+            isSubmitting={isCreatingExercise}
+            errorMessage={createErrorMessage}
+            canCreateOfficial={canCreateOfficial}
+            mode="create"
+            exerciseTypeOptions={exerciseTypeOptions}
+            muscleGroupOptions={muscleGroupOptions}
+            onClose={() => {
+              setCreateErrorMessage("");
+              setIsCreateModalOpen(false);
+            }}
+            onSubmit={handleCreateExercise}
+        />
+
+        <CreateExerciseModal
+            isOpen={isEditModalOpen}
+            isSubmitting={isUpdatingExercise}
+            errorMessage={editErrorMessage}
+            canCreateOfficial={canCreateOfficial}
+            mode="edit"
+            initialPayload={editInitialPayload}
+            exerciseTypeOptions={exerciseTypeOptions}
+            muscleGroupOptions={muscleGroupOptions}
+            onClose={() => {
+              setEditErrorMessage("");
+              setIsEditModalOpen(false);
+            }}
+            onSubmit={handleUpdateExercise}
+        />
+
+        <ExerciseInsightModal
+            isOpen={isInsightsModalOpen}
+            exercise={selectedExercise}
+            insights={exerciseInsights}
+            status={exerciseInsightsStatus}
+            message={exerciseInsightsMessage}
+            onClose={() => setIsInsightsModalOpen(false)}
+        />
+    </main>
+  );
 }
 
 function InfoTile({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#265c52]">
-                {label}
-            </p>
-            <p className="mt-2 text-sm font-semibold text-[#1f1b16]">{value}</p>
-        </div>
-    );
+  return (
+    <div className="rounded-[1.5rem] border border-[#1f1b16]/10 bg-white/70 p-4">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#265c52]">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-[#1f1b16]">{value}</p>
+    </div>
+  );
 }

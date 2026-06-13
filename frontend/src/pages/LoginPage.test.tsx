@@ -36,11 +36,12 @@ describe("LoginPage", () => {
   it("renders the login form", () => {
     renderLoginPage();
 
-    expect(screen.getByText("Grupo 16 Fitness")).toBeInTheDocument();
+    expect(screen.getByText("LiteGym")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entra, entrena y controla tu progreso." })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Contrasena")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Iniciar sesion" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Registrate" })).toHaveAttribute("href", "/register");
     expect(screen.queryByRole("button", { name: "Probar" })).not.toBeInTheDocument();
   });
 
@@ -52,6 +53,9 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
+    await user.clear(screen.getByLabelText("Email"));
+    await user.type(screen.getByLabelText("Email"), " Raul@Example.com ");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
     await waitFor(() => {
@@ -62,7 +66,7 @@ describe("LoginPage", () => {
           credentials: "include",
           body: JSON.stringify({
             email: "raul@example.com",
-            password: "123456",
+            password: "secret123",
           }),
         }),
       );
@@ -78,8 +82,39 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
+    await user.type(screen.getByLabelText("Email"), "raul@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
     await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
 
-    expect(await screen.findByText("invalid credentials")).toBeInTheDocument();
+    expect(await screen.findByText("El correo o la contraseña no son correctos.")).toBeInTheDocument();
+  });
+
+  it("shows the translated invalid email message from the backend", async () => {
+    const user = userEvent.setup();
+    mockFetch(jsonResponse({ error: "invalid email address" }, { status: 400 }));
+
+    renderLoginPage();
+
+    await user.clear(screen.getByLabelText("Email"));
+    await user.type(screen.getByLabelText("Email"), "user@domain");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
+
+    expect(await screen.findByText("Introduce un email valido.")).toBeInTheDocument();
+  });
+
+  it("shows the translated rate limit message from the backend", async () => {
+    const user = userEvent.setup();
+    mockFetch(jsonResponse({ error: "login rate limit exceeded" }, { status: 429 }));
+
+    renderLoginPage();
+
+    await user.type(screen.getByLabelText("Email"), "raul@example.com");
+    await user.type(screen.getByLabelText("Contrasena"), "secret123");
+    await user.click(screen.getByRole("button", { name: "Iniciar sesion" }));
+
+    expect(
+      await screen.findByText("Has intentado iniciar sesion demasiadas veces. Espera unos segundos y vuelve a intentarlo."),
+    ).toBeInTheDocument();
   });
 });

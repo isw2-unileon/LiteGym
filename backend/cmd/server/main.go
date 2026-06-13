@@ -21,7 +21,7 @@ import (
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-func main() {
+func main() { //nolint:funlen // Server bootstrap wires all repositories, services, handlers, and graceful shutdown in one place.
 	ctx := context.Background()
 
 	cfg := config.Load()
@@ -46,6 +46,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	exerciseRepo := repository.NewExerciseRepository(db)
 	routineRepo := repository.NewRoutineRepository(db)
+	manualRoutineRepo := repository.NewManualRoutineRepository(db)
 	overviewWorkoutRepo := repository.NewOverviewWorkoutRepository(db)
 	bodyMetricRepo := repository.NewBodyMetricRepository(db)
 	ticketRepo := repository.NewTicketRepository(db)
@@ -56,6 +57,17 @@ func main() {
 	tokenService := service.NewTokenService(cfg.JWTSecret, "grupo-16-backend", cfg.AuthTokenTTL)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	overviewService := service.NewOverviewService(routineRepo, overviewWorkoutRepo, bodyMetricRepo)
+	workoutSessionRepo := repository.NewWorkoutSessionRepository(db)
+	routineAIService := service.NewRoutineAIService(
+		routineRepo,
+		exerciseService,
+		workoutSessionRepo,
+		bodyMetricRepo,
+		cfg.GeminiAPIKey,
+		cfg.GeminiModel,
+	)
+	routineService := service.NewRoutineService(routineRepo)
+	manualRoutineService := service.NewManualRoutineService(manualRoutineRepo)
 	ticketService := service.NewTicketService(ticketRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 
@@ -63,14 +75,15 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	authHandler := handlers.NewAuthHandler(userService, tokenService, cfg.AuthCookieName, cfg.AuthCookieSecure)
 	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
-	routineHandler := handlers.NewRoutineHandler(service.NewRoutineService(routineRepo))
+	routineHandler := handlers.NewRoutineHandler(routineService, routineAIService, manualRoutineService)
 	overviewHandler := handlers.NewOverviewHandler(overviewService)
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+	profileHandler := handlers.NewProfileHandler(service.NewProfileService(repository.NewProfileRepository(db), cfg.GeminiAPIKey, cfg.GeminiModel))
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName, userService)
 
-	r := transport.SetupRouter(
+	r := transport.SetupRouterWithRoutine(
 		db,
 		userHandler,
 		authHandler,
@@ -81,6 +94,7 @@ func main() {
 		healthHandler,
 		ticketHandler,
 		workoutHandler,
+		profileHandler,
 		cfg.CORSAllowOrigin,
 	)
 
@@ -88,7 +102,7 @@ func main() {
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

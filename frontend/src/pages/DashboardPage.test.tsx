@@ -116,16 +116,14 @@ describe("DashboardPage", () => {
     vi.useRealTimers();
   });
 
-  it("shows the dashboard inside the shared sidebar layout", async () => {
-    const user = userEvent.setup();
+  it("shows the dashboard inside the shared header layout", () => {
     renderDashboardPage();
 
     expect(screen.getByRole("heading", { name: "Hola, raul" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Mostrar menu" }));
 
-    const navigation = screen.getByRole("navigation", { name: "Navegacion principal" });
+    const navigation = screen.getByRole("navigation");
     expect(navigation).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(within(navigation).getByRole("link", { name: "Panel" })).toHaveAttribute("href", "/dashboard");
     expect(within(navigation).getByRole("link", { name: "Perfil" })).toHaveAttribute("href", "/profile");
     expect(within(navigation).getByRole("link", { name: "Mis rutinas" })).toHaveAttribute("href", "/routines");
     expect(within(navigation).getByRole("link", { name: "Mis ejercicios" })).toHaveAttribute("href", "/exercises");
@@ -136,7 +134,7 @@ describe("DashboardPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Tus rutinas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Resumen de progreso" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ultimos entrenos" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Últimos entrenos" })).toBeInTheDocument();
     expect(screen.getAllByText("Push Pull Legs").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Push Day 1")).toBeInTheDocument();
     expect(screen.getByText("78.5 kg")).toBeInTheDocument();
@@ -145,7 +143,7 @@ describe("DashboardPage", () => {
   it("shows the calendar and hexagon statistics for the backend response", async () => {
     renderDashboardPage();
 
-    expect(await screen.findByRole("img", { name: "Grafico hexagonal de distribucion muscular" })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Grafico octogonal de distribucion muscular" })).toBeInTheDocument();
     expect(screen.getByText("Grupos musculares presentes")).toBeInTheDocument();
     expect(screen.getByText("Sesiones del mes")).toBeInTheDocument();
     expect(screen.getByText("Racha semanal")).toBeInTheDocument();
@@ -171,7 +169,7 @@ describe("DashboardPage", () => {
     );
 
     expect(await screen.findByText("Grupos musculares presentes")).toBeInTheDocument();
-    expect(screen.getByText("Cuando haya historial de entrenos, aqui veras que grupos musculares predominan.")).toBeInTheDocument();
+    expect(screen.getByText("Cuando haya historial de entrenos, aquí veras que grupos musculares predominan.")).toBeInTheDocument();
   });
 
   it("lets the user switch the statistics card between year and month", async () => {
@@ -182,47 +180,46 @@ describe("DashboardPage", () => {
     const monthButton = screen.getByRole("button", { name: "Mes" });
 
     expect(yearButton).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/Ultimo año/i)).toBeInTheDocument();
+    expect(screen.getByText(/Último año/i)).toBeInTheDocument();
 
     await user.click(monthButton);
 
     expect(monthButton).toHaveAttribute("aria-pressed", "true");
     expect(yearButton).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText(/Ultimo mes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Último mes/i)).toBeInTheDocument();
     expect(screen.getByText(/3 ejercicios considerados/i)).toBeInTheDocument();
   });
 
-  it("shows the admin shortcut only for admin users", async () => {
-    const user = userEvent.setup();
+  it("shows the admin shortcut only for admin users", () => {
     renderDashboardPage("admin");
 
-    await user.click(screen.getByRole("button", { name: "Mostrar menu" }));
-
-    expect(screen.getByRole("link", { name: "Panel admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Panel administrativo" })).toHaveAttribute("href", "/admin");
   });
 
   it("does not show the admin shortcut for regular users", () => {
     renderDashboardPage();
 
-    expect(screen.queryByRole("link", { name: "Panel admin" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Panel administrativo" })).not.toBeInTheDocument();
   });
 
-  it("starts with the sidebar hidden and lets the user open and close it", async () => {
+  it("starts with the profile menu closed and lets the user open and close it", async () => {
     const user = userEvent.setup();
     renderDashboardPage();
 
-    const sidebar = screen.getAllByRole("complementary", { hidden: true })[0];
+    const menuButton = screen.getByRole("button", { name: "Abrir menu de perfil" });
 
-    expect(sidebar).toHaveClass("-translate-x-full");
-    expect(screen.getByRole("button", { name: "Mostrar menu" })).toHaveClass("translate-x-0");
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Mostrar menu" }));
+    await user.click(menuButton);
 
-    expect(sidebar).toHaveClass("translate-x-0");
+    expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Ocultar menu" }));
+    await user.click(screen.getByRole("heading", { name: "Hola, raul" }));
 
-    expect(sidebar).toHaveClass("-translate-x-full");
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
   });
 
   it("shows a google calendar link for planned workouts in the calendar dialog", async () => {
@@ -261,7 +258,7 @@ describe("DashboardPage", () => {
       ),
     );
 
-    await screen.findByText("Panel principal");
+    await screen.findByText("PANEL PRINCIPAL");
     await user.click(screen.getByRole("button", { name: tomorrow.getDate().toString() }));
 
     const calendarLink = await screen.findByRole("link", { name: "Añadir a Calendar" });

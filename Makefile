@@ -87,9 +87,10 @@ test-integration:
 
 ## Run linters
 lint:
-	$(shell go env GOPATH)/bin/golangci-lint run
+	GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint-cache $(shell go env GOPATH)/bin/golangci-lint run ./backend/...
 	cd frontend && npm run lint
 
 ## Run E2E tests, requires backend and frontend running
-e2e:
+e2e: start-postgres-db
+	@timeout 30 bash -c 'until (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1; do sleep 1; done'
 	cd e2e && npx playwright test

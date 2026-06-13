@@ -149,11 +149,11 @@ export default function CreateExerciseModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/55 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1b16]/45 px-4 py-6 backdrop-blur-sm"
       data-block="create-exercise-modal-overlay"
     >
-      <div
-        className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] border border-[#1f1b16]/10 bg-[#fffaf0] shadow-[0_40px_120px_rgba(31,27,22,0.32)]"
+      <section
+        className="relative w-full max-w-4xl overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 bg-[#fffaf0] bg-clip-padding shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]"
         data-block="create-exercise-modal"
       >
         <div className="grid gap-0 lg:grid-cols-[0.95fr_1.45fr]">
@@ -165,13 +165,13 @@ export default function CreateExerciseModal({
             <h3 className="mt-4 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.05em]">
               {isEditMode
                 ? "Ajusta los datos del ejercicio seleccionado."
-                : "Disena un movimiento que encaje con tu rutina."}
+                : "Diseña un movimiento que encaje con tu rutina."}
             </h3>
 
             <p className="mt-4 max-w-sm text-sm leading-6 text-[#efe4d2]">
               {isEditMode
                 ? "Actualiza nombre, grupo muscular, descripcion y tipo. Tambien puedes revisar varios musculos secundarios."
-                : "Anade nombre, grupo muscular, descripcion y tipo. Tambien puedes indicar varios musculos secundarios en bloques separados."}
+                : "Añade nombre, grupo muscular, descripcion y tipo. Tambien puedes indicar varios musculos secundarios en bloques separados."}
             </p>
 
             <button
@@ -260,7 +260,7 @@ export default function CreateExerciseModal({
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span>Musculos secundarios</span>
                 <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#265c52]">
-                  Puedes anadir varios
+                  Puedes añadir varios
                 </span>
               </div>
 
@@ -353,7 +353,7 @@ export default function CreateExerciseModal({
             </div>
           </form>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,15 +1,33 @@
 import * as React from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import LegalLinks from "../components/LegalLinks";
 import { apiUrl } from "../lib/api";
 import { setAuthToken } from "../lib/authSession";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function translateLoginError(message?: string | null) {
+  switch (message) {
+    case "invalid credentials":
+      return "El correo o la contraseña no son correctos.";
+    case "invalid email address":
+      return "Introduce un email valido.";
+    case "login rate limit exceeded":
+      return "Has intentado iniciar sesion demasiadas veces. Espera unos segundos y vuelve a intentarlo.";
+    default:
+      return message ?? "No se pudo iniciar sesion.";
+  }
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("raul@example.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loginStatus, setLoginStatus] = useState<LoginStatus>("idle");
   const [loginMessage, setLoginMessage] = useState("");
 
@@ -17,6 +35,8 @@ export default function LoginPage() {
     event.preventDefault();
     setLoginStatus("loading");
     setLoginMessage("");
+
+    const normalizedEmail = normalizeEmail(email);
 
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
@@ -26,7 +46,7 @@ export default function LoginPage() {
         },
         credentials: "include",
         body: JSON.stringify({
-          email,
+          email: normalizedEmail,
           password,
         }),
       });
@@ -34,7 +54,7 @@ export default function LoginPage() {
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         setLoginStatus("error");
-        setLoginMessage(payload?.error ?? "No se pudo iniciar sesion.");
+        setLoginMessage(translateLoginError(payload?.error));
         return;
       }
 
@@ -55,14 +75,14 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#f4efe2] text-[#1f1b16]">
       <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-16">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(234,113,48,0.30),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(38,92,82,0.35),_transparent_32%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_44%,_#d8e1d0_100%)]" />
-        <div className="absolute left-8 top-10 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/25 blur-sm" />
-        <div className="absolute bottom-8 right-10 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,_rgba(234,113,48,0.24),_transparent_30%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_52%,_#d8e1d0_100%)]" />
+        <div className="pointer-events-none absolute left-8 top-12 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/20 blur-[1px]" />
+        <div className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10" />
 
         <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="max-w-2xl animate-[rise_700ms_ease-out_both]">
             <p className="mb-5 inline-flex rounded-full border border-[#1f1b16]/15 bg-white/35 px-4 py-2 text-sm font-semibold uppercase tracking-[0.28em] text-[#265c52] backdrop-blur">
-              Grupo 16 Fitness
+              LiteGym
             </p>
             <h1 className="font-['Aptos_Display','Trebuchet_MS',sans-serif] text-5xl font-black leading-[0.95] tracking-[-0.06em] text-[#1f1b16] sm:text-7xl">
               Entra, entrena y controla tu progreso.
@@ -86,6 +106,7 @@ export default function LoginPage() {
                   value={email}
                   autoComplete="email"
                   onChange={(event) => setEmail(event.target.value)}
+                  placeholder={"example@example.com"}
                   required
                 />
               </label>
@@ -98,6 +119,7 @@ export default function LoginPage() {
                   value={password}
                   autoComplete="current-password"
                   onChange={(event) => setPassword(event.target.value)}
+                  placeholder={"••••••••"}
                   required
                 />
               </label>
@@ -121,6 +143,18 @@ export default function LoginPage() {
                 {loginMessage}
               </p>
             )}
+
+            <p className="mt-6 text-sm font-semibold text-[#5b5347]">
+              ¿No tienes cuenta?{" "}
+              <Link className="text-[#ea7130] underline decoration-[#ea7130]/35 underline-offset-4" to="/register">
+                Registrate
+              </Link>
+            </p>
+
+            <div className="mt-6 border-t border-[#1f1b16]/10 pt-6">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">Información legal</p>
+              <LegalLinks />
+            </div>
           </div>
         </div>
       </section>

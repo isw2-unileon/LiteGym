@@ -25,6 +25,13 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+// RegisterRequest represents the expected payload for registration requests.
+type RegisterRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 type authResponse struct {
 	User  *model.User `json:"user"`
 	Token string      `json:"token"`
@@ -65,6 +72,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			return
 		}
 
+		if errors.Is(err, service.ErrInvalidEmail) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid email address",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid credentials",
@@ -90,19 +104,101 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: sameSiteMode(h.cookieSecure),
+		SameSite: h.sameSiteMode(),
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
 	c.JSON(http.StatusOK, authResponse{
 		User:  user,
 		Token: token,
+	})
+}
+
+// Register creates a new user account and sets the authentication cookie.
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	user := &model.User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: req.Password,
+		Role:         "user",
+	}
+
+	if err := h.userService.Create(c.Request.Context(), user); err != nil {
+		if errors.Is(err, service.ErrInvalidUserInput) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "username, email and password are required",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrInvalidEmail) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid email address",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrEmailAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "email already registered",
+			})
+			return
+		}
+
+		if errors.Is(err, service.ErrUserAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "username or email already registered",
+			})
+			return
+		}
+
+		slog.Error("failed to register user", "error", err, "username", req.Username, "email", req.Email)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to register user",
+		})
+		return
+	}
+
+	token, err := h.tokenService.GenerateToken(user.ID, user.Email, user.Username, user.Role)
+	if err != nil {
+		slog.Error("failed to generate auth token", "error", err, "user_id", user.ID)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate auth token",
+		})
+		return
+	}
+
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: h.sameSiteMode(),
+		MaxAge:   int(h.tokenService.TTL().Seconds()),
+	})
+
+	c.JSON(http.StatusCreated, gin.H{
+		"user": user,
 	})
 }
 
@@ -133,13 +229,14 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // Logout clears the authentication cookie for the current client.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	//nolint:gosec,nolintlint // Secure attribute is dynamically configured for local dev vs production
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     h.cookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: sameSiteMode(h.cookieSecure),
+		SameSite: h.sameSiteMode(),
 		MaxAge:   -1,
 	})
 
@@ -148,8 +245,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	})
 }
 
-func sameSiteMode(cookieSecure bool) http.SameSite {
-	if cookieSecure {
+func (h *AuthHandler) sameSiteMode() http.SameSite {
+	if h.cookieSecure {
 		return http.SameSiteNoneMode
 	}
 

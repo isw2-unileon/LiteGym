@@ -4,12 +4,25 @@ import (
 	"context"
 	"strings"
 	"time"
+	_ "time/tzdata" // embed the IANA timezone database so LoadLocation works on any host
 
 	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/repository"
 )
 
 const defaultWeeklyWorkoutGoal = 2
+
+// madridLocation is the canonical timezone used to present calendar days and
+// workout timestamps, regardless of the server's own timezone.
+var madridLocation = loadMadridLocation()
+
+func loadMadridLocation() *time.Location {
+	loc, err := time.LoadLocation("Europe/Madrid")
+	if err != nil {
+		return time.FixedZone("CET", 60*60)
+	}
+	return loc
+}
 
 // OverviewService provides the aggregated data shown on the dashboard.
 type OverviewService struct {
@@ -43,30 +56,31 @@ func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string
 		return model.Overview{}, ErrInvalidUserInput
 	}
 
-	if calendarDate.IsZero() {
-		calendarDate = time.Now()
-	}
-	if statsReferenceDate.IsZero() {
-		statsReferenceDate = time.Now()
-	}
+	calendarDate = nowIfZero(calendarDate)
+	statsReferenceDate = nowIfZero(statsReferenceDate)
 
-	monthStart := time.Date(calendarDate.Year(), calendarDate.Month(), 1, 0, 0, 0, 0, calendarDate.Location())
+	// Anchor every calendar/day computation to Madrid time so day boundaries match
+	// what the user sees, independent of the server timezone.
+	calendarDate = calendarDate.In(madridLocation)
+	statsReferenceDate = statsReferenceDate.In(madridLocation)
+
+	monthStart := time.Date(calendarDate.Year(), calendarDate.Month(), 1, 0, 0, 0, 0, madridLocation)
 	monthEnd := monthStart.AddDate(0, 1, 0)
-	statsMonthStart := time.Date(statsReferenceDate.Year(), statsReferenceDate.Month(), 1, 0, 0, 0, 0, statsReferenceDate.Location())
+	statsMonthStart := time.Date(statsReferenceDate.Year(), statsReferenceDate.Month(), 1, 0, 0, 0, 0, madridLocation)
 	statsYearStart := statsReferenceDate.AddDate(-1, 0, 0)
 	streakRangeStart := statsReferenceDate.AddDate(0, 0, -90)
 
-	recentRoutines, err := s.routineRepo.ListRecentByUser(ctx, userID, 3)
+	recentRoutines, err := s.routineRepo.ListRecentByUser(ctx, userID, 4)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	recentWorkouts, err := s.overviewWorkoutRepo.ListRecentByUser(ctx, userID, 3)
+	recentWorkouts, err := s.overviewWorkoutRepo.ListRecentByUser(ctx, userID, 4)
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, monthStart, monthEnd)
+	monthWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, monthStart.UTC(), monthEnd.UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
@@ -76,17 +90,17 @@ func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string
 	if plannedRangeStart.Before(monthStart) {
 		plannedRangeStart = monthStart
 	}
-	plannedWorkoutDates, err := s.overviewWorkoutRepo.ListPlannedDatesInRange(ctx, userID, plannedRangeStart, monthEnd)
+	plannedWorkoutDates, err := s.overviewWorkoutRepo.ListPlannedDatesInRange(ctx, userID, plannedRangeStart.UTC(), monthEnd.UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	calendarWorkouts, err := s.overviewWorkoutRepo.ListCalendarWorkoutsByUser(ctx, userID, monthStart, monthEnd)
+	calendarWorkouts, err := s.overviewWorkoutRepo.ListCalendarWorkoutsByUser(ctx, userID, monthStart.UTC(), monthEnd.UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	streakWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart, statsReferenceDate.AddDate(0, 0, 1))
+	streakWorkoutDates, err := s.overviewWorkoutRepo.ListTrainingDatesInRange(ctx, userID, streakRangeStart.UTC(), statsReferenceDate.AddDate(0, 0, 1).UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
@@ -96,15 +110,22 @@ func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string
 		return model.Overview{}, err
 	}
 
-	yearDistribution, yearExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsYearStart, statsReferenceDate.AddDate(0, 0, 1))
+	yearDistribution, yearExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsYearStart.UTC(), statsReferenceDate.AddDate(0, 0, 1).UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
 
-	monthDistribution, monthExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsMonthStart, statsMonthStart.AddDate(0, 1, 0))
+	monthDistribution, monthExerciseCount, err := s.overviewWorkoutRepo.ListMuscleDistributionByUser(ctx, userID, statsMonthStart.UTC(), statsMonthStart.AddDate(0, 1, 0).UTC())
 	if err != nil {
 		return model.Overview{}, err
 	}
+
+	// Present every returned timestamp in Madrid time so the frontend renders the
+	// same day the backend used to build the calendar.
+	calendarWorkouts = workoutsToMadrid(calendarWorkouts)
+	recentWorkouts = recentSummariesToMadrid(recentWorkouts)
+	recentRoutines = routinesToMadrid(recentRoutines)
+	progress := buildMadridProgressSummary(bodyMetrics)
 
 	return model.Overview{
 		Calendar: model.OverviewCalendar{
@@ -119,7 +140,7 @@ func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string
 		},
 		RecentRoutines: recentRoutines,
 		RecentWorkouts: recentWorkouts,
-		Progress:       buildProgressSummary(bodyMetrics),
+		Progress:       progress,
 		MuscleDistribution: model.OverviewMuscleDistribution{
 			Year:               yearDistribution,
 			Month:              monthDistribution,
@@ -127,6 +148,50 @@ func (s *OverviewService) GetOverviewForMonth(ctx context.Context, userID string
 			MonthExerciseCount: monthExerciseCount,
 		},
 	}, nil
+}
+
+func workoutsToMadrid(workouts []model.OverviewCalendarWorkout) []model.OverviewCalendarWorkout {
+	for index := range workouts {
+		if workouts[index].PerformedAt != nil {
+			performedAt := workouts[index].PerformedAt.In(madridLocation)
+			workouts[index].PerformedAt = &performedAt
+		}
+		if workouts[index].PlannedAt != nil {
+			plannedAt := workouts[index].PlannedAt.In(madridLocation)
+			workouts[index].PlannedAt = &plannedAt
+		}
+	}
+	return workouts
+}
+
+func recentSummariesToMadrid(workouts []model.OverviewWorkoutSummary) []model.OverviewWorkoutSummary {
+	for index := range workouts {
+		workouts[index].PerformedAt = workouts[index].PerformedAt.In(madridLocation)
+	}
+	return workouts
+}
+
+func routinesToMadrid(routines []model.OverviewRoutineSummary) []model.OverviewRoutineSummary {
+	for index := range routines {
+		routines[index].UpdatedAt = routines[index].UpdatedAt.In(madridLocation)
+	}
+	return routines
+}
+
+func nowIfZero(t time.Time) time.Time {
+	if t.IsZero() {
+		return time.Now()
+	}
+	return t
+}
+
+func buildMadridProgressSummary(entries []model.OverviewBodyMetricEntry) model.OverviewProgressSummary {
+	progress := buildProgressSummary(entries)
+	if progress.LastRecordedAt != nil {
+		recordedAt := progress.LastRecordedAt.In(madridLocation)
+		progress.LastRecordedAt = &recordedAt
+	}
+	return progress
 }
 
 func buildProgressSummary(entries []model.OverviewBodyMetricEntry) model.OverviewProgressSummary {

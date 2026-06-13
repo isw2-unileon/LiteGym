@@ -1,3 +1,5 @@
+//go:build integration
+
 package repository
 
 import (
@@ -24,13 +26,12 @@ func cleanupUsers(t *testing.T, db *pgxpool.Pool) {
 		"public.workout_exercises",
 		"public.workout_sessions",
 		"public.support_tickets",
-		"public.shared_routines",
 		"public.routine_exercises",
 		"public.routines",
-		"public.friendships",
 		"public.exercise_secondary_muscle_groups",
 		"public.exercises",
 		"public.body_metrics",
+		"public.user_goals",
 		"public.user_profiles",
 		"public.users",
 	}

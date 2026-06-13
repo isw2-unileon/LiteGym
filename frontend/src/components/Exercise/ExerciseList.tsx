@@ -16,11 +16,16 @@ export default function ExerciseList({
     selectedExerciseId,
     onSelectExercise,
 }: ExerciseListProps) {
+    const hasCustomExercises = exercises.some(
+        (exercise) => exercise.is_official === false,
+    );
+
     return (
         <div
-            className="max-h-[40rem] overflow-y-auto rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-5"
+            className="mt-4 h-full min-h-[24rem] rounded-3xl border border-dashed border-[#1f1b16]/20 bg-white/45 p-2"
             data-block="exercise-list-container"
         >
+          <div className="h-full overflow-y-auto p-3 [scrollbar-gutter:stable]">
             {status === "loading" && (
                 <p
                     className="text-sm text-[#6b5d4d]"
@@ -46,20 +51,33 @@ export default function ExerciseList({
             )}
 
             {status === "success" && exercises.length > 0 && (
-                <ul
-                    className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3"
-                    data-block="exercise-list"
-                >
-                    {exercises.map((exercise) => (
-                        <ExerciseCard
-                            key={exercise.id}
-                            exercise={exercise}
-                            isSelected={exercise.id === selectedExerciseId}
-                            onSelect={onSelectExercise}
-                        />
-                    ))}
-                </ul>
+                <>
+                    {hasCustomExercises && (
+                        <div className="sticky top-0 z-10 mb-4 flex items-center gap-2 rounded-xl bg-[#fffaf0]/95 px-3 py-2 text-xs font-semibold text-[#5d5348] backdrop-blur-sm">
+                            <span
+                                className="h-2.5 w-2.5 rounded-full bg-[#ea7130] ring-4 ring-[#265c52]/10"
+                                aria-hidden="true"
+                            />
+                            Ejercicio propio
+                        </div>
+                    )}
+
+                    <ul
+                        className="grid gap-5 s:grid-cols-1 md:grid-cols-2 xl:grid-cols-2 "
+                        data-block="exercise-list"
+                    >
+                        {exercises.map((exercise) => (
+                            <ExerciseCard
+                                key={exercise.id}
+                                exercise={exercise}
+                                isSelected={exercise.id === selectedExerciseId}
+                                onSelect={onSelectExercise}
+                            />
+                        ))}
+                    </ul>
+                </>
             )}
+          </div>
         </div>
     );
 }

@@ -6,6 +6,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user -d test_db"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +36,27 @@ jobs:
       - name: Install backend dependencies
         run: go mod download
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for PostgreSQL
+        env:
+          PGPASSWORD: test_password
+        run: |
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U test_user -d test_db; do sleep 1; done'
+
+      - name: Apply schema
+        env:
+          PGPASSWORD: test_password
+        run: psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/01-schema.sql
+
+      - name: Apply seed
+        env:
+          PGPASSWORD: test_password
+        run: psql -h localhost -p 5432 -U test_user -d test_db -f ./postgress-local/initdb/02-seed.sql
+
       - name: Build frontend
         run: cd frontend && npm ci && npm run build
 
@@ -34,6 +69,7 @@ jobs:
       - name: Start backend
         run: go run ./backend/cmd/server &
         env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
           PORT: 8080
           GIN_MODE: release
 

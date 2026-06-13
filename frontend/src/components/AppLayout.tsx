@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { clearAuthToken } from "../lib/authSession";
+import { legalLinks } from "../lib/legalLinksData";
 
 export type LayoutUser = {
   id: string;
@@ -15,19 +16,56 @@ type AppLayoutProps = {
 };
 
 const navigationItems = [
-  { label: "Dashboard", to: "/dashboard" },
-  { label: "Perfil", to: "/profile" },
+  { label: "Panel", to: "/dashboard" },
   { label: "Mis rutinas", to: "/routines" },
   { label: "Mis ejercicios", to: "/exercises" },
+  { label: "Soporte Técnico", to: "/support" },
+  { label: "Perfil", to: "/profile" },
 ];
 
 const pageBackground =
-  "absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,_rgba(234,113,48,0.24),_transparent_30%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_52%,_#d8e1d0_100%)]";
+  "min-h-screen text-[#1f1b16] bg-[radial-gradient(circle_at_top_right,_rgba(234,113,48,0.24),_transparent_30%),linear-gradient(135deg,_#f8f0db_0%,_#efe1c3_52%,_#d8e1d0_100%)]";
+
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 export default function AppLayout({ user }: AppLayoutProps) {
-  const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAdmin = user?.role === "admin";
+  const displayName = capitalize(user?.username ?? user?.email ?? "Usuario");
+  const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const legalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isLegalOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (legalRef.current && !legalRef.current.contains(event.target as Node)) {
+        setIsLegalOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isLegalOpen]);
 
   const handleLogout = async () => {
     try {
@@ -42,39 +80,27 @@ export default function AppLayout({ user }: AppLayoutProps) {
   };
 
   return (
-    <main className="min-h-screen bg-[#f4efe2] text-[#1f1b16]">
-      <div className="min-h-screen">
-        <aside
-          aria-hidden={!isSidebarOpen}
-          className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#1f1b16]/10 bg-[#1f1b16] px-5 py-6 text-[#fffaf0] shadow-[20px_0_60px_rgba(31,27,22,0.18)] transition-transform duration-300 ${
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <Link to="/dashboard">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#f1a45b]">Grupo 16</p>
-              <h1 className="mt-3 font-['Aptos_Display','Trebuchet_MS',sans-serif] text-3xl font-black tracking-[-0.05em]">
-                Fitness
-              </h1>
-            </Link>
+    <main className={pageBackground}>
+      <header className="sticky top-0 z-30 mb-7 border-b border-[#1f1b16]/10 bg-[#fffaf0]/80 py-2.5 shadow-[0_10px_30px_rgba(31,27,22,0.10)] backdrop-blur-md">
+        <div className="grid grid-cols-3 items-center px-[10rem]">
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-3 justify-self-start [font-family:'Bricolage_Grotesque','Aptos_Display','Trebuchet_MS',sans-serif] text-[22px] font-black tracking-[-0.04em]"
+          >
+            <div className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-[#1f1b16] text-[18px] font-black tracking-[-0.06em] text-[#f1a45b] shadow-[0_8px_18px_rgba(31,27,22,0.18)]">
+              L
+            </div>
+            LiteGym
+          </Link>
 
-            <button
-              aria-expanded={isSidebarOpen}
-              aria-label="Ocultar menu"
-              className="grid h-10 w-10 place-items-center rounded-r-none rounded-l-2xl border border-white/15 text-lg font-black text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b]"
-              type="button"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              &lt;
-            </button>
-          </div>
-
-          <nav className="mt-8 space-y-2" aria-label="Navegacion principal">
+          <nav className="flex gap-1 justify-self-center rounded-[14px] border border-[#1f1b16]/12 p-1">
             {navigationItems.map((item) => (
               <NavLink
                 className={({ isActive }) =>
-                  `block rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    isActive ? "bg-white/15 text-white" : "text-[#fffaf0]/80 hover:bg-white/10 hover:text-white"
+                  `flex items-center justify-center rounded-[14px] px-3 py-2 text-center text-sm font-bold transition ${
+                    isActive
+                      ? "bg-[#f1a45b] text-[#1f1b16]"
+                      : "text-[#1f1b16]/80 hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
                   }`
                 }
                 key={item.to}
@@ -87,63 +113,83 @@ export default function AppLayout({ user }: AppLayoutProps) {
             {isAdmin && (
               <NavLink
                 className={({ isActive }) =>
-                  `block rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    isActive ? "bg-[#ffbc76] text-[#1f1b16]" : "bg-[#f1a45b] text-[#1f1b16] hover:bg-[#ffbc76]"
+                  `flex items-center justify-center rounded-[14px] px-3 py-2 text-center text-sm font-bold transition ${
+                    isActive
+                      ? "bg-[#f1a45b] text-[#1f1b16]"
+                      : "text-[#1f1b16]/80 hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
                   }`
                 }
                 to="/admin"
               >
-                Panel admin
+                Panel administrativo
               </NavLink>
             )}
+
+            <div ref={legalRef} className="relative flex">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isLegalOpen}
+                onClick={() => setIsLegalOpen((open) => !open)}
+                className="flex items-center justify-center rounded-[14px] px-3 py-2 text-center text-sm font-bold text-[#1f1b16]/80 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+              >
+                Legal
+              </button>
+
+              {isLegalOpen && (
+                <div className="absolute left-0 top-[calc(100%+0.625rem)] z-40 w-48 overflow-hidden rounded-[14px] border border-[#1f1b16]/10 bg-[#fffaf0] shadow-[0_10px_30px_rgba(31,27,22,0.10)] backdrop-blur-md">
+                  {legalLinks.map((link) => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      onClick={() => setIsLegalOpen(false)}
+                      className="block px-4 py-3 text-sm font-bold text-[#1f1b16]/80 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
 
-          <div className="mt-8 border-t border-white/10 pt-5">
-            <Link
-              to="/support"
-              className="mb-6 block text-sm font-bold text-[#fffaf0]/80 transition hover:text-[#f1a45b]"
-            >
-              Soporte Técnico
-            </Link>
-
-            <p className="mb-4 text-xs font-semibold text-[#fffaf0]/65">
-              {user?.username ?? user?.email ?? "Usuario"}
-            </p>
+          <div ref={menuRef} className="relative flex items-center gap-2.5 justify-self-end self-stretch">
+            <span className="text-sm font-bold">{displayName}</span>
             <button
-              className="w-full rounded-2xl border border-white/15 px-4 py-3 text-sm font-bold text-[#fffaf0] transition hover:border-[#f1a45b] hover:text-[#f1a45b]"
               type="button"
-              onClick={handleLogout}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              aria-label="Abrir menu de perfil"
+              onClick={() => setIsMenuOpen((open) => !open)}
+              className="grid h-[34px] w-[34px] place-items-center rounded-[12px] border border-[#1f1b16]/15 bg-gradient-to-br from-[#ea7130] to-[#ff8b47] [font-family:'Bricolage_Grotesque','Aptos_Display','Trebuchet_MS',sans-serif] text-[18px] font-black tracking-[-0.02em] text-[#1f1b16] shadow-[0_8px_18px_rgba(234,113,48,0.30)] transition hover:-translate-y-px"
             >
-              Cerrar sesion
+              {displayName.charAt(0)}
             </button>
+
+            {isMenuOpen && (
+              <div className="absolute right-0 top-[calc(100%+0.625rem)] z-40 w-48 overflow-hidden rounded-[14px] border border-[#1f1b16]/10 bg-[#fffaf0]/80 shadow-[0_10px_30px_rgba(31,27,22,0.10)] backdrop-blur-md">
+                <NavLink
+                  to="/profile"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block px-4 py-3 text-sm font-bold text-[#1f1b16]/80 transition hover:bg-[#f1a45b]/10 hover:text-[#1f1b16]"
+                >
+                  Perfil
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="block w-full border-t border-[#1f1b16]/10 px-4 py-3 text-left text-sm font-bold text-[#9f2f22] transition hover:bg-[#9f2f22]/10"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
           </div>
-        </aside>
+        </div>
+      </header>
 
-        <section className="relative isolate min-h-screen px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
-          <div className={pageBackground} />
-
-          <button
-            aria-expanded={isSidebarOpen}
-            aria-label="Mostrar menu"
-            className={`fixed left-0 top-8 z-40 grid h-14 w-9 place-items-center rounded-r-2xl bg-[#1f1b16] text-lg font-black text-[#fffaf0] shadow-[10px_10px_35px_rgba(31,27,22,0.18)] transition hover:bg-[#265c52] ${
-              isSidebarOpen ? "pointer-events-none -translate-x-full opacity-0" : "translate-x-0 opacity-100"
-            }`}
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            &gt;
-          </button>
-
-          <div
-            className={`mx-auto pt-3 transition-[max-width,padding] duration-300 ${
-              isSidebarOpen
-                ? "max-w-6xl lg:max-w-[min(1100px,calc(100vw-9rem))] xl:max-w-[min(1180px,calc(100vw-10rem))]"
-                : "max-w-7xl lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]"
-            }`}
-          >
-            <Outlet context={{ user }} />
-          </div>
-        </section>
+      <div className="mx-auto max-w-7xl pt-3 lg:max-w-[min(1320px,calc(100vw-4rem))] xl:max-w-[min(1440px,calc(100vw-5rem))]">
+        <Outlet context={{ user }} />
       </div>
     </main>
   );

@@ -28,7 +28,7 @@ export default function ExerciseFilters({
                 placeholder="Buscar por nombre..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
+                className="mt-4 w-full rounded-2xl border border-[#1f1b16]/10 bg-white px-4 py-3 text-sm text-[#1f1b16] outline-none"
             />
 
             <div className="grid gap-4 sm:grid-cols-2">

@@ -1,149 +1,164 @@
 # LiteGym
 
-## Overview
+> **University of León · Software Engineering II · 2025–2026**
+> Course project developed in the [`isw2-unileon`](https://github.com/isw2-unileon) GitHub organization.
+> Repository: [`isw2-unileon/LiteGym`](https://github.com/isw2-unileon/LiteGym)
 
-This project is a desktop-oriented web application designed for users who want to track and analyze their workouts in a detailed and intelligent way. It combines workout management, performance analytics, social interaction, and AI-driven recommendations into a single platform.
+LiteGym is a full-stack fitness app for routines, workouts, progress tracking, and AI-assisted training plans. The repository is a monorepo with a Go API, a React frontend, PostgreSQL, and end-to-end tests.
 
-The application allows users to monitor their progress, manage training routines, compare results with friends, and receive personalized suggestions through an integrated AI assistant.
+## What It Covers
 
----
+- authentication and session cookies
+- exercise catalog management with official and user-owned exercises
+- routine browsing, routine detail, and AI preview/save flows
+- workout sessions with exercises and sets
+- dashboard insights and support tickets
+- basic admin views
 
-## Key Features
+## Team
 
-### Main Dashboard
+Developed by a team of students. Individual contribution is tracked through the Git commit history and GitHub Projects.
 
-- **Workout Calendar**  
-  Visual representation of past and scheduled training sessions.
+| Name | GitHub                                   |
+|-----|------------------------------------------|
+| Raúl Sevilla Salto | [@rsevis00](https://github.com/rsevis00) |
+| Diego Hernández Gómez | [@dherng03](https://github.com/dherng03) |
+| David Fernández Janeiro | [@DFernJ](https://github.com/DFernJ)   |
+| Mario Arias García | [@MarioAriasGarcia](https://github.com/MarioAriasGarcia) |
 
-- **Workout History**  
-  Detailed log of all completed workouts.
 
-- **Statistics Radar Chart**  
-  Displays performance metrics across different muscle groups such as chest, back, legs, cardio, and more.
+## Requirements
 
-- **Muscle Heatmap**  
-  Visualizes muscle engagement and training intensity over time.
+- Go `1.25.0`
+- Node.js and npm; the repo does not pin a specific Node version, so use a current LTS release compatible with Vite 6
+- Docker or Podman with compose support
+- `make` and `curl`
 
-- **Workout Streak System**  
-  Tracks consistency and encourages habit-building through gamification.
+## Local Setup
 
-- **Quick Start Training Button**  
-  Fast access to begin a new workout session.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/isw2-unileon/LiteGym.git
+   cd LiteGym
+   ```
+2. Create a local environment override file from the example:
+   ```bash
+   cp .env.example .env.local
+   ```
+3. Set `DATABASE_URL` in `.env.local` to match how you will run PostgreSQL.
+4. Install dependencies:
+   ```bash
+   make install
+   ```
+5. Start PostgreSQL:
+   ```bash
+   make start-postgres-db
+   ```
+6. Run the backend and frontend in separate terminals:
+   ```bash
+   make run-backend
+   make run-frontend
+   ```
 
----
+If you run the backend on your host machine, use this `DATABASE_URL` in `.env.local`:
 
-### Routine Management
-
-- **Predefined Routines**  
-  Standard workout splits such as chest, back, and legs.
-
-- **Custom Routines**  
-  Users can create, edit, and manage personalized workout plans.
-
-- **AI-Generated Routines**  
-  Automatic routine creation based on the user’s profile, fitness level, and goals.
-
-- **Routine Improvement Suggestions**  
-  Existing routines can be analyzed and optimized with AI-generated recommendations.
-
----
-
-### Performance and Analytics
-
-- **One-Rep Max Prediction**  
-  Estimate the maximum weight a user can lift for a single repetition in a given exercise.
-
-- **Fatigue Indicators**  
-  Detect signs of fatigue by analyzing workout performance and progression.
-
-- **Smart Exercise Counter**  
-  Intelligent counting system adapted to the type of exercise being performed.
-
-- **Progressive Overload Charts**  
-  Visual representation of progress over time based on recorded workout data.
-
-- **Calorie Burn Estimation**  
-  Approximate the calories burned during a workout session.
-
-- **Workout Duration Tracking**  
-  Record and analyze the duration of each training session.
-
----
-
-### Active Workout View
-
-- **Session Progress Bar**  
-  Shows the percentage of the current workout that has been completed.
-
-- **Exercise List**  
-  Displays the exercises included in the current routine, with the ability to mark completed sets and view previous statistics.
-
-- **Weight and Repetition Logging**  
-  Users can add, edit, and update repetitions and weights in real time during the workout.
-
----
-
-### Social Features
-
-- **Friends Statistics**  
-  Compare performance, progress, and workout consistency with friends.
-
-- **Friend System and Routine Sharing**  
-  Add friends and share routines through unique invitation or sharing codes.
-
-- **Restricted Access**  
-  Only friends can access shared routines and personal performance statistics.
-
----
-
-### AI Chatbot
-
-- **Personalized Recommendations**  
-  Analyze workout history, physical progress, and performance data to provide customized advice.
-
-- **Routine Generation**  
-  Create workout plans based on specific goals such as fat loss, muscle gain, or performance improvement.
-
----
-
-### Administrator Role
-
-- **User Management**  
-  Create, modify, and delete user accounts.
-
-- **Support Ticket Management**  
-  Handle support requests and user issues related to official exercises or platform usage.
-
----
-
-## Tech Stack
-
-- **Backend:** Go (Golang)
-- **Frontend:** React + TypeScript + Vite
-- **Styling:** Tailwind CSS
-- **Testing:** Usage of TDD and End-to-end test
-- **Artificial Intelligence:** AI chatbot for recommendations and routine generation with the usage of Gemini API Key
-- **Data Persistence:** PostgreSQL with the usage of Supabase
-
----
-
-## Project Structure
-
-```text
-├── backend/              Go API server (Gin)
-│   ├── cmd/server/       Entry point
-│   └── internal/
-│       │── config/       Environment config
-│       │── model/        Structs to match database tables
-│       │── repository/   Manage CRUD operations
-│       │── service/      Connects all the internal modules with the repositories
-│       └── transport/    API Core
-│           └── handlers/ Helps to the API Core
-│
-├── frontend/             React + TypeScript + Vite + Tailwind
-│   └── src/
-│
-├── e2e/                  Playwright E2E tests
-├── .github/workflows/    CI/CD pipelines
-└── Makefile              Development commands
+```env
+DATABASE_URL=postgres://test_user:test_password@localhost:5432/test_db?sslmode=disable
 ```
+
+If you run the whole stack with compose, the backend can keep the container-based database URL from `backend/.env`.
+
+The usual local URLs are:
+
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:8080`
+
+## Tests
+
+Run all standard tests:
+
+```bash
+make test
+```
+
+Run backend integration tests against the local PostgreSQL stack:
+
+```bash
+make test-integration
+```
+
+Run linters:
+
+```bash
+make lint
+```
+
+Run E2E tests:
+
+```bash
+make e2e
+```
+
+## Deployment
+
+The application is deployed and accessible from the browser, always reflecting the latest version of the `main` branch:
+
+- Live app: `https://litegym.onrender.com`
+- Backend API: `https://litegym-backend.onrender.com`
+
+To run it locally instead, see [Local Setup](#local-setup).
+
+## CI/CD
+
+Continuous integration runs on GitHub Actions, with a separate pipeline per area:
+
+- `.github/workflows/backend.yml` — backend build and tests
+- `.github/workflows/frontend.yml` — frontend build and tests
+- `.github/workflows/e2e.yml` — end-to-end tests
+
+## Contributing
+
+- Workflow: Trunk Based Development — short-lived branches per task, integrated frequently into `main`. No long-lived branches or GitFlow.
+- Branch names: use short, descriptive branches such as `feature/...`, `fix/...`, or `chore/...`.
+- Commit messages: use types (feat:, fix:, chore:, refactor:, ...) keep them imperative and specific, for example `fix ai routine save rate limit`.
+- Pull requests: include a concise summary, the relevant test output, and screenshots or API examples when the change affects UI or payloads.
+- Before opening a PR, run the relevant backend, frontend, and integration tests for the area you changed.
+- Language: English is used across the whole repository — code, comments, documentation, branch names, commit messages, and issues.
+
+See the technical documentation in [`docs/index.md`](docs/index.md).
+
+## Documentation
+
+The detailed project documentation lives in [`docs/`](docs/index.md):
+
+- [Documentation index](docs/index.md)
+- [Getting started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Backend guide](docs/backend.md)
+- [Frontend guide](docs/frontend.md)
+- [API reference](docs/api-reference.md)
+- [Database guide](docs/database.md)
+- [AI integration](docs/ai-integration.md)
+- [Testing guide](docs/testing.md)
+- [Contributing guide](docs/contributing.md)
+
+## Useful Commands
+
+```bash
+make build-backend
+make build-frontend
+make start-app-snapshot
+make down-app-snapshot
+make reset-postgres-db
+```
+
+## Notes
+
+- AI routine generation uses a preview-and-confirm flow.
+- The AI service can create user-owned exercises automatically when Gemini proposes a valid exercise that does not already exist.
+- AI routine endpoints are rate-limited in transport middleware.
+
+---
+
+_University of León · Software Engineering II · 2025–2026 · [github.com/isw2-unileon](https://github.com/isw2-unileon)_

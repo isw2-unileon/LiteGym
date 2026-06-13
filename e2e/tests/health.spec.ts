@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 
 test("homepage loads", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("h1")).toHaveText("App");
+  await expect(
+    page.getByRole("heading", { name: /entra, entrena y controla tu progreso/i }),
+  ).toBeVisible();
 });
 
 test("health endpoint responds", async ({ request }) => {
