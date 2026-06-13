@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import { clearAuthToken } from "../lib/authSession";
 
 export type LayoutUser = {
   id: string;
@@ -35,6 +36,7 @@ export default function AppLayout({ user }: AppLayoutProps) {
         credentials: "include",
       });
     } finally {
+      clearAuthToken();
       navigate("/", { replace: true });
     }
   };

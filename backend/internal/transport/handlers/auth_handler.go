@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/isw2-unileon/Grupo-16/backend/internal/model"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/transport/middleware"
 )
@@ -22,6 +23,11 @@ type AuthHandler struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type authResponse struct {
+	User  *model.User `json:"user"`
+	Token string      `json:"token"`
 }
 
 // NewAuthHandler creates a new AuthHandler.
@@ -90,12 +96,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(h.cookieSecure),
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
-	c.JSON(http.StatusOK, gin.H{
-		"user": user,
+	c.JSON(http.StatusOK, authResponse{
+		User:  user,
+		Token: token,
 	})
 }
 
@@ -132,11 +139,19 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSiteMode(h.cookieSecure),
 		MaxAge:   -1,
 	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "session closed",
 	})
+}
+
+func sameSiteMode(cookieSecure bool) http.SameSite {
+	if cookieSecure {
+		return http.SameSiteNoneMode
+	}
+
+	return http.SameSiteLaxMode
 }

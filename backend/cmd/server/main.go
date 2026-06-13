@@ -68,7 +68,7 @@ func main() {
 	healthHandler := handlers.NewHealthHandler()
 	ticketHandler := handlers.NewTicketHandler(ticketService, userService)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, cfg.AuthCookieName, userService)
 
 	r := transport.SetupRouter(
 		db,

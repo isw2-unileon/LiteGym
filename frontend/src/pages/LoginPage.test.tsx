@@ -46,7 +46,9 @@ describe("LoginPage", () => {
 
   it("logs in, sends credentials with cookies enabled and notifies success", async () => {
     const user = userEvent.setup();
-    const fetchMock = mockFetch(jsonResponse({ user: { id: 1, email: "raul@example.com" } }, { status: 200 }));
+    const fetchMock = mockFetch(
+      jsonResponse({ user: { id: 1, email: "raul@example.com" }, token: "test-token" }, { status: 200 }),
+    );
 
     renderLoginPage();
 
@@ -67,6 +69,7 @@ describe("LoginPage", () => {
     });
 
     expect(await screen.findByText("Sesion iniciada. Entrando al panel...")).toBeInTheDocument();
+    expect(window.localStorage.getItem("litegym_auth_token")).toBe("test-token");
   });
 
   it("shows the backend error when login fails", async () => {

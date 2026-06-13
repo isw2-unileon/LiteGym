@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import { setAuthToken } from "../lib/authSession";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
@@ -35,6 +36,11 @@ export default function LoginPage() {
         setLoginStatus("error");
         setLoginMessage(payload?.error ?? "No se pudo iniciar sesion.");
         return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as { token?: string } | null;
+      if (payload?.token) {
+        setAuthToken(payload.token);
       }
 
       setLoginStatus("success");

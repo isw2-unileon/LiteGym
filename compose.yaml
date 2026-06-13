@@ -1,6 +1,9 @@
 services:
     postgres:
-        image: postgres:15-alpine
+        build:
+            context: ./postgress-local
+            dockerfile: Dockerfile
+        image: gym-postgres-local:15-alpine
         container_name: postgres-test
         env_file:
             - .env.local
@@ -13,7 +16,6 @@ services:
             - "5432:5432"
         volumes:
             - pgdata:/var/lib/postgresql/data
-            - ./postgress-local/initdb:/docker-entrypoint-initdb.d:ro
         healthcheck:
             test:
                 [

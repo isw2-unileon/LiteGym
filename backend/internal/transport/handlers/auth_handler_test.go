@@ -113,6 +113,18 @@ func TestLoginSuccessSetsCookie(t *testing.T) {
 	if cookie.Value == "" {
 		t.Error("expected auth cookie to contain a token")
 	}
+
+	var payload struct {
+		User  model.User `json:"user"`
+		Token string     `json:"token"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+
+	if payload.Token == "" {
+		t.Fatal("expected token in login response")
+	}
 }
 
 func TestLoginInvalidCredentials(t *testing.T) {

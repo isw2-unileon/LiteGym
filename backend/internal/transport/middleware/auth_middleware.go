@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/Grupo-16/backend/internal/service"
@@ -20,10 +22,12 @@ const (
 
 // AuthMiddleware provides HTTP middleware for authentication.
 //
-// It uses a TokenService to parse and validate authentication tokens stored in a cookie,
-// and injects the parsed claims into the request context for downstream handlers.
+// It uses a TokenService to parse and validate authentication tokens stored in a cookie
+// or in the Authorization header, and injects the parsed claims into the request context
+// for downstream handlers.
 type AuthMiddleware struct {
 	tokenService *service.TokenService
+	userService  *service.UserService
 	cookieName   string
 }
 
@@ -31,23 +35,29 @@ type AuthMiddleware struct {
 //
 // tokenService is used to parse/verify tokens and cookieName specifies which cookie
 // contains the authentication token.
-func NewAuthMiddleware(tokenService *service.TokenService, cookieName string) *AuthMiddleware {
+func NewAuthMiddleware(tokenService *service.TokenService, cookieName string, userService ...*service.UserService) *AuthMiddleware {
+	var resolvedUserService *service.UserService
+	if len(userService) > 0 {
+		resolvedUserService = userService[0]
+	}
+
 	return &AuthMiddleware{
 		tokenService: tokenService,
+		userService:  resolvedUserService,
 		cookieName:   cookieName,
 	}
 }
 
 // RequireAuth returns a Gin middleware handler that enforces authentication.
 //
-// The returned handler reads the configured cookie, validates the token using the
-// TokenService, and on success stores the claims (subject, email, username, role) in the
-// request context.
+// The returned handler reads the configured cookie or Authorization header, validates the
+// token using the TokenService, and on success stores the claims (subject, email, username,
+// role) in the request context.
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString, err := c.Cookie(m.cookieName)
+		tokenString, err := m.resolveToken(c)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: missing cookie"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: missing credentials"})
 			return
 		}
 
@@ -57,10 +67,46 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
+		if m.userService != nil {
+			if _, err := m.userService.GetByID(c.Request.Context(), claims.Subject); err != nil {
+				if errors.Is(err, service.ErrUserNotFound) || errors.Is(err, service.ErrInvalidUserInput) {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: user not found"})
+					return
+				}
+
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to validate authenticated user"})
+				return
+			}
+		}
+
 		c.Set(ContextUserIDKey, claims.Subject)
 		c.Set(ContextUserEmailKey, claims.Email)
 		c.Set(ContextUsernameKey, claims.Username)
 		c.Set(ContextUserRoleKey, claims.Role)
 		c.Next()
 	}
+}
+
+func (m *AuthMiddleware) resolveToken(c *gin.Context) (string, error) {
+	authorizationHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+	if authorizationHeader != "" {
+		token, ok := strings.CutPrefix(authorizationHeader, "Bearer ")
+		if !ok {
+			return "", errors.New("invalid authorization header")
+		}
+
+		token = strings.TrimSpace(token)
+		if token == "" {
+			return "", errors.New("invalid authorization header")
+		}
+
+		return token, nil
+	}
+
+	tokenString, err := c.Cookie(m.cookieName)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
 }
