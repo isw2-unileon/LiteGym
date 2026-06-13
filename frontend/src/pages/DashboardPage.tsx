@@ -3,6 +3,7 @@ import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import type { LayoutUser } from "../components/AppLayout";
 import { Card, CardHeader } from "../components/Card";
 import { apiUrl } from "../lib/api";
+import { useIsMobile } from "../lib/useIsMobile";
 import { HelloHeader } from "../components/HelloHeader";
 import { Stat } from "../components/Stat";
 import { MuscleDistribution } from "../components/MuscleDistribution";
@@ -235,6 +236,7 @@ function cleanDescription(description?: string | null) {
 export default function DashboardPage() {
   const { user } = useOutletContext<OutletContext>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = new Date();
@@ -534,13 +536,30 @@ export default function DashboardPage() {
         className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
       />
 
-      <div className="px-6  pt-8 sm:px-8">
+      <div className="px-4 pt-5 sm:px-6 sm:pt-8 md:px-8">
         <section className="mx-auto mb-6 grid max-w-[1280px] grid-cols-1 items-start gap-6 md:grid-cols-[1fr_auto]">
           <div>
           <HelloHeader page={"PANEL PRINCIPAL"} user={user?.username ?? "Atleta"} />
             <p className="mt-3.5 max-w-[640px] text-[15px] leading-[1.55] text-[#3a332c]">
               Aquí ves tu actividad reciente y los días del mes en los que ya has entrenado. Planifica un día tocando una celda futura.
             </p>
+            <div className="mt-5 grid grid-cols-2 gap-3 md:hidden">
+              <button
+                type="button"
+                onClick={handleOpenQuickStart}
+                className="rounded-[18px] bg-[#1f1b16] px-4 py-4 text-left text-sm font-black text-[#f1a45b] shadow-[0_14px_30px_rgba(31,27,22,0.18)]"
+              >
+                <span className="block text-[11px] uppercase tracking-[0.16em] text-[#fffaf0]/70">Ahora</span>
+                Iniciar entreno
+              </button>
+              <Link
+                to="/routines"
+                className="rounded-[18px] border border-[#1f1b16]/12 bg-[#fffaf0]/85 px-4 py-4 text-left text-sm font-black text-[#1f1b16] shadow-[0_12px_28px_rgba(31,27,22,0.08)]"
+              >
+                <span className="block text-[11px] uppercase tracking-[0.16em] text-[#265c52]">Plan</span>
+                Ver rutinas
+              </Link>
+            </div>
             {status === "error" && (
               <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-3 py-2 text-[12px] font-bold text-[#9f2f22]">
                 No se ha podido cargar toda la información del dashboard.
@@ -548,13 +567,112 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
+          <div className="grid w-full grid-cols-3 gap-2.5 md:flex md:w-auto md:flex-wrap">
             <Stat n={String(dashboard?.calendar.sessions_count ?? 0)} l="Sesiones del mes" />
             <Stat n={String(dashboard?.calendar.weekly_goal ?? 2)} l="Objetivo semanal" />
             <Stat n={`${dashboard?.calendar.current_streak ?? 0}`} l="Racha semanal" accent />
           </div>
         </section>
 
+        {isMobile && (
+        <section className="mx-auto grid max-w-[1280px] gap-4">
+          <section className="overflow-hidden rounded-[30px] border border-[#1f1b16]/10 bg-[#fffaf0]/86 shadow-[0_14px_34px_rgba(31,27,22,0.1)]">
+            <div className="flex items-end justify-between gap-3 bg-[#ea7130] px-5 py-4">
+              <div className="min-w-0">
+                <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#1f1b16]/70">
+                  Mes actual
+                </p>
+                <h2 className="truncate [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[30px] font-black capitalize leading-none tracking-[-0.055em] text-[#1f1b16]">
+                  {calendarFormatter.format(currentMonth)}
+                </h2>
+              </div>
+            </div>
+            <div className="p-4">
+            <div className="mb-3 flex justify-end gap-1.5">
+              <NavBtn dir="prev" disabled={!canShowPreviousMonth} onClick={() => handleChangeVisibleMonth(-1)} />
+              <NavBtn dir="next" disabled={!canShowNextMonth} onClick={() => handleChangeVisibleMonth(1)} />
+            </div>
+
+            <div className="relative z-[2] mt-4 grid grid-cols-7 gap-1">
+              {weekdayLabels.map((label) => (
+                <p
+                  className="text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[9px] font-black uppercase tracking-[0.04em] text-[#3a332c]/80"
+                  key={label}
+                >
+                  {label.slice(0, 1)}
+                </p>
+              ))}
+
+              {monthDays.map((day) => {
+                const dateKey = toDateKey(day.date);
+                const dateWorkouts = workoutsByDate.get(dateKey) ?? [];
+                const performedWorkouts = dateWorkouts.filter((workout) => Boolean(workout.performed_at));
+                const plannedWorkouts = dateWorkouts.filter((workout) => !workout.performed_at && Boolean(workout.planned_at));
+                const isTrained = day.isCurrentMonth && trainingDays.has(dateKey);
+                const isPlanned = day.isCurrentMonth && !isTrained && plannedWorkouts.length > 0;
+                const isPast = dateKey < todayKey;
+                const isInteractive = day.isCurrentMonth && (!isPast || performedWorkouts.length > 0 || plannedWorkouts.length > 0);
+
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    disabled={!isInteractive}
+                    onClick={() => handleCalendarDayClick(dateKey, performedWorkouts, plannedWorkouts)}
+                    className={[
+                      "relative grid aspect-square place-items-center rounded-[9px] border text-[12px] font-black transition",
+                      !day.isCurrentMonth && "border-transparent bg-transparent text-[#1f1b16]/25",
+                      day.isCurrentMonth && isTrained && "border-transparent bg-[#265c52] text-[#fffaf0]",
+                      day.isCurrentMonth && !isTrained && isPlanned && "border-[#ea7130]/45 bg-[#ea7130]/12 text-[#1f1b16]",
+                      day.isCurrentMonth && !isTrained && !isPlanned && day.isToday && "border-[#1f1b16] bg-[#fffaf0] text-[#1f1b16]",
+                      day.isCurrentMonth && !isTrained && !isPlanned && !day.isToday && isPast && "border-transparent bg-[#fffaf0]/50 text-[#1f1b16]/45",
+                      day.isCurrentMonth && !isTrained && !isPlanned && !day.isToday && !isPast && "border-[#1f1b16]/10 bg-[#fffaf0]/85 text-[#1f1b16]",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    {day.dayNumber}
+                    {isPlanned && <span aria-hidden="true" className="absolute bottom-1 h-1 w-1 rounded-full bg-[#ea7130]" />}
+                  </button>
+                );
+              })}
+            </div>
+            </div>
+          </section>
+
+          <MobileDashboardPanel kicker="Próximo" title="Actividad reciente">
+            <div className="grid gap-3">
+              {(dashboard?.recent_workouts ?? []).slice(0, 3).map((workout) => (
+                <div key={workout.id} className="rounded-[16px] border border-[#1f1b16]/10 bg-white/65 p-3">
+                  <p className="m-0 text-[15px] font-black text-[#1f1b16]">{workout.name || workout.routine_name || "Sesion"}</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#3a332c]/75">
+                    {workout.routine_name || "Entreno libre"} · {workout.duration_minutes} min · {workout.exercise_count} ejercicios
+                  </p>
+                </div>
+              ))}
+              {(dashboard?.recent_workouts ?? []).length === 0 && (
+                <p className="rounded-[16px] border border-dashed border-[#1f1b16]/15 p-4 text-sm font-bold text-[#3a332c]/70">
+                  Aún no hay entrenos registrados.
+                </p>
+              )}
+            </div>
+          </MobileDashboardPanel>
+
+          <MobileDashboardPanel kicker="Rutinas" title="Acceso rápido">
+            <Link to="/routines" className="mb-3 inline-flex rounded-[12px] bg-[#1f1b16] px-3 py-2 text-xs font-black text-[#f1a45b]">
+              Ver todas
+            </Link>
+            <div className="grid gap-3">
+              {(dashboard?.recent_routines ?? []).slice(0, 3).map((routine) => (
+                <div key={routine.id} className="rounded-[16px] border border-[#1f1b16]/10 bg-white/65 p-3">
+                  <p className="m-0 text-[15px] font-black text-[#1f1b16]">{routine.name}</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#3a332c]/75">{routine.exercise_count} ejercicios</p>
+                </div>
+              ))}
+            </div>
+          </MobileDashboardPanel>
+        </section>
+        )}
+
+        {!isMobile && (
         <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-[18px] xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.95fr)]">
           <div className="flex flex-col gap-[18px]">
             <Card accent="#ea7130">
@@ -573,7 +691,7 @@ export default function DashboardPage() {
               <div className="relative z-[2] mt-4 grid grid-cols-7 gap-1.5">
                 {weekdayLabels.map((label) => (
                   <p
-                    className="text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.18em] text-[#3a332c]"
+                    className="text-center [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-bold uppercase tracking-[0.08em] text-[#3a332c] sm:text-[12px] sm:tracking-[0.18em]"
                     key={label}
                   >
                     {label}
@@ -597,7 +715,7 @@ export default function DashboardPage() {
                       disabled={!isInteractive}
                       onClick={() => handleCalendarDayClick(dateKey, performedWorkouts, plannedWorkouts)}
                       className={[
-                        "relative grid aspect-square place-items-center rounded-[10px] border text-[16px] font-bold transition",
+                        "relative grid aspect-square place-items-center rounded-[10px] border text-[13px] font-bold transition sm:text-[16px]",
                         !day.isCurrentMonth && "border-transparent bg-transparent text-[#1f1b16]/30",
                         day.isCurrentMonth && isTrained && "border-transparent bg-[#265c52] text-[#fffaf0] shadow-[0_6px_14px_rgba(38,92,82,0.30)]",
                         day.isCurrentMonth && !isTrained && isPlanned && "border-[#ea7130]/45 bg-[#ea7130]/12 text-[#1f1b16]",
@@ -636,7 +754,7 @@ export default function DashboardPage() {
                   {dashboard.recent_workouts.map((workout) => (
                     <li
                       key={workout.id}
-                      className="grid grid-cols-[44px_1fr_auto_auto] items-center gap-3.5 rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-3 transition hover:border-[#ea7130]/40 hover:bg-[#fffaf0]"
+                      className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-[16px] border border-[#1f1b16]/10 bg-[#fffaf0]/75 p-3 transition hover:border-[#ea7130]/40 hover:bg-[#fffaf0] sm:grid-cols-[44px_1fr_auto_auto] sm:gap-3.5"
                     >
                       <div className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#1f1b16] [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[14px] font-bold text-[#f1a45b]">
                         <span className="whitespace-pre text-center leading-[1.05]">
@@ -651,7 +769,7 @@ export default function DashboardPage() {
                           {workout.routine_name || "Entreno libre"}
                         </p>
                       </div>
-                      <span className="justify-self-end inline-flex items-center rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52]">
+                      <span className="col-span-2 inline-flex items-center justify-self-start rounded-md border border-[#265c52]/18 bg-[#265c52]/10 px-2 py-1 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-wider text-[#265c52] sm:col-span-1 sm:justify-self-end">
                         {workout.duration_minutes} {workout.duration_minutes === 1 ? "minuto": "minutos"} · {workout.exercise_count} {workout.exercise_count === 1 ? "ejercicio": "ejercicios"}
                       </span>
                     </li>
@@ -671,7 +789,7 @@ export default function DashboardPage() {
                 right={(
                   <Link
                     to="/routines"
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-4 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f]"
+                    className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border-0 bg-[#1f1b16] px-3.5 py-4 text-[14px] font-extrabold leading-none tracking-[0.03em] text-[#f1a45b] no-underline shadow-[0_10px_22px_rgba(31,27,22,0.18)] transition hover:-translate-y-px hover:bg-[#2c261f] sm:w-auto"
                   >
                     Ver todas tus rutinas
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
@@ -785,12 +903,13 @@ export default function DashboardPage() {
             </Card>
           </div>
         </section>
+        )}
       </div>
 
       <button
         type="button"
         onClick={handleOpenQuickStart}
-        className="fixed bottom-8 right-8 z-30 inline-flex items-center gap-3 rounded-full bg-[#ea7130] px-5 py-4 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_24px_48px_rgba(234,113,48,0.35)] transition hover:-translate-y-px hover:bg-[#ff8b47]"
+        className="fixed bottom-8 right-8 z-30 hidden items-center gap-3 rounded-full bg-[#ea7130] px-5 py-4 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_24px_48px_rgba(234,113,48,0.35)] transition hover:-translate-y-px hover:bg-[#ff8b47] md:inline-flex"
       >
         <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1f1b16] text-[#fffaf0]">+</span>
         Iniciar entrenamiento
@@ -1062,6 +1181,32 @@ function NavBtn({
         {dir === "prev" ? <path d="M15 6l-6 6 6 6" /> : <path d="M9 6l6 6-6 6" />}
       </svg>
     </button>
+  );
+}
+
+function MobileDashboardPanel({
+  kicker,
+  title,
+  children,
+}: {
+  kicker: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[26px] border border-[#1f1b16]/10 bg-[#fffaf0]/84 shadow-[0_12px_28px_rgba(31,27,22,0.08)]">
+      <div className="flex items-center justify-between gap-3 px-4 py-4">
+        <div className="min-w-0">
+          <p className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[10px] font-black uppercase tracking-[0.18em] text-[#265c52]">
+            {kicker}
+          </p>
+          <h2 className="mt-1 truncate [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-none tracking-[-0.045em] text-[#1f1b16]">
+            {title}
+          </h2>
+        </div>
+      </div>
+      <div className="border-t border-[#1f1b16]/10 px-4 pb-4 pt-3">{children}</div>
+    </section>
   );
 }
 

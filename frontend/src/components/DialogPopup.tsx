@@ -13,17 +13,17 @@ export function DialogPopup({
     children: ReactNode;
 }) {
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-4 backdrop-blur-sm">
-            <section className="w-full max-w-md overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]">
-                <header className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-t-[24px] bg-[#1f1b16] px-6 py-5 text-[#fffaf0]">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f1b16]/45 px-3 py-4 backdrop-blur-sm sm:px-4">
+            <section className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-[24px] border-2 border-[#fffaf0]/20 shadow-[0_30px_80px_rgba(31,27,22,0.30),0_8px_22px_rgba(31,27,22,0.12)]">
+                <header className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-t-[24px] bg-[#1f1b16] px-4 py-4 text-[#fffaf0] sm:px-6 sm:py-5">
                     <div>
                         <div
-                            className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[16px] font-extrabold uppercase tracking-[0.30em]"
+                            className="[font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-extrabold uppercase tracking-[0.22em] sm:text-[16px] sm:tracking-[0.30em]"
                             style={{ color: "#f1a45b" }}
                         >
                             {kicker}
                         </div>
-                        <h3 className="mt-1 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-none tracking-[-0.04em]">
+                        <h3 className="mt-1 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[20px] font-black leading-none tracking-[-0.04em] sm:text-[22px]">
                             {title}
                         </h3>
                     </div>
@@ -38,7 +38,7 @@ export function DialogPopup({
                         </svg>
                     </button>
                 </header>
-                <div className="bg-[#fffaf0] px-6 py-5">{children}</div>
+                <div className="min-h-0 overflow-y-auto bg-[#fffaf0] px-4 py-4 sm:px-6 sm:py-5">{children}</div>
             </section>
         </div>
     );
