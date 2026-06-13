@@ -108,9 +108,5 @@ function formatBestSet(insights: ExerciseInsights) {
 }
 
 function formatTotalVolume(value: number) {
-  if (value >= 1000) {
-    return `${numberFormatter.format(value / 1000)} mil`;
-  }
-
   return `${numberFormatter.format(value)} kg`;
 }

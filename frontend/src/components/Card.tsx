@@ -40,24 +40,27 @@ export function CardHeader({
                         right,
                         rightChip,
                         onDark,
+                        className,
                     }: {
     kicker: string;
     title: ReactNode;
     right?: ReactNode;
     rightChip?: string;
     onDark?: boolean;
+    className?: string;
 }) {
     return (
         <header
             className={[
                 "relative z-[2] flex flex-wrap justify-between gap-3",
                 title ? "items-end" : "items-center",
+                className,
             ].join(" ")}
         >
-            <div>
+            <div className="min-w-0">
                 <div
                     className={[
-                        "flex items-center gap-2 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[12px] font-bold uppercase tracking-[0.22em]",
+                        "flex items-center gap-2 [font-family:'JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase tracking-[0.18em] sm:text-[12px] sm:tracking-[0.22em]",
                         title ? "mb-1.5" : "",
                         onDark ? "text-[#f1a45b]" : "text-[#265c52]",
                     ].join(" ")}
@@ -71,7 +74,7 @@ export function CardHeader({
                 {title && (
                     <h3
                         className={[
-                            "m-0 [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[24px] font-black leading-[1.05] tracking-[-0.035em]",
+                            "m-0 break-words [font-family:'Bricolage_Grotesque','Aptos_Display',sans-serif] text-[22px] font-black leading-[1.05] tracking-[-0.035em] sm:text-[24px]",
                             onDark ? "text-[#fffaf0]" : "text-[#1f1b16]",
                         ].join(" ")}
                     >

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import LegalLinks from "../components/LegalLinks";
 import { apiUrl } from "../lib/api";
 import { setAuthToken } from "../lib/authSession";
@@ -15,6 +15,8 @@ function translateLoginError(message?: string | null) {
   switch (message) {
     case "invalid credentials":
       return "El correo o la contraseña no son correctos.";
+    case "unverified email":
+      return "Tu cuenta no está verificada. Por favor revisa tu correo electrónico.";
     case "invalid email address":
       return "Introduce un email valido.";
     case "login rate limit exceeded":
@@ -26,10 +28,52 @@ function translateLoginError(message?: string | null) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isVerified = searchParams.get("verified") === "true";
+  const isRegistered = searchParams.get("registered") === "true";
+  const isPasswordReset = searchParams.get("reset") === "true";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginStatus, setLoginStatus] = useState<LoginStatus>("idle");
   const [loginMessage, setLoginMessage] = useState("");
+  const [resendStatus, setResendStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [resendMessage, setResendMessage] = useState("");
+
+  const handleResendEmail = async () => {
+    setResendStatus("loading");
+    setResendMessage("");
+
+    try {
+      const response = await fetch(apiUrl("/api/auth/resend-verification"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email: normalizeEmail(email),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setResendStatus("error");
+        setResendMessage(
+          payload?.error === "user is already verified"
+            ? "Tu cuenta ya está verificada. Intenta iniciar sesión."
+            : "Error al reenviar el correo.",
+        );
+        return;
+      }
+
+      setResendStatus("success");
+      setResendMessage("Se ha reenviado el correo de verificación.");
+    } catch {
+      setResendStatus("error");
+      setResendMessage("No se pudo conectar con el servidor.");
+    }
+  };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -97,6 +141,24 @@ export default function LoginPage() {
               </h2>
             </div>
 
+            {isVerified && (
+              <div className="mt-5 rounded-2xl bg-[#265c52]/10 px-4 py-3 text-sm font-semibold text-[#265c52]">
+                ¡Tu cuenta ha sido verificada con éxito! Ya puedes iniciar sesión.
+              </div>
+            )}
+
+            {isRegistered && (
+              <div className="mt-5 rounded-2xl bg-[#265c52]/10 px-4 py-3 text-sm font-semibold text-[#265c52]">
+                Cuenta creada. Revisa tu correo para verificar tu cuenta.
+              </div>
+            )}
+
+            {isPasswordReset && (
+              <div className="mt-5 rounded-2xl bg-[#265c52]/10 px-4 py-3 text-sm font-semibold text-[#265c52]">
+                Tu contraseña ha sido actualizada con éxito. Ya puedes iniciar sesión.
+              </div>
+            )}
+
             <form className="mt-7 space-y-5" onSubmit={handleLogin}>
               <label className="block">
                 <span className="text-sm font-bold text-[#3a332c]">Email</span>
@@ -112,7 +174,12 @@ export default function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-bold text-[#3a332c]">Contrasena</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-[#3a332c]">Contraseña</span>
+                  <Link to="/forgot-password" className="text-xs font-semibold text-[#ea7130] transition hover:text-[#ff8b47]">
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
                 <input
                   className="mt-2 w-full rounded-2xl border border-[#1f1b16]/15 bg-white/75 px-4 py-3 text-base outline-none ring-[#ea7130]/25 transition focus:border-[#ea7130] focus:ring-4"
                   type="password"
@@ -130,18 +197,34 @@ export default function LoginPage() {
                 disabled={loginStatus === "loading"}
               >
                 <span className="relative z-10">{loginStatus === "loading" ? "Entrando..." : "Iniciar sesion"}</span>
-                <span className="absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-20deg] bg-white/30 transition duration-500 group-hover:left-full" />
               </button>
             </form>
 
             {loginMessage && (
-              <p
+              <div
                 className={`mt-5 rounded-2xl px-4 py-3 text-sm font-semibold ${
                   loginStatus === "success" ? "bg-[#265c52]/10 text-[#265c52]" : "bg-[#c94b32]/10 text-[#9f2f22]"
                 }`}
               >
-                {loginMessage}
-              </p>
+                <p>{loginMessage}</p>
+                {loginMessage === "Tu cuenta no está verificada. Por favor revisa tu correo electrónico." && (
+                  <div className="mt-3">
+                    <button
+                      onClick={handleResendEmail}
+                      disabled={resendStatus === "loading" || resendStatus === "success"}
+                      className="text-[#ea7130] underline underline-offset-2 transition hover:text-[#ff8b47] disabled:opacity-50"
+                      type="button"
+                    >
+                      {resendStatus === "loading" ? "Reenviando..." : "¿No recibiste el correo? Reenviar"}
+                    </button>
+                    {resendMessage && (
+                      <p className={`mt-2 ${resendStatus === "success" ? "text-[#265c52]" : "text-[#9f2f22]"}`}>
+                        {resendMessage}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             <p className="mt-6 text-sm font-semibold text-[#5b5347]">
@@ -152,7 +235,9 @@ export default function LoginPage() {
             </p>
 
             <div className="mt-6 border-t border-[#1f1b16]/10 pt-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">Información legal</p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">
+                Información legal
+              </p>
               <LegalLinks />
             </div>
           </div>

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RegisterPage from "./RegisterPage";
+import LoginPage from "./LoginPage";
 
 function mockFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);
@@ -23,6 +24,14 @@ function renderRegisterPage() {
   return render(
     <MemoryRouter>
       <RegisterPage />
+    </MemoryRouter>,
+  );
+}
+
+function renderLoginPage(initialEntries?: string[]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries ?? ["/"]}>
+      <LoginPage />
     </MemoryRouter>,
   );
 }
@@ -73,7 +82,15 @@ describe("RegisterPage", () => {
       );
     });
 
-    expect(await screen.findByText("Cuenta creada. Entrando al panel...")).toBeInTheDocument();
+    expect(await screen.findByText("Cuenta creada. Revisa tu correo para verificar tu cuenta.")).toBeInTheDocument();
+  });
+
+  it("shows the registration success banner on the login page after redirect", () => {
+    renderLoginPage(["/?registered=true"]);
+
+    expect(
+      screen.getByText("Cuenta creada. Revisa tu correo para verificar tu cuenta."),
+    ).toBeInTheDocument();
   });
 
   it("shows a client-side error when passwords do not match", async () => {

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Card, CardHeader } from "../components/Card";
 import { apiUrl } from "../lib/api";
+import { MobileDisclosure } from "../components/MobileDisclosure";
+import { useIsMobile } from "../lib/useIsMobile";
 
 type WorkoutSetDetail = {
   id: string;
@@ -157,6 +159,7 @@ export default function FillWorkoutPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isMobile = useIsMobile();
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [workoutName, setWorkoutName] = useState("");
   const [workoutNotes, setWorkoutNotes] = useState("");
@@ -474,7 +477,7 @@ export default function FillWorkoutPage() {
   }
 
   return (
-    <main className="relative isolate overflow-x-hidden pb-16 pt-8 text-[#1f1b16]">
+    <main className="relative isolate overflow-x-hidden pb-16 pt-5 text-[#1f1b16] sm:pt-8">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-8 top-12 -z-10 h-32 w-32 rounded-full border border-[#1f1b16]/10 bg-white/20 blur-[1px]"
@@ -484,14 +487,14 @@ export default function FillWorkoutPage() {
         className="pointer-events-none absolute bottom-16 right-12 -z-10 h-52 w-52 rotate-12 rounded-[3rem] border border-[#1f1b16]/10 bg-[#265c52]/10"
       />
 
-      <div className="mx-auto max-w-[1280px] px-6 sm:px-8">
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 md:px-8">
         <section className="mb-6 grid grid-cols-1 items-start gap-6">
           <div>
-            <div className="mb-2.5 flex items-center gap-2.5 text-[14px] font-extrabold uppercase tracking-[0.30em] text-[#265c52]">
-              <span className="inline-block h-0.5 w-6 bg-[#265c52]" />
+            <div className="mb-2.5 flex items-center gap-2.5 text-[12px] font-extrabold uppercase tracking-[0.22em] text-[#265c52] sm:text-[14px] sm:tracking-[0.30em]">
+              <span className="inline-block h-0.5 w-5 bg-[#265c52] sm:w-6" />
               ENTRENAMIENTO
             </div>
-            <h1 className="m-0 font-['Bricolage_Grotesque','Aptos_Display',sans-serif] text-[44px] font-black leading-[0.92] tracking-[-0.055em] text-[#1f1b16] sm:text-[64px]">
+            <h1 className="m-0 break-words font-['Bricolage_Grotesque','Aptos_Display',sans-serif] text-[clamp(2.35rem,14vw,3.35rem)] font-black leading-[0.92] tracking-[-0.055em] text-[#1f1b16] sm:text-[64px]">
               <span className="px-1 text-[#ea7130] [background:linear-gradient(180deg,transparent_60%,rgba(234,113,48,0.18)_60%)]">
                 {workout.name || "Sesion"}
               </span>
@@ -588,8 +591,138 @@ export default function FillWorkoutPage() {
           </Card>
         </section>
 
-        <section className="mt-[18px] grid gap-4">
-        {exercises.map((exercise) => (
+        {isMobile && (
+          <section className="mt-[18px] grid gap-4">
+            {exercises.map((exercise) => (
+              <MobileDisclosure
+                key={`mobile-${exercise.id}`}
+                kicker={exercise.muscleGroup || "Ejercicio"}
+                title={exercise.name}
+                defaultOpen={false}
+              >
+                {exercise.notes && (
+                  <p className="mb-3 rounded-[12px] border border-[#1f1b16]/10 bg-white/70 px-3 py-2 text-xs font-semibold text-[#3a332c]">
+                    {exercise.notes}
+                  </p>
+                )}
+
+                <div className="mb-3 flex justify-stretch">
+                  <button
+                    type="button"
+                    onClick={() => addSet(exercise.id)}
+                    className="w-full rounded-[12px] border border-[#ea7130]/25 bg-[#ea7130]/10 px-3.5 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-[#ea7130]"
+                  >
+                    Añadir set
+                  </button>
+                </div>
+
+                <div className="grid gap-3">
+                  {exercise.sets.length === 0 && (
+                    <div className="rounded-[20px] border border-dashed border-[#1f1b16]/14 bg-white/60 px-4 py-5 text-sm font-semibold text-[#3a332c]">
+                      Este ejercicio no tiene sets planificados todavia.
+                    </div>
+                  )}
+                  {exercise.sets.map((set) => {
+                    const isCompleted = set.status === "completed";
+                    const errors = setValidationErrors.get(set.id);
+                    const statusClass =
+                      set.status === "completed"
+                        ? "border-[#265c52]/25 bg-[#265c52]/8"
+                        : set.status === "skipped"
+                          ? "border-[#9f2f22]/20 bg-[#9f2f22]/6"
+                          : "border-[#1f1b16]/10 bg-white/70";
+
+                    return (
+                      <div key={set.id} className={`rounded-[20px] border p-4 ${statusClass}`}>
+                        <p className="m-0 text-sm font-extrabold text-[#1f1b16]">Set {set.setNumber}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#3a332c]">
+                          Objetivo: {set.targetLabel}
+                          {typeof set.targetWeightKg === "number" ? ` · ${set.targetWeightKg} kg` : ""}
+                        </p>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {(["pending", "completed", "skipped"] as const).map((statusValue) => (
+                            <button
+                              key={statusValue}
+                              type="button"
+                              onClick={() =>
+                                updateSet(exercise.id, set.id, (current) => ({
+                                  ...current,
+                                  status: statusValue,
+                                  reps: statusValue === "completed" ? current.reps : "",
+                                  weightKg: statusValue === "completed" ? current.weightKg : "",
+                                }))
+                              }
+                              className={[
+                                "rounded-[12px] px-2 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em]",
+                                set.status === statusValue
+                                  ? "bg-[#1f1b16] text-[#fffaf0]"
+                                  : "border border-[#1f1b16]/12 bg-white/80 text-[#3a332c]",
+                              ].join(" ")}
+                            >
+                              {statusValue === "pending" ? "Pend." : statusValue === "completed" ? "Hecho" : "Salto"}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            disabled={!isCompleted}
+                            value={set.reps}
+                            onChange={(event) =>
+                              updateSet(exercise.id, set.id, (current) => ({
+                                ...current,
+                                reps: event.target.value,
+                              }))
+                            }
+                            placeholder="Reps"
+                            className={[
+                              "w-full rounded-[14px] border bg-white px-3 py-3 text-sm font-semibold text-[#1f1b16] outline-none disabled:bg-[#1f1b16]/5 disabled:text-[#1f1b16]/35",
+                              errors?.reps ? "border-[#9f2f22]" : "border-[#1f1b16]/12",
+                            ].join(" ")}
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            inputMode="decimal"
+                            disabled={!isCompleted}
+                            value={set.weightKg}
+                            onChange={(event) =>
+                              updateSet(exercise.id, set.id, (current) => ({
+                                ...current,
+                                weightKg: event.target.value,
+                              }))
+                            }
+                            placeholder="Kg"
+                            className={[
+                              "w-full rounded-[14px] border bg-white px-3 py-3 text-sm font-semibold text-[#1f1b16] outline-none disabled:bg-[#1f1b16]/5 disabled:text-[#1f1b16]/35",
+                              errors?.weightKg ? "border-[#9f2f22]" : "border-[#1f1b16]/12",
+                            ].join(" ")}
+                          />
+                        </div>
+                        {!set.isTemplateSet && (
+                          <button
+                            type="button"
+                            onClick={() => void removeSet(exercise.id, set.id)}
+                            className="mt-3 w-full rounded-[12px] border border-[#9f2f22]/20 bg-[#9f2f22]/6 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-[#9f2f22]"
+                          >
+                            Eliminar set
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </MobileDisclosure>
+            ))}
+          </section>
+        )}
+
+        {!isMobile && (
+          <section className="mt-[18px] grid gap-4">
+            {exercises.map((exercise) => (
           <Card
             key={exercise.id}
             accent="#ea7130"
@@ -604,11 +737,11 @@ export default function FillWorkoutPage() {
               ) : undefined}
             />
 
-            <div className="relative z-[2] mt-5 flex justify-end">
+            <div className="relative z-[2] mt-5 flex justify-stretch sm:justify-end">
               <button
                 type="button"
                 onClick={() => addSet(exercise.id)}
-                className="rounded-[12px] border border-[#ea7130]/25 bg-[#ea7130]/10 px-3.5 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-[#ea7130] transition hover:bg-[#ea7130]/15"
+                className="w-full rounded-[12px] border border-[#ea7130]/25 bg-[#ea7130]/10 px-3.5 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-[#ea7130] transition hover:bg-[#ea7130]/15 sm:w-auto"
               >
                 Añadir set
               </button>
@@ -641,7 +774,7 @@ export default function FillWorkoutPage() {
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                         {(["pending", "completed", "skipped"] as const).map((statusValue) => (
                           <button
                             key={statusValue}
@@ -725,8 +858,9 @@ export default function FillWorkoutPage() {
               })}
             </div>
           </Card>
-        ))}
-        </section>
+            ))}
+          </section>
+        )}
 
       {saveStatus === "error" && (
         <p className="mt-4 rounded-[16px] border border-[#9f2f22]/20 bg-[#9f2f22]/8 px-4 py-3 text-sm font-bold text-[#9f2f22]">
@@ -740,12 +874,12 @@ export default function FillWorkoutPage() {
         </p>
       )}
 
-        <div className="mt-8 flex flex-wrap justify-end gap-3">
+        <div className="sticky bottom-[6.25rem] z-20 mt-8 flex flex-col-reverse gap-3 rounded-[22px] border border-[#1f1b16]/10 bg-[#fffaf0]/92 p-3 shadow-[0_18px_45px_rgba(31,27,22,0.16)] backdrop-blur-md sm:static sm:flex-row sm:flex-wrap sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0">
           <button
             type="button"
             onClick={handleCancel}
             disabled={cancelStatus === "loading" || saveStatus === "saving"}
-            className="rounded-[16px] border border-[#1f1b16]/15 bg-transparent px-5 py-3 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] transition hover:bg-[#1f1b16]/5 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-[16px] border border-[#1f1b16]/15 bg-transparent px-5 py-3 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] transition hover:bg-[#1f1b16]/5 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {cancelStatus === "loading" ? "Cancelando..." : "Cancelar entrenamiento"}
           </button>
@@ -753,7 +887,7 @@ export default function FillWorkoutPage() {
             type="button"
             onClick={handleSave}
             disabled={saveStatus === "saving" || hasValidationErrors}
-            className="rounded-[16px] bg-[#ea7130] px-5 py-3 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.28)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            className="w-full rounded-[16px] bg-[#ea7130] px-5 py-3 text-sm font-extrabold tracking-[0.04em] text-[#1f1b16] shadow-[0_18px_35px_rgba(234,113,48,0.28)] transition hover:-translate-y-px hover:bg-[#ff8b47] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 sm:w-auto"
           >
             {saveStatus === "saving" ? "Guardando..." : "Guardar entrenamiento"}
           </button>
