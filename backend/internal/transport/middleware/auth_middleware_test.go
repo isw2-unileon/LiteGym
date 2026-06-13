@@ -136,6 +136,34 @@ func TestRequireAuthWithValidToken(t *testing.T) {
 	}
 }
 
+func TestRequireAuthWithBearerToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenService := service.NewTokenService("test-secret", "test-issuer", time.Hour)
+	token, err := tokenService.GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "testuser", "user")
+	if err != nil {
+		t.Fatalf("failed to generate token: %v", err)
+	}
+
+	authMiddleware := NewAuthMiddleware(tokenService, "auth_token")
+
+	router := gin.New()
+	router.Use(authMiddleware.RequireAuth())
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
 func TestRequireAuthRejectsTokenForMissingUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

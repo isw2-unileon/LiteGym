@@ -1,8 +1,9 @@
 import * as React from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiUrl } from "../lib/api";
 import LegalLinks from "../components/LegalLinks";
+import { apiUrl } from "../lib/api";
+import { setAuthToken } from "../lib/authSession";
 
 type LoginStatus = "idle" | "loading" | "success" | "error";
 
@@ -55,6 +56,11 @@ export default function LoginPage() {
         setLoginStatus("error");
         setLoginMessage(translateLoginError(payload?.error));
         return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as { token?: string } | null;
+      if (payload?.token) {
+        setAuthToken(payload.token);
       }
 
       setLoginStatus("success");
@@ -124,6 +130,7 @@ export default function LoginPage() {
                 disabled={loginStatus === "loading"}
               >
                 <span className="relative z-10">{loginStatus === "loading" ? "Entrando..." : "Iniciar sesion"}</span>
+                <span className="absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-20deg] bg-white/30 transition duration-500 group-hover:left-full" />
               </button>
             </form>
 
@@ -145,9 +152,7 @@ export default function LoginPage() {
             </p>
 
             <div className="mt-6 border-t border-[#1f1b16]/10 pt-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">
-                Información legal
-              </p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#5b5347]">Información legal</p>
               <LegalLinks />
             </div>
           </div>

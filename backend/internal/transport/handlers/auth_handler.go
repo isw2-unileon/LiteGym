@@ -32,6 +32,11 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+type authResponse struct {
+	User  *model.User `json:"user"`
+	Token string      `json:"token"`
+}
+
 // NewAuthHandler creates a new AuthHandler.
 func NewAuthHandler(
 	userService *service.UserService,
@@ -110,8 +115,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		MaxAge:   int(h.tokenService.TTL().Seconds()),
 	})
 
-	c.JSON(http.StatusOK, gin.H{
-		"user": user,
+	c.JSON(http.StatusOK, authResponse{
+		User:  user,
+		Token: token,
 	})
 }
 
